@@ -35,7 +35,6 @@ this solves the issue where the client says ... has no attribute 'Index'
 - make all files dependant of eachother AND database.. stop returning static data, and return valid data based on character state
 - implement linux support (e.g. give the user an option to auto launch the client)
 - sort the service files and place them in the correct folders
-- (50% done) make a database manager secondary service, and sort db into seperate files (e.g. characters, accounts, items, etc...)
 - skill plan server (https)
 - factionwf server (https)
 - make chat server
@@ -50,6 +49,12 @@ this solves the issue where the client says ... has no attribute 'Index'
 ###########################
 ###   WHERE I LEFT OFF  ###
 ###########################
-implement new db controller across services + tcp
-i implemented new db into handshake
-revise other files
+on character creation, when the new character enters jita, it does not have a ship.
+the database is probly not updating the new character with items, until after the log off then back in
+
+
+###########################
+###    WHAT IS DONE     ###
+###########################
+- removed files that were not necessary
+- implemented new database controller

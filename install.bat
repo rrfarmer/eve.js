@@ -1,0 +1,3 @@
+echo installing npm packages...
+cd server
+npm install

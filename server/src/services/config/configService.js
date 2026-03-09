@@ -14,9 +14,9 @@
 const fs = require("fs");
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
-const log = require(path.join(__dirname, "../../utils/logger"));
 
-const DB_PATH = path.join(__dirname, "../../database/db.json");
+const log = require(path.join(__dirname, "../../utils/logger"));
+const database = require("../../newDatabase")
 
 /**
  * Extract a plain JS array from a value that might be:
@@ -54,8 +54,8 @@ class ConfigService extends BaseService {
       `[ConfigService] GetMultiOwnersEx: ${JSON.stringify(requestedIds)}`,
     );
 
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    const characters = db.characters || {};
+    const characterResult = database.read("characters", "/")
+    const characters = characterResult.success ? characterResult.data : {}
 
     const rows = [];
 
@@ -109,8 +109,8 @@ class ConfigService extends BaseService {
       `[ConfigService] GetMultiLocationsEx: ${JSON.stringify(requestedIds)}`,
     );
 
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    const characters = db.characters || {};
+    const characterResult = database.read("characters", "/")
+    const characters = characterResult.success ? characterResult.data : {}
 
     const shipNameById = new Map();
     const charNameById = new Map();

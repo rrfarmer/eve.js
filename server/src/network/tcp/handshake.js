@@ -15,8 +15,6 @@
  *   step 5: CLIENT sends CryptoChallengePacket (login) → SERVER sends PyInt(2) + CryptoServerHandshake
  *   step 6: CLIENT sends CryptoHandshakeResult         → SERVER sends CryptoHandshakeAck + SessionInit
  * 
- * !!TODO: change db.json to newly created database controller 
- *   TODO: check passwords, continue if correct (only if config has devMode: false)
  */
 
 const path = require("path");
@@ -42,8 +40,6 @@ const database = require("../../newDatabase")
 const MARSHALED_NONE = Buffer.from([
   0x74, 0x04, 0x00, 0x00, 0x00, 0x4e, 0x6f, 0x6e, 0x65,
 ]);
-
-const DB_PATH = path.join(__dirname, "../../database/db.json");
 
 // ---- handshake states
 const State = {

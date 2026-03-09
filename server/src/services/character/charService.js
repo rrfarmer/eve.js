@@ -1,23 +1,22 @@
 /**
- * Character Service — "charUnboundMgr"
+ * CHARACTER SERVICE
+ * (skeleton code by AI, updated by Icey)
  *
- * Handles character selection, creation, and related operations.
- *
- * V23.02 format (from decompiled charselData.py):
- *   GetCharacterSelectionData() returns 4-tuple:
- *     (userDetails, trainingDetails, characterDetails, wars)
+ * handles character selection, creation, and related operations
+ * 
+ * TODO: update support for new database controller
  */
 
 const fs = require("fs");
 const path = require("path");
 const BaseService = require("../baseService");
-const log = require("../../utils/logger");
 
-const DB_PATH = path.join(__dirname, "../../database/db.json");
+const log = require("../../utils/logger");
+const database = require("../../newDatabase")
+const config = require("../../config")
 
 /**
- * Build a util.KeyVal PyObject — the only working PyObject type in V23.02.
- * V23.02 has neither `dbutil.CRowset` nor `util.Rowset`.
+ * Build a util.KeyVal PyObject — the only working PyObject type in V23.02
  */
 function buildKeyVal(entries) {
   return {
@@ -43,8 +42,8 @@ class CharService extends BaseService {
   Handle_GetCharactersToSelect(args, session) {
     log.info("[CharService] GetCharactersToSelect");
 
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    const characters = db.characters || {};
+    const charactersResult = database.read("characters", "/")
+    const characters = charactersResult.success ? charactersResult.data : {}
     const userId = session ? session.userid : 0;
 
     const charList = [];
@@ -81,13 +80,17 @@ class CharService extends BaseService {
   Handle_GetCharacterSelectionData(args, session) {
     log.debug("[CharService] GetCharacterSelectionData");
 
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    const characters = db.characters || {};
+    const accountResult = database.read("accounts", "/")
+    const accounts = accountResult.success ? accountResult.data : {}
+
+    const charactersResult = database.read("characters", "/")
+    const characters = charactersResult.success ? charactersResult.data : {}
+
     const userId = session ? session.userid : 0;
-    // Look up account info (accounts keyed by username)
+    // find account from userid
     let accountUsername = "user";
-    if (db.accounts) {
-      for (const [username, acct] of Object.entries(db.accounts)) {
+    if (accounts) {
+      for (const [username, acct] of Object.entries(accounts)) {
         if (acct.id === userId) {
           accountUsername = username;
           break;
@@ -95,32 +98,21 @@ class CharService extends BaseService {
       }
     }
 
-    // ── Element 1: userDetails ──
-    // Client does: self.userDetails = userDetails[0]
-    // Then accesses: .characterSlots, .userName, .creationDate,
-    //   .subscriptionEndTime, .maxCharacterSlots
+    // element 1: user details
     const userDetailsKeyVal = buildKeyVal([
       ["characterSlots", 3],
       ["userName", accountUsername],
       ["creationDate", { type: "long", value: 132000000000000000 }],
-      ["subscriptionEndTime", { type: "long", value: 253370764800000000 }],
+      ["subscriptionEndTime", { type: "long", value: 253370764800000000 }], // not sure if we need this.
       ["maxCharacterSlots", 3],
     ]);
     const userDetails = { type: "list", items: [userDetailsKeyVal] };
 
-    // ── Element 2: trainingDetails ──
-    // Default is (None, None). Used for subscription end time display.
+    // element 2: training details
+    // default is (None, None). used for subscription end time display.
     const trainingDetails = [null, null];
 
-    // ── Element 3: characterDetails ──
-    // Client iterates: for row in characterDetails:
-    //   row.characterID, row.corporationID, row.allianceID,
-    //   row.stationID, row.solarSystemID, row.balance, row.skillPoints,
-    //   row.shipTypeID, row.paperdollState, row.deletePrepareDateTime,
-    //   row.lockTypeID, row.factionID, row.unreadMailCount, row.logoffDate,
-    //   row.skillTypeID, row.toLevel, row.trainingStartTime, row.trainingEndTime,
-    //   row.queueEndTime, row.finishSP, row.trainedSP, row.finishedSkills,
-    //   row.balanceChange
+    // element 3: character details
     const characterDetails = [];
     for (const [charId, c] of Object.entries(characters)) {
       if (c.accountId === userId) {
@@ -196,8 +188,8 @@ class CharService extends BaseService {
     }
     log.info(`[CharService] GetCharacterToSelect(${charId})`);
 
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    const characters = db.characters || {};
+    const characterResult = database.read("characters", "/")
+    const characters = characterResult.success ? characterResult.data : {}
     const c = characters[String(charId)];
 
     if (!c) {
@@ -275,15 +267,15 @@ class CharService extends BaseService {
     );
 
     // Read db and generate a new character ID
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    if (!db.characters) db.characters = {};
+    const characterResult = database.read("characters", "/")
+    const characters = characterResult.success ? characterResult.data : {}
 
     // Find next available character ID (start at 140000001)
-    const existingIds = Object.keys(db.characters).map(Number);
-    const newCharId =
-      existingIds.length > 0 ? Math.max(...existingIds) + 1 : 140000001;
+    const existingIds = Object.keys(characters).map(Number);
+    const newCharId = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 140000001;
 
-    // Determine race, type, and corp from bloodline
+    // warning: data below may be innacurate (race -> type -> corp from bloodline)
+    // determine race, type, and corp from bloodline
     const bloodlineInfo = {
       1: { raceID: 1, typeID: 1373, corpID: 1000006 }, // Amarr - Amarr
       2: { raceID: 1, typeID: 1374, corpID: 1000006 }, // Ni-Kunni
@@ -307,7 +299,7 @@ class CharService extends BaseService {
     const now = BigInt(Date.now()) * 10000n + 116444736000000000n;
 
     // Create the character entry with ALL fields accessed by V23.02 charselData.py
-    db.characters[String(newCharId)] = {
+    characters[String(newCharId)] = {
       accountId: session ? session.userid : 1,
       characterName:
         typeof characterName === "string" ? characterName : "New Character",
@@ -361,8 +353,8 @@ class CharService extends BaseService {
       finishedSkills: [],
     };
 
-    // Save to db.json
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+    // save character to database
+    database.write("characters", `/${String(newCharId)}`, characters[String(newCharId)]);
 
     log.success(
       `[CharService] Created character "${characterName}" with ID ${newCharId}`,
@@ -418,8 +410,8 @@ class CharService extends BaseService {
 
     if (!session) return null;
 
-    const db = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
-    const characters = db.characters || {};
+    const characterResult = database.read("characters", "/")
+    const characters = characterResult.success ? characterResult.data : {}
     const charData = characters[String(charId)];
 
     // Save old values for session change notification
@@ -445,7 +437,8 @@ class CharService extends BaseService {
       : 1000009;
     session.allianceID = charData ? charData.allianceID || 0 : 0;
 
-    // Default location — Jita IV-4 CNAP (a well-known station)
+    // default location: JITA 4-4 
+    // TODO: make this dynamic; read from db
     const stationID = charData ? charData.stationID || 60003760 : 60003760;
     const solarsystemID = charData
       ? charData.solarSystemID || 30000142

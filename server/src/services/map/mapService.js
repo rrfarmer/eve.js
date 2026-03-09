@@ -10,7 +10,6 @@ const path = require("path");
 const fs = require("fs");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
-const DB_PATH = path.join(__dirname, "../../database/db.json");
 
 class MapService extends BaseService {
   constructor() {
