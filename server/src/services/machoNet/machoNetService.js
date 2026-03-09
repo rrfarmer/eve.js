@@ -1,0 +1,116 @@
+/**
+ * MachoNet Service
+ *
+ * Handles initial server info queries from the client.
+ * This is one of the first services called after handshake.
+ * The client calls machoNet.GetInitVals() to get server configuration.
+ *
+ * Based on NetService.cpp in EVEmu.
+ */
+
+const path = require("path");
+const BaseService = require(path.join(__dirname, "../baseService"));
+const log = require(path.join(__dirname, "../../utils/logger"));
+const config = require(path.join(__dirname, "../../config"));
+
+class MachoNetService extends BaseService {
+  constructor() {
+    super("machoNet");
+  }
+
+  /**
+   * GetInitVals — returns initial server values
+   *
+   * From NetService.cpp: Returns [serviceInfo, emptyDict]
+   * serviceInfo is a dict mapping service names to their access level.
+   * The client uses this at ServiceCallGPCS.py:197 to know where
+   * to route service calls:
+   *   where = self.machoNet.serviceInfo[service]
+   *
+   * Access levels from C++:
+   *   None   = direct call (unbound services)
+   *   "location" / "locationPreferred" / "solarsystem" / "solarsystem2"
+   *   "station" / "character" / "corporation" / "bulk"
+   */
+  getServiceInfoDict() {
+    return {
+      type: "dict",
+      entries: [
+        ["machoNet", null],
+        ["config", null],
+        ["objectCaching", null],
+        ["alert", null],
+        ["authentication", null],
+        ["account", null],
+        ["charUnboundMgr", null],
+        ["charMgr", null],
+        ["corpRegistry", null],
+        ["corpStationMgr", null],
+        ["stationSvc", null],
+        ["station", "station"],
+        ["map", null],
+        ["beyonce", "solarsystem"],
+        ["dogmaIM", "character"],
+        ["invbroker", "station"],
+        ["LSC", null],
+        ["onlineStatus", null],
+        ["billMgr", null],
+        ["facWarMgr", null],
+        ["corporationSvc", null],
+        ["certificateMgr", null],
+        ["tutorialSvc", null],
+        ["agentMgr", null],
+        ["bookmarkMgr", null],
+        ["standing2", null],
+        ["dungeonExplorationMgr", null],
+        ["userSvc", null],
+        ["skillMgr", null],
+        ["contractMgr", null],
+        ["repairSvc", "station"],
+        ["reprocessingSvc", "station"],
+        ["insuranceSvc", "station"],
+        ["jumpCloneSvc", null],
+        ["LPSvc", "station"],
+        ["market", "solarsystem"],
+        ["subscriptionMgr", null],
+        ["loginCampaignManager", null],
+        ["seasonalLoginCampaignManager", null],
+      ],
+    };
+  }
+
+  Handle_GetInitVals(args, session) {
+    log.info("[MachoNet] GetInitVals");
+    // Return [serviceInfo, globalConfig]
+    // globalConfig is used by client for things like:
+    //   machoNet.GetGlobalConfig().get('imageserverurl') - portrait/logo image server
+    //   machoNet.GetGlobalConfig().get('defaultPortraitSaveSize') - portrait save size
+    const globalConfig = {
+      type: "dict",
+      entries: [
+        // Image server URL — required by evePhotosvc.py RemoteImageCacher
+        // Without this, imageServer=None and portrait loading crashes
+        ["imageserverurl", config.imageServerUrl],
+        ["defaultPortraitSaveSize", 256],
+      ],
+    };
+    return [this.getServiceInfoDict(), globalConfig];
+  }
+
+  Handle_GetServiceInfo(args, session) {
+    log.debug("[MachoNet] GetServiceInfo");
+    return this.getServiceInfoDict();
+  }
+
+  /**
+   * GetTime — returns the current server time as a Win32 FILETIME
+   */
+  Handle_GetTime(args, session) {
+    log.debug("[MachoNet] GetTime");
+    // Convert to Win32 FILETIME (100-nanosecond intervals since 1601-01-01)
+    const now = BigInt(Date.now()) * 10000n + 116444736000000000n;
+    return { type: "long", value: now };
+  }
+}
+
+module.exports = MachoNetService;

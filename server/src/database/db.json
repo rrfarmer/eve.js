@@ -1,0 +1,71 @@
+{
+  "accounts": {
+    "test": {
+      "password": "auto",
+      "hash": "e62bd2570e99a1dc63ecab114926b07f9e0a8573",
+      "id": 1,
+      "role": "6917529029788565504",
+      "banned": false
+    },
+    "test1029": {
+      "password": "auto",
+      "hash": "768dd205820c660f18151665be6806b7344f6d11",
+      "id": 2,
+      "role": "6917529029788565504",
+      "banned": false
+    }
+  },
+  "characters": {
+    "140000001": {
+      "accountId": 1,
+      "characterName": "DO NOT DELETE",
+      "gender": 1,
+      "bloodlineID": 8,
+      "ancestryID": 12,
+      "raceID": 2,
+      "typeID": 1380,
+      "corporationID": 1000044,
+      "allianceID": 0,
+      "factionID": null,
+      "stationID": 60003760,
+      "solarSystemID": 30000142,
+      "constellationID": 20000020,
+      "regionID": 10000002,
+      "createDateTime": "134169406354840000",
+      "startDateTime": "134169406354840000",
+      "logoffDate": "134169406354840000",
+      "deletePrepareDateTime": null,
+      "lockTypeID": null,
+      "securityRating": 0,
+      "title": "",
+      "description": "This is a placeholder character. If deleted, the server will break.",
+      "balance": 100000,
+      "aurBalance": 0,
+      "balanceChange": 0,
+      "skillPoints": 50000,
+      "shipTypeID": 606,
+      "shipName": "Velator",
+      "bounty": 0,
+      "skillQueueEndTime": 0,
+      "daysLeft": 365,
+      "userType": 30,
+      "paperDollState": 0,
+      "petitionMessage": "",
+      "worldSpaceID": 0,
+      "unreadMailCount": 0,
+      "upcomingEventCount": 0,
+      "unprocessedNotifications": 0,
+      "shipID": 140000101,
+      "shortName": "none",
+      "allianceMemberStartDate": 0,
+      "skillTypeID": null,
+      "toLevel": null,
+      "trainingStartTime": null,
+      "trainingEndTime": null,
+      "queueEndTime": null,
+      "finishSP": null,
+      "trainedSP": null,
+      "finishedSkills": []
+    }
+  }
+}

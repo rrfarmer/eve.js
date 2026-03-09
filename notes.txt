@@ -1,0 +1,56 @@
+###########################
+###    MAJOR UPDATES    ###
+###########################
+
+i successfully patched blue.dll!
+i changed start.ini in the client directory to use Placebo encoding, instead of CryptoApi.
+this makes it much easier to freely read packets as they are received.
+
+!! if you need to use a module that is not natively imported with the client, use the FULL patched
+for example: instead of util.Rowset use: eve.common.script.sys.rowset.Rowset 
+(you can find this in eve client files)
+
+
+###########################
+###     DISCOVERIES     ###
+###########################
+whenever the SERVER logs [LOG]: [CallReq] alert::BeanCount(), it means the client has crashed and is sending an error report
+if client gives error: Formatted exception info: TypeError: 'NoneType' object is not iterable, that means that service is not implemented yet
+return {
+  type: "object",
+  name: "util.KeyVal",
+  args: {
+    type: "dict",
+    entries: [["Index", { type: "token", value: "util.Row" }]],
+  },
+};
+the above returns an object that has an Index property, which is a token "util.Row".
+this solves the issue where the client says ... has no attribute 'Index'
+
+
+###########################
+###     TO-DO LIST      ###
+###########################
+
+- make all files dependant of eachother AND database.. stop returning static data, and return valid data based on character state
+- implement linux support (e.g. give the user an option to auto launch the client)
+- sort the service files and place them in the correct folders
+- make a database manager secondary service, and sort db into seperate files (e.g. characters, accounts, items, etc...)
+- skill plan server (https)
+- factionwf server (https)
+- make chat server
+- set up image server + make paperdolls work
+- add real authentication, and make it an option in the config whether it checks if pw is correct
+
+###########################
+###   BIG TO-DO LIST    ###
+###########################
+
+- add multi-user support
+
+###########################
+###   WHERE I LEFT OFF  ###
+###########################
+implement new db controller across services + tcp
+i implemented new db into handshake
+revise other files
