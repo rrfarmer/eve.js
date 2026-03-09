@@ -32,16 +32,13 @@ this solves the issue where the client says ... has no attribute 'Index'
 ###     TO-DO LIST      ###
 ###########################
 
-- !! tidy up newly added files (new config, chat service)
-- ! edit scripts and make one universal script, (and seperate ones) to auto install, start server + game
 - players should show up in local chat + corp chat
-- make all files dependant of eachother AND database.. stop returning static data, and return valid data based on character state
 - implement linux support (e.g. give the user an option to auto launch the client)
 - sort the service files and place them in the correct folders
 - skill plan server (https)
 - factionwf server (https)
 - (50% done) (image server works, paperdolls not) set up image server + make paperdolls work
-- bountyProxy::GetMyKillRights() implement
+- make all files dependant of eachother AND database.. stop returning static data, and return valid data based on character state
 
 ###########################
 ###   BIG TO-DO LIST    ###
