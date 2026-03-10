@@ -5,10 +5,31 @@ const {
   activateShipForSession,
   findCharacterShip,
   getActiveShipRecord,
+  buildInventoryItemRow,
+  syncInventoryItemForSession,
 } = require(path.join(__dirname, "../character/characterState"));
 const {
   ensureCapsuleForCharacter,
+  ITEM_FLAGS,
+  setShipPackagingState,
 } = require(path.join(__dirname, "../inventory/itemStore"));
+const {
+  getCharacterSkillPointTotal,
+} = require(path.join(__dirname, "../skills/skillState"));
+const DBTYPE_I4 = 0x03;
+const DBTYPE_R8 = 0x05;
+const DBTYPE_BOOL = 0x0b;
+const DBTYPE_I8 = 0x14;
+const INSTANCE_ROW_DESCRIPTOR_COLUMNS = [
+  ["instanceID", DBTYPE_I8],
+  ["online", DBTYPE_BOOL],
+  ["damage", DBTYPE_R8],
+  ["charge", DBTYPE_R8],
+  ["skillPoints", DBTYPE_I4],
+  ["armorDamage", DBTYPE_R8],
+  ["shieldCharge", DBTYPE_R8],
+  ["incapacitated", DBTYPE_BOOL],
+];
 
 class ShipService extends BaseService {
   constructor() {
@@ -48,12 +69,54 @@ class ShipService extends BaseService {
     return 0;
   }
 
+  _extractShipIds(rawValue) {
+    if (Array.isArray(rawValue)) {
+      return rawValue.map((entry) => this._extractShipId(entry)).filter((entry) => entry > 0);
+    }
+
+    if (rawValue && rawValue.type === "list" && Array.isArray(rawValue.items)) {
+      return rawValue.items
+        .map((entry) => this._extractShipId(entry))
+        .filter((entry) => entry > 0);
+    }
+
+    const singleShipId = this._extractShipId(rawValue);
+    return singleShipId > 0 ? [singleShipId] : [];
+  }
+
   _buildActivationResponse(activeShip, session) {
     // V23.02 clientDogmaLocation._MakeShipActive unpacks:
     //   instanceCache, instanceFlagQuantityCache, wbData, heatStates
     // Returning the older 3-tuple crashes boarding/activation immediately.
+    const charID =
+      (session && (session.characterID || session.charid || session.userid)) ||
+      140000001;
+    const shipID =
+      (activeShip && (activeShip.itemID || activeShip.shipID)) ||
+      this._getShipID(session);
+    const skillPoints = getCharacterSkillPointTotal(charID) || 0;
+
     return [
-      { type: "dict", entries: [] },
+      {
+        type: "dict",
+        entries: [
+          [
+            shipID,
+            this._buildPackedInstanceRow({
+              itemID: shipID,
+              shieldCharge: 1.0,
+            }),
+          ],
+          [
+            charID,
+            this._buildPackedInstanceRow({
+              itemID: charID,
+              online: true,
+              skillPoints,
+            }),
+          ],
+        ],
+      },
       { type: "dict", entries: [] },
       { type: "dict", entries: [] },
       { type: "dict", entries: [] },
@@ -103,6 +166,45 @@ class ShipService extends BaseService {
             ],
           ],
         ],
+      },
+    };
+  }
+
+  _buildInstanceRowDescriptor() {
+    return {
+      type: "objectex1",
+      header: [
+        { type: "token", value: "blue.DBRowDescriptor" },
+        [INSTANCE_ROW_DESCRIPTOR_COLUMNS],
+      ],
+      list: [],
+      dict: [],
+    };
+  }
+
+  _buildPackedInstanceRow({
+    itemID,
+    online = false,
+    damage = 0.0,
+    charge = 0.0,
+    skillPoints = 0,
+    armorDamage = 0.0,
+    shieldCharge = 0.0,
+    incapacitated = false,
+  }) {
+    return {
+      type: "packedrow",
+      header: this._buildInstanceRowDescriptor(),
+      columns: INSTANCE_ROW_DESCRIPTOR_COLUMNS,
+      fields: {
+        instanceID: itemID,
+        online,
+        damage,
+        charge,
+        skillPoints,
+        armorDamage,
+        shieldCharge,
+        incapacitated,
       },
     };
   }
@@ -239,6 +341,69 @@ class ShipService extends BaseService {
     );
 
     return this._activateShipById(shipID, session, "ActivateShip");
+  }
+
+  Handle_AssembleShip(args, session, kwargs) {
+    const shipIds = this._extractShipIds(args && args.length > 0 ? args[0] : null);
+    const stationID =
+      (session && (session.stationid || session.stationID)) || 0;
+    const charID = session && session.characterID ? session.characterID : 0;
+    const rows = [];
+
+    log.info(
+      `[Ship] AssembleShip station=${stationID} shipIDs=${JSON.stringify(shipIds)}`,
+    );
+
+    for (const shipID of shipIds) {
+      const shipItem = findCharacterShip(charID, shipID);
+      if (!shipItem) {
+        continue;
+      }
+
+      if (
+        shipItem.locationID !== stationID ||
+        shipItem.flagID !== ITEM_FLAGS.HANGAR ||
+        shipItem.singleton === 1
+      ) {
+        continue;
+      }
+
+      const updateResult = setShipPackagingState(shipItem.itemID, false);
+      if (!updateResult.success) {
+        log.warn(
+          `[Ship] AssembleShip failed for ${shipID}: ${updateResult.errorMsg}`,
+        );
+        continue;
+      }
+
+      syncInventoryItemForSession(
+        session,
+        updateResult.data,
+        {
+          locationID: updateResult.previousData.locationID,
+          flagID: updateResult.previousData.flagID,
+          quantity: updateResult.previousData.quantity,
+          singleton: updateResult.previousData.singleton,
+          stacksize: updateResult.previousData.stacksize,
+        },
+        {
+          emitCfgLocation: false,
+        },
+      );
+
+      rows.push(buildInventoryItemRow(updateResult.data));
+    }
+
+    return [
+      {
+        type: "list",
+        items: rows,
+      },
+      {
+        type: "dict",
+        entries: [[10, 0]],
+      },
+    ];
   }
 
   Handle_LeaveShip(args, session, kwargs) {

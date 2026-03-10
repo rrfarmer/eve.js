@@ -15,9 +15,8 @@ const {
 const { resolveShipByName } = require("./shipTypeRegistry");
 
 const DEFAULT_MOTD_MESSAGE = [
-  "Welcome to EvEJS.",
+  "Welcome to eve.js!",
   "This emulator build is still work in progress.",
-  "Local chat and slash commands are enabled.",
   "Use /help to see the current command list.",
 ].join(" ");
 const AVAILABLE_SLASH_COMMANDS = [
@@ -273,15 +272,6 @@ function handleShipSpawn(commandLabel, session, argumentText, chatHub, options) 
       message = "Select a character before spawning ships.";
     }
     return handledResult(chatHub, session, options, message);
-  }
-
-  if (spawnResult.created === false) {
-    return handledResult(
-      chatHub,
-      session,
-      options,
-      `${shipLookup.match.name} is already in your ship hangar. /${commandLabel} only spawns the hull for now; it does not board it.`,
-    );
   }
 
   return handledResult(

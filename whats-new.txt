@@ -1,6 +1,2 @@
-merged files from John:
-    new databases: items, skills
-    modified packet assembler files, marshal
-    new tutorial service
-    wallet functionality 
-    handfull of other new services
+you can now package ships (renaming not supported yet)
+skills have been fixed. players now have most skills!

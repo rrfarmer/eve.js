@@ -23,11 +23,18 @@ const {
   listContainerItems,
   findShipItemById,
 } = require(path.join(__dirname, "./itemStore"));
+const {
+  getCharacterSkills,
+  SKILL_FLAG_ID,
+} = require(path.join(__dirname, "../skills/skillState"));
 
 const inventoryDebugPath = path.join(
   __dirname,
   "../../../logs/inventory-debug.log",
 );
+const CHARACTER_TYPE_ID = 1373;
+const CHARACTER_GROUP_ID = 1;
+const CHARACTER_CATEGORY_ID = 3;
 const STATION_TYPE_ID = 1529;
 const STATION_GROUP_ID = 15;
 const STATION_CATEGORY_ID = 3;
@@ -257,15 +264,85 @@ class InvBrokerService extends BaseService {
     return [];
   }
 
+  _buildCharacterItemOverrides(session) {
+    const charId = this._getCharacterId(session);
+    return {
+      itemID: charId,
+      typeID: CHARACTER_TYPE_ID,
+      ownerID: charId,
+      locationID: this._getShipId(session) || this._getStationId(session),
+      flagID: 0,
+      quantity: -1,
+      groupID: CHARACTER_GROUP_ID,
+      categoryID: CHARACTER_CATEGORY_ID,
+      customInfo: "",
+      singleton: 1,
+      stacksize: 1,
+    };
+  }
+
+  _findCharacterSkillRecord(session, itemID) {
+    const charId = this._getCharacterId(session);
+    const numericItemId = this._normalizeInventoryId(itemID, 0);
+    if (numericItemId <= 0) {
+      return null;
+    }
+
+    return (
+      getCharacterSkills(charId).find((skill) => skill.itemID === numericItemId) ||
+      null
+    );
+  }
+
+  _buildSkillItemOverrides(skillRecord) {
+    if (!skillRecord) {
+      return null;
+    }
+
+    return {
+      itemID: skillRecord.itemID,
+      typeID: skillRecord.typeID,
+      ownerID: skillRecord.ownerID,
+      locationID: skillRecord.locationID,
+      flagID: skillRecord.flagID ?? SKILL_FLAG_ID,
+      quantity: 1,
+      groupID: skillRecord.groupID,
+      categoryID: skillRecord.categoryID,
+      customInfo: "",
+      singleton: 1,
+      stacksize: 1,
+    };
+  }
+
+  _getCharacterContainerItems(session, requestedFlag = null) {
+    const numericFlag =
+      requestedFlag === null || requestedFlag === undefined
+        ? null
+        : this._normalizeInventoryId(requestedFlag, 0);
+
+    return getCharacterSkills(this._getCharacterId(session)).filter((skill) => {
+      if (numericFlag === null || numericFlag === 0) {
+        return true;
+      }
+
+      return this._normalizeInventoryId(skill.flagID, 0) === numericFlag;
+    });
+  }
+
   _buildContainerItemOverrides(session, inventoryID) {
     const numericInventoryID = this._normalizeInventoryId(inventoryID);
+    const charId = this._getCharacterId(session);
     const stationId = this._getStationId(session);
     const shipRecord =
-      findCharacterShip(this._getCharacterId(session), numericInventoryID) ||
+      findCharacterShip(charId, numericInventoryID) ||
       findShipItemById(numericInventoryID);
 
     if (shipRecord) {
       return this._itemOverridesFromId(session, shipRecord.itemID);
+    }
+
+    if (numericInventoryID === charId) {
+      return this._buildCharacterItemOverrides(session);
     }
 
     if (numericInventoryID === stationId || numericInventoryID === 0) {
@@ -301,6 +378,7 @@ class InvBrokerService extends BaseService {
 
   _resolveContainerItems(session, requestedFlag, boundContext) {
     const stationId = this._getStationId(session);
+    const charId = this._getCharacterId(session);
     const numericFlag =
       requestedFlag === null || requestedFlag === undefined
         ? null
@@ -309,9 +387,13 @@ class InvBrokerService extends BaseService {
       ? Number(boundContext.inventoryID)
       : stationId;
 
+    if (containerID === charId) {
+      return this._getCharacterContainerItems(session, numericFlag);
+    }
+
     if (containerID === stationId) {
       return listContainerItems(
-        this._getCharacterId(session),
+        charId,
         stationId,
         numericFlag === null || numericFlag === 0
           ? ITEM_FLAGS.HANGAR
@@ -441,6 +523,11 @@ class InvBrokerService extends BaseService {
   _itemOverridesFromId(session, itemID) {
     const id = Number.isInteger(itemID) ? itemID : Number(itemID);
     const charId = this._getCharacterId(session);
+    const skillRecord = this._findCharacterSkillRecord(session, id);
+    if (skillRecord) {
+      return this._buildSkillItemOverrides(skillRecord);
+    }
+
     const shipRecord =
       findCharacterShip(charId, id) ||
       findShipItemById(id);
@@ -561,9 +648,10 @@ class InvBrokerService extends BaseService {
   Handle_GetInventoryFromId(args, session) {
     const itemid = args && args.length > 0 ? args[0] : 0;
     const numericItemId = this._normalizeInventoryId(itemid);
+    const charId = this._getCharacterId(session);
     const stationId = this._getStationId(session);
     const boundShip =
-      findCharacterShip(this._getCharacterId(session), numericItemId) ||
+      findCharacterShip(charId, numericItemId) ||
       findShipItemById(numericItemId);
     this._traceInventory("GetInventoryFromId", session, { args });
     log.debug(`[InvBroker] GetInventoryFromId(itemid=${itemid})`);
@@ -571,12 +659,18 @@ class InvBrokerService extends BaseService {
       inventoryID: itemid,
       locationID: itemid,
       flagID:
+        numericItemId === charId
+          ? null
+          :
         numericItemId === stationId
           ? ITEM_FLAGS.HANGAR
           : boundShip
             ? ITEM_FLAGS.CARGO_HOLD
             : null,
       kind:
+        numericItemId === charId
+          ? "characterInventory"
+          :
         numericItemId === stationId
           ? "stationHangar"
           : boundShip
@@ -690,13 +784,17 @@ class InvBrokerService extends BaseService {
     log.debug(`[InvBroker] GetItem(itemID=${itemID})`);
 
     const numericItemID = this._normalizeInventoryId(itemID);
+    const isCharacterItem = numericItemID === this._getCharacterId(session);
+    const skillRecord = this._findCharacterSkillRecord(session, numericItemID);
     const shipRecord = findCharacterShip(
       this._getCharacterId(session),
       numericItemID,
     );
-    const overrides = shipRecord
-      ? this._itemOverridesFromId(session, shipRecord.itemID)
-      : this._buildContainerItemOverrides(session, numericItemID);
+    const overrides = isCharacterItem
+      ? this._buildCharacterItemOverrides(session)
+      : shipRecord || skillRecord
+        ? this._itemOverridesFromId(session, numericItemID)
+        : this._buildContainerItemOverrides(session, numericItemID);
 
     return this._buildInvItem(session, overrides);
   }
@@ -750,6 +848,9 @@ class InvBrokerService extends BaseService {
     );
 
     const items =
+      numericContainerID === this._getCharacterId(session)
+        ? this._getCharacterContainerItems(session, null)
+        :
       numericContainerID === stationId
         ? listContainerItems(
             this._getCharacterId(session),

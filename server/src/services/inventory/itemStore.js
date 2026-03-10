@@ -443,17 +443,61 @@ function createShipItemForCharacter(charId, stationId, shipType) {
   };
 }
 
-function spawnShipInStationHangar(charId, stationId, shipType) {
+function updateShipItem(shipId, updater) {
   ensureMigrated();
-  const existing = findCharacterShipByType(charId, shipType.typeID, stationId);
-  if (existing) {
+  const numericShipId = toNumber(shipId, 0);
+  if (numericShipId <= 0) {
     return {
-      success: true,
-      created: false,
-      data: existing,
+      success: false,
+      errorMsg: "SHIP_NOT_FOUND",
     };
   }
 
+  const items = readItems();
+  const currentItem = normalizeShipItem(items[String(numericShipId)]);
+  if (!currentItem) {
+    return {
+      success: false,
+      errorMsg: "SHIP_NOT_FOUND",
+    };
+  }
+
+  const updatedValue =
+    typeof updater === "function" ? updater(cloneValue(currentItem)) : updater;
+  const normalizedItem = normalizeShipItem(updatedValue, currentItem);
+  if (!normalizedItem) {
+    return {
+      success: false,
+      errorMsg: "INVALID_SHIP_STATE",
+    };
+  }
+
+  items[String(numericShipId)] = normalizedItem;
+  if (!writeItems(items)) {
+    return {
+      success: false,
+      errorMsg: "WRITE_ERROR",
+    };
+  }
+
+  return {
+    success: true,
+    previousData: cloneValue(currentItem),
+    data: cloneValue(normalizedItem),
+  };
+}
+
+function setShipPackagingState(shipId, packaged) {
+  return updateShipItem(shipId, (currentItem) => ({
+    ...currentItem,
+    singleton: packaged ? 0 : 1,
+    quantity: packaged ? 1 : -1,
+    stacksize: 1,
+  }));
+}
+
+function spawnShipInStationHangar(charId, stationId, shipType) {
+  ensureMigrated();
   const createResult = createShipItemForCharacter(charId, stationId, shipType);
   if (!createResult.success) {
     return createResult;
@@ -536,6 +580,8 @@ module.exports = {
   findCharacterShipByType,
   getActiveShipItem,
   spawnShipInStationHangar,
+  updateShipItem,
+  setShipPackagingState,
   setActiveShipForCharacter,
   ensureCapsuleForCharacter,
   listContainerItems,

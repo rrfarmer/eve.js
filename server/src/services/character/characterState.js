@@ -21,6 +21,24 @@ const {
 } = require(path.join(__dirname, "../skills/skillState"));
 
 const CHARACTERS_TABLE = "characters";
+const INV_UPDATE_LOCATION = 3;
+const INV_UPDATE_FLAG = 4;
+const INV_UPDATE_QUANTITY = 5;
+const INV_UPDATE_STACKSIZE = 9;
+const INV_UPDATE_SINGLETON = 10;
+const INVENTORY_ROW_DESCRIPTOR_COLUMNS = [
+  ["itemID", 20],
+  ["typeID", 3],
+  ["ownerID", 3],
+  ["locationID", 3],
+  ["flagID", 2],
+  ["quantity", 3],
+  ["groupID", 3],
+  ["categoryID", 3],
+  ["customInfo", 129],
+  ["singleton", 2],
+  ["stacksize", 3],
+];
 const EMPIRE_BY_CORPORATION = Object.freeze({
   1000044: 500001,
   1000115: 500002,
@@ -219,44 +237,29 @@ function getActiveShipRecord(charId) {
 
 function buildInventoryItemRow(item) {
   return {
-    type: "object",
-    name: "util.Row",
-    args: {
-      type: "dict",
-      entries: [
-        [
-          "header",
-          buildList([
-            "itemID",
-            "typeID",
-            "ownerID",
-            "locationID",
-            "flagID",
-            "quantity",
-            "groupID",
-            "categoryID",
-            "customInfo",
-            "singleton",
-            "stacksize",
-          ]),
-        ],
-        [
-          "line",
-          buildList([
-            item.itemID,
-            item.typeID,
-            item.ownerID,
-            item.locationID,
-            item.flagID,
-            item.quantity,
-            item.groupID,
-            item.categoryID,
-            item.customInfo || "",
-            item.singleton,
-            item.stacksize,
-          ]),
-        ],
+    type: "packedrow",
+    header: {
+      type: "objectex1",
+      header: [
+        { type: "token", value: "blue.DBRowDescriptor" },
+        [INVENTORY_ROW_DESCRIPTOR_COLUMNS],
       ],
+      list: [],
+      dict: [],
+    },
+    columns: INVENTORY_ROW_DESCRIPTOR_COLUMNS,
+    fields: {
+      itemID: item.itemID,
+      typeID: item.typeID,
+      ownerID: item.ownerID,
+      locationID: item.locationID,
+      flagID: item.flagID,
+      quantity: item.quantity,
+      groupID: item.groupID,
+      categoryID: item.categoryID,
+      customInfo: item.customInfo || "",
+      singleton: item.singleton,
+      stacksize: item.stacksize,
     },
   };
 }
@@ -265,13 +268,88 @@ function buildLocationChangePayload(item) {
   return buildList([item.itemID, item.itemName || "Ship", 0.0, 0.0, 0.0]);
 }
 
-function sendShipInventorySync(session, charData) {
-  if (!session || typeof session.sendNotification !== "function" || !charData) {
+function buildItemChangePayload(item, previousState = {}) {
+  const entries = [];
+  const currentQuantity = Number(item && item.quantity);
+  const previousQuantity = Number(previousState.quantity);
+
+  if (
+    previousState.locationID !== undefined &&
+    previousState.locationID !== item.locationID
+  ) {
+    entries.push([INV_UPDATE_LOCATION, previousState.locationID]);
+  }
+
+  if (previousState.flagID !== undefined && previousState.flagID !== item.flagID) {
+    entries.push([INV_UPDATE_FLAG, previousState.flagID]);
+  }
+
+  if (
+    previousState.quantity !== undefined &&
+    Number.isFinite(previousQuantity) &&
+    Number.isFinite(currentQuantity) &&
+    previousQuantity >= 0 &&
+    currentQuantity >= 0 &&
+    previousQuantity !== currentQuantity
+  ) {
+    entries.push([INV_UPDATE_QUANTITY, previousState.quantity]);
+  }
+
+  if (
+    previousState.singleton !== undefined &&
+    previousState.singleton !== item.singleton
+  ) {
+    entries.push([INV_UPDATE_SINGLETON, previousState.singleton]);
+  }
+
+  if (
+    previousState.stacksize !== undefined &&
+    previousState.stacksize !== item.stacksize
+  ) {
+    entries.push([INV_UPDATE_STACKSIZE, previousState.stacksize]);
+  }
+
+  return [
+    buildInventoryItemRow(item),
+    {
+      type: "dict",
+      entries,
+    },
+    null,
+  ];
+}
+
+function syncInventoryItemForSession(
+  session,
+  shipItem,
+  previousState = {},
+  options = {},
+) {
+  if (
+    !session ||
+    typeof session.sendNotification !== "function" ||
+    !shipItem ||
+    typeof shipItem !== "object"
+  ) {
     return;
   }
-  // The live inventory sync path is temporarily disabled until the exact
-  // OnItemChange tuple contract for this client build is implemented.
-  // Sending the wrong tuple shape breaks station load during login.
+
+  session.sendNotification(
+    "OnItemChange",
+    "clientID",
+    buildItemChangePayload(shipItem, previousState),
+  );
+
+  if (options.emitCfgLocation !== false) {
+    session.sendNotification("OnCfgDataChanged", "charid", [
+      "evelocations",
+      buildLocationChangePayload(shipItem),
+    ]);
+  }
+
+  log.info(
+    `[CharacterState] Synced inventory item ${shipItem.itemID} (${shipItem.itemName || shipItem.typeID}) to client inventory`,
+  );
 }
 
 function applyCharacterToSession(session, charId, options = {}) {
@@ -551,8 +629,17 @@ function spawnShipInHangarForSession(session, shipType) {
     return spawnResult;
   }
 
-  const charData = getCharacterRecord(charId);
-  sendShipInventorySync(session, charData);
+  syncInventoryItemForSession(
+    session,
+    spawnResult.data,
+    {
+      locationID: 0,
+      flagID: 0,
+    },
+    {
+      emitCfgLocation: true,
+    },
+  );
 
   return {
     success: true,
@@ -576,6 +663,9 @@ module.exports = {
   activateShipForSession,
   spawnShipInHangarForSession,
   setActiveShipForSession,
+  buildInventoryItemRow,
+  buildItemChangePayload,
+  syncInventoryItemForSession,
   toBigInt,
   deriveEmpireID,
   deriveFactionID,

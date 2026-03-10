@@ -17,7 +17,9 @@ const {
   findCharacterShip,
 } = require(path.join(__dirname, "../character/characterState"));
 const {
+  getCharacterSkills,
   getCharacterSkillPointTotal,
+  SKILL_FLAG_ID,
 } = require(path.join(__dirname, "../skills/skillState"));
 
 const ATTRIBUTE_CHARISMA = 164;
@@ -25,6 +27,24 @@ const ATTRIBUTE_INTELLIGENCE = 165;
 const ATTRIBUTE_MEMORY = 166;
 const ATTRIBUTE_PERCEPTION = 167;
 const ATTRIBUTE_WILLPOWER = 168;
+const ATTRIBUTE_PILOT_SECURITY_STATUS = 2610;
+const CHARACTER_TYPE_ID = 1373;
+const CHARACTER_GROUP_ID = 1;
+const CHARACTER_CATEGORY_ID = 3;
+const DBTYPE_I4 = 0x03;
+const DBTYPE_R8 = 0x05;
+const DBTYPE_BOOL = 0x0b;
+const DBTYPE_I8 = 0x14;
+const INSTANCE_ROW_DESCRIPTOR_COLUMNS = [
+  ["instanceID", DBTYPE_I8],
+  ["online", DBTYPE_BOOL],
+  ["damage", DBTYPE_R8],
+  ["charge", DBTYPE_R8],
+  ["skillPoints", DBTYPE_I4],
+  ["armorDamage", DBTYPE_R8],
+  ["shieldCharge", DBTYPE_R8],
+  ["incapacitated", DBTYPE_BOOL],
+];
 
 class DogmaService extends BaseService {
   constructor() {
@@ -226,8 +246,50 @@ class DogmaService extends BaseService {
     };
   }
 
+  _buildInstanceRowDescriptor() {
+    return {
+      type: "objectex1",
+      header: [
+        { type: "token", value: "blue.DBRowDescriptor" },
+        [INSTANCE_ROW_DESCRIPTOR_COLUMNS],
+      ],
+      list: [],
+      dict: [],
+    };
+  }
+
+  _buildPackedInstanceRow({
+    itemID,
+    online = false,
+    damage = 0.0,
+    charge = 0.0,
+    skillPoints = 0,
+    armorDamage = 0.0,
+    shieldCharge = 0.0,
+    incapacitated = false,
+  }) {
+    return {
+      type: "packedrow",
+      header: this._buildInstanceRowDescriptor(),
+      columns: INSTANCE_ROW_DESCRIPTOR_COLUMNS,
+      fields: {
+        instanceID: itemID,
+        online,
+        damage,
+        charge,
+        skillPoints,
+        armorDamage,
+        shieldCharge,
+        incapacitated,
+      },
+    };
+  }
+
   _buildCharacterAttributes(charData = {}) {
     const source = charData.characterAttributes || {};
+    const securityStatus = Number(
+      charData.securityStatus ?? charData.securityRating ?? source.securityStatus ?? 0,
+    );
     return {
       [ATTRIBUTE_CHARISMA]: Number(source[ATTRIBUTE_CHARISMA] ?? source.charisma ?? 20),
       [ATTRIBUTE_INTELLIGENCE]: Number(
@@ -238,6 +300,9 @@ class DogmaService extends BaseService {
         source[ATTRIBUTE_PERCEPTION] ?? source.perception ?? 20,
       ),
       [ATTRIBUTE_WILLPOWER]: Number(source[ATTRIBUTE_WILLPOWER] ?? source.willpower ?? 20),
+      [ATTRIBUTE_PILOT_SECURITY_STATUS]: Number.isFinite(securityStatus)
+        ? securityStatus
+        : 0,
     };
   }
 
@@ -260,29 +325,54 @@ class DogmaService extends BaseService {
     return { type: "list", items: [] };
   }
 
+  _buildActivationState(charID, shipID) {
+    // V23.02 passes allInfo.shipState directly into
+    // clientDogmaLocation._MakeShipActive(), which unpacks:
+    // instanceCache, instanceFlagQuantityCache, wbData, heatStates
+    return [
+      this._buildShipState(charID, shipID),
+      this._buildEmptyDict(),
+      this._buildEmptyDict(),
+      this._buildEmptyDict(),
+    ];
+  }
+
   _buildCharacterInfoDict(charID, charData, shipID) {
     return {
       type: "dict",
-      entries: [
-        [
-          charID,
-          this._buildCommonGetInfoEntry({
-            itemID: charID,
-            typeID: charData.typeID || 1373,
-            ownerID: charID,
-            locationID: shipID,
-            flagID: 0,
-            groupID: 1,
-            categoryID: 3,
-            quantity: -1,
-            singleton: 1,
-            stacksize: 1,
-            description: "character",
-            attributes: this._buildCharacterAttributeDict(charData),
-          }),
-        ],
-      ],
+      entries: this._buildCharacterInfoEntries(charID, charData, shipID),
     };
+  }
+
+  _buildCharacterInfoEntries(charID, charData, shipID) {
+    return [
+      [
+        charID,
+        this._buildCommonGetInfoEntry({
+          itemID: charID,
+          typeID: charData.typeID || CHARACTER_TYPE_ID,
+          ownerID: charID,
+          locationID: shipID,
+          flagID: 0,
+          groupID: CHARACTER_GROUP_ID,
+          categoryID: CHARACTER_CATEGORY_ID,
+          quantity: -1,
+          singleton: 1,
+          stacksize: 1,
+          description: "character",
+          attributes: this._buildCharacterAttributeDict(charData),
+        }),
+      ],
+    ];
+  }
+
+  _buildCharacterBrain() {
+    // V23.02 treats the brain as a versioned tuple with at least two payload
+    // collections. During login it rewrites this to (-1, ...) and later unpacks
+    // it again in ApplyBrainEffects/RemoveBrainEffects. Empirically this client
+    // unpacks four slots from the stored brain, so keep all collections present
+    // even when they are empty.
+    return [0, [], [], []];
   }
 
   _buildShipState(charID, shipID) {
@@ -291,14 +381,14 @@ class DogmaService extends BaseService {
       entries: [
         [
           shipID,
-          this._buildStatusRow({
+          this._buildPackedInstanceRow({
             itemID: shipID,
             shieldCharge: 1.0,
           }),
         ],
         [
           charID,
-          this._buildStatusRow({
+          this._buildPackedInstanceRow({
             itemID: charID,
             online: true,
             skillPoints: getCharacterSkillPointTotal(charID) || 0,
@@ -368,17 +458,11 @@ class DogmaService extends BaseService {
           [
             "charInfo",
             getCharInfo
-              ? {
-                  type: "list",
-                  items: [
-                    this._buildCharacterInfoDict(charID, charData, shipID),
-                    this._buildEmptyList(),
-                  ],
-                }
-              : {
-                  type: "list",
-                  items: [this._buildEmptyDict(), this._buildEmptyList()],
-                },
+              ? [
+                  this._buildCharacterInfoDict(charID, charData, shipID),
+                  this._buildCharacterBrain(),
+                ]
+              : null,
           ],
           [
             "shipInfo",
@@ -391,11 +475,7 @@ class DogmaService extends BaseService {
           ],
           [
             "shipState",
-            [
-              this._buildShipState(charID, shipID),
-              this._buildEmptyDict(),
-              this._buildEmptyDict(),
-            ],
+            this._buildActivationState(charID, shipID),
           ],
           ["systemWideEffectsOnShip", null],
           ["structureInfo", null],
@@ -453,9 +533,29 @@ class DogmaService extends BaseService {
 
     const charID = this._getCharID(session);
     const charData = this._getCharacterRecord(session) || {};
+    const skillRecord =
+      getCharacterSkills(charID).find(
+        (skill) => skill.itemID === requestedItemID || skill.itemID === Number.parseInt(String(requestedItemID), 10),
+      ) || null;
     const numericItemID = Number.parseInt(String(requestedItemID), 10) || this._getShipID(session);
     const shipRecord = findCharacterShip(charID, numericItemID);
     const isCharacter = numericItemID === charID;
+    if (skillRecord) {
+      return this._buildCommonGetInfoEntry({
+        itemID: skillRecord.itemID,
+        typeID: skillRecord.typeID,
+        ownerID: skillRecord.ownerID || charID,
+        locationID: skillRecord.locationID || charID,
+        flagID: skillRecord.flagID ?? SKILL_FLAG_ID,
+        groupID: skillRecord.groupID,
+        categoryID: skillRecord.categoryID,
+        quantity: 1,
+        singleton: 1,
+        stacksize: 1,
+        description: skillRecord.itemName || "skill",
+      });
+    }
+
     const itemID = isCharacter
       ? charID
       : shipRecord

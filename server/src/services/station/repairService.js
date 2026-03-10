@@ -11,6 +11,10 @@ const {
   normalizeNumber,
   resolveBoundNodeId,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
+const {
+  extractRepackageRequests,
+  repackageShipItemsForSession,
+} = require(path.join(__dirname, "./repackagingSupport"));
 
 function buildDamageReport() {
   return buildKeyVal([
@@ -54,8 +58,12 @@ class RepairService extends BaseService {
     return null;
   }
 
-  Handle_UnasembleItems() {
-    log.debug("[RepairSvc] UnasembleItems");
+  Handle_UnasembleItems(args, session) {
+    repackageShipItemsForSession(
+      session,
+      extractRepackageRequests(args && args[0]),
+      "RepairSvc",
+    );
     return null;
   }
 }

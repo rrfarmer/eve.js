@@ -6,7 +6,7 @@ const log = require(path.join(__dirname, "../../utils/logger"));
 
 const CHARACTERS_TABLE = "characters";
 const SKILLS_TABLE = "skills";
-const SKILL_DATA_PATH = path.join(__dirname, "../../../data/sde/skillTypes.json");
+const SKILL_DATA_PATH = path.join(__dirname, "../../database/static/skillTypes.json");
 const SKILL_FLAG_ID = 7;
 const MAX_SKILL_LEVEL = 5;
 const MAX_SKILL_POINTS = 256000;
@@ -231,6 +231,7 @@ function getCharacterSkillPointTotal(charId) {
 }
 
 module.exports = {
+  SKILL_FLAG_ID,
   MAX_SKILL_LEVEL,
   MAX_SKILL_POINTS,
   buildSkillRecord,

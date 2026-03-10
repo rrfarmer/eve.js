@@ -74,6 +74,7 @@ class MachoNetService extends BaseService {
         ["contractMgr", null],
         ["blueprintManager", null],
         ["repairSvc", "station"],
+        ["repackagingSvc", null],
         ["reprocessingSvc", "station"],
         ["insuranceSvc", "station"],
         ["jumpCloneSvc", null],
