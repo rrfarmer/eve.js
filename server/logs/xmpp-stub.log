@@ -1,3 +1,35 @@
 [2026-03-09T23:30:06.582Z] TLSERR unknown:0 socket hang up
 [2026-03-09T23:54:33.336Z] TLSERR unknown:0 socket hang up
 [2026-03-09T23:56:45.690Z] TLSERR unknown:0 socket hang up
+[2026-03-10T00:00:07.087Z] TLSERR unknown:0 socket hang up
+[2026-03-10T02:52:06.962Z] TLSERR unknown:0 socket hang up
+[2026-03-10T02:52:07.997Z] TLSERR unknown:0 socket hang up
+[2026-03-10T02:52:09.165Z] TLSERR unknown:0 socket hang up
+[2026-03-10T02:59:29.730Z] TLSERR unknown:0 socket hang up
+[2026-03-10T02:59:31.179Z] TLSERR unknown:0 socket hang up
+[2026-03-10T03:09:59.068Z] TLSERR unknown:0 socket hang up
+[2026-03-10T03:13:03.134Z] TLSOK 127.0.0.1:51032
+[2026-03-10T03:13:03.161Z] IN  <?xml version='1.0'?><stream:stream to='localhost' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>
+[2026-03-10T03:13:03.162Z] OUT <?xml version='1.0'?><stream:stream from='localhost' id='evejs' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features>
+[2026-03-10T03:13:03.193Z] IN  <auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>ADE0MDAwMDAwMQBlamFiYmVyZA==</auth>
+[2026-03-10T03:13:03.196Z] OUT <success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>
+[2026-03-10T03:13:03.227Z] IN  <?xml version='1.0'?><stream:stream to='localhost' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>
+[2026-03-10T03:13:03.228Z] OUT <?xml version='1.0'?><stream:stream from='localhost' id='evejs2' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></stream:features>
+[2026-03-10T03:13:03.943Z] IN  <iq id='id1' type='set' from='140000001@localhost' ><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><resource>eveclient</resource></bind></iq>
+[2026-03-10T03:13:03.944Z] OUT <iq type='result' id='id1'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><jid>140000001@localhost/evejs</jid></bind></iq>
+[2026-03-10T03:13:03.978Z] IN  <iq id='id2' type='set' from='140000001@localhost/evejs' ><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>
+[2026-03-10T03:13:03.979Z] OUT <iq type='result' id='id2'/>
+[2026-03-10T03:13:03.979Z] IN  <presence><show/></presence>
+[2026-03-10T03:13:03.981Z] OUT <presence from='localhost' to='140000001@localhost/evejs'/>
+[2026-03-10T03:13:04.477Z] IN  <presence from='140000001@localhost/evejs' id='id3' to='local_30000142@conference.localhost/140000001'><x xmlns='http://jabber.org/protocol/muc'></x></presence>
+[2026-03-10T03:13:04.483Z] OUT <presence from='local_30000142@conference.localhost/140000001' to='140000001@localhost/evejs' id='id3'><eve_user_data corpid='1000044' allianceid='0' warfactionid='0' typeid='1380' role='6935543428298309632' info='{&quot;ownerID&quot;:140000001,&quot;ownerName&quot;:&quot;DO NOT DELETE&quot;,&quot;name&quot;:&quot;DO NOT DELETE&quot;,&quot;typeID&quot;:1380}'/><x xmlns='http://jabber.org/protocol/muc#user'><item affiliation='member' role='participant' jid='140000001@localhost/evejs'/><status code='110'/></x></presence>
+[2026-03-10T03:13:04.520Z] IN  <presence from='140000001@localhost/evejs' id='id4' to='corp_1000044@conference.localhost/140000001'><x xmlns='http://jabber.org/protocol/muc'></x></presence>
+[2026-03-10T03:13:04.524Z] OUT <presence from='corp_1000044@conference.localhost/140000001' to='140000001@localhost/evejs' id='id4'><eve_user_data corpid='1000044' allianceid='0' warfactionid='0' typeid='1380' role='6935543428298309632' info='{&quot;ownerID&quot;:140000001,&quot;ownerName&quot;:&quot;DO NOT DELETE&quot;,&quot;name&quot;:&quot;DO NOT DELETE&quot;,&quot;typeID&quot;:1380}'/><x xmlns='http://jabber.org/protocol/muc#user'><item affiliation='member' role='participant' jid='140000001@localhost/evejs'/><status code='110'/></x></presence>
+[2026-03-10T03:13:04.535Z] IN  <presence from='140000001@localhost/evejs' id='id5' to='local_30000142@conference.localhost/140000001'><x xmlns='http://jabber.org/protocol/muc'></x></presence>
+[2026-03-10T03:13:04.538Z] OUT <presence from='local_30000142@conference.localhost/140000001' to='140000001@localhost/evejs' id='id5'><eve_user_data corpid='1000044' allianceid='0' warfactionid='0' typeid='1380' role='6935543428298309632' info='{&quot;ownerID&quot;:140000001,&quot;ownerName&quot;:&quot;DO NOT DELETE&quot;,&quot;name&quot;:&quot;DO NOT DELETE&quot;,&quot;typeID&quot;:1380}'/><x xmlns='http://jabber.org/protocol/muc#user'><item affiliation='member' role='participant' jid='140000001@localhost/evejs'/><status code='110'/></x></presence>
+[2026-03-10T03:13:04.572Z] IN  <presence from='140000001@localhost/evejs' id='id6' to='corp_1000044@conference.localhost/140000001'><x xmlns='http://jabber.org/protocol/muc'></x></presence>
+[2026-03-10T03:13:04.576Z] OUT <presence from='corp_1000044@conference.localhost/140000001' to='140000001@localhost/evejs' id='id6'><eve_user_data corpid='1000044' allianceid='0' warfactionid='0' typeid='1380' role='6935543428298309632' info='{&quot;ownerID&quot;:140000001,&quot;ownerName&quot;:&quot;DO NOT DELETE&quot;,&quot;name&quot;:&quot;DO NOT DELETE&quot;,&quot;typeID&quot;:1380}'/><x xmlns='http://jabber.org/protocol/muc#user'><item affiliation='member' role='participant' jid='140000001@localhost/evejs'/><status code='110'/></x></presence>
+[2026-03-10T03:13:04.595Z] OUT <message from='local_30000142@conference.localhost/admin' to='140000001@localhost/evejs' type='groupchat' id='evejs-1773112384595-1'><body>{&quot;cmd&quot;:&quot;speak&quot;,&quot;charid&quot;:1,&quot;messageText&quot;:&quot;Welcome to EvEJS. This emulator build is still work in progress. Local chat and slash commands are enabled. Use /help to see the current command list.&quot;}</body></message>
+[2026-03-10T03:16:49.929Z] OUT <message from='local_30000142@conference.localhost/admin' to='140000001@localhost/evejs' type='groupchat' id='evejs-1773112609928-2'><body>{&quot;cmd&quot;:&quot;speak&quot;,&quot;charid&quot;:1,&quot;messageText&quot;:&quot;Unknown command: /fit. Use /help.&quot;}</body></message>
+[2026-03-10T03:16:56.264Z] OUT <message from='local_30000142@conference.localhost/admin' to='140000001@localhost/evejs' type='groupchat' id='evejs-1773112616262-3'><body>{&quot;cmd&quot;:&quot;speak&quot;,&quot;charid&quot;:1,&quot;messageText&quot;:&quot;Commands: /help, /commands, /ship &lt;ship name&gt;&quot;}</body></message>
+[2026-03-10T03:17:05.722Z] OUT <message from='local_30000142@conference.localhost/admin' to='140000001@localhost/evejs' type='groupchat' id='evejs-1773112625721-4'><body>{&quot;cmd&quot;:&quot;speak&quot;,&quot;charid&quot;:1,&quot;messageText&quot;:&quot;Commands: /help, /commands, /ship &lt;ship name&gt;&quot;}</body></message>

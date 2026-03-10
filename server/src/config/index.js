@@ -58,7 +58,7 @@ const defaults = {
   microservicesRedirectUrl: "http://localhost:26002/",
 
   // chat server (default for clients is 5222)
-  xmppServerPort: 5222,
+  chatServerPort: 5222,
 
   // DO NOT CHANGE
   // proxy node ID: evemu uses 0xFFAA

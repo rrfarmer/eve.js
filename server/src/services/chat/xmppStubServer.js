@@ -681,9 +681,7 @@ function startXmppStub() {
     },
     handleSocket,
   );
-  server.listen(config.xmppServerPort, "0.0.0.0", () => {
-    log.success(`[XMPP] stub chat listener running on port ${config.xmppServerPort}`);
-  });
+  server.listen(config.chatServerPort, "0.0.0.0");
   server.on("error", (error) => {
     log.err(`[XMPP] stub server error: ${error.message}`);
   });

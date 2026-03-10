@@ -1,6 +1,6 @@
-remodeled config/index.js. 
-made a universal start.bat for server, install.bat for npm install. 
-updated files to use new database controller in the /database instead of /newDatabase. 
-updated characterState.js to use the new database controller. 
-moved shipTypes.json to static directory inside database folder + updated paths in other files. 
-removed the feature where the server auto patches client, as it caused many unnecessary errors. 
+added evejs.config.example.json, and removed auto upload for evejs.config.json
+added new log for xmppStub so it matches other secondary services
+moved some stuff around in chat service & xmppStub
+added instructions to get chat server working, _README.txt
+added cacert.pem for client files
+added installChatCert.bat

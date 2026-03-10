@@ -33,12 +33,17 @@ this solves the issue where the client says ... has no attribute 'Index'
 ###########################
 
 - players should show up in local chat + corp chat
+  - players show up, but local count (e.g. Local [123]) for users does not function.
 - implement linux support (e.g. give the user an option to auto launch the client)
 - sort the service files and place them in the correct folders
 - skill plan server (https)
 - factionwf server (https)
 - (50% done) (image server works, paperdolls not) set up image server + make paperdolls work
 - make all files dependant of eachother AND database.. stop returning static data, and return valid data based on character state
+- make a universal run script which does 3 things:
+    1: check if chat certificate is installed, if not, ask user if they would like to install it.
+    2: check if dependencies are installed, if not, ask user if they would like to install them.
+    3: start server
 
 ###########################
 ###   BIG TO-DO LIST    ###
@@ -47,18 +52,9 @@ this solves the issue where the client says ... has no attribute 'Index'
 - add multi-user support
   - i can connect multiple clients, but only one shows up in the guests list in jita. its because im only returning one character in stationsvc
   - i will need to check db every time someone logs on to see how many users are online, then broadcast update to all players with updated list
+
 - undocking!
 
 ###########################
 ###   WHERE I LEFT OFF  ###
 ###########################
-cleaning up files, edit scripts and make one universal script, (and seperate ones) to auto install, start server + game
-
-
-###########################
-###    WHAT IS DONE     ###
-###########################
-- removed files that were not necessary
-- implemented new database controller
-- chat server!
-  - with / cmd support
