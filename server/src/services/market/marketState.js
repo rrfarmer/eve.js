@@ -8,10 +8,12 @@ const { getStationRecord } = require(path.join(
   __dirname,
   "../_shared/stationStaticData",
 ));
+const {
+  TABLE,
+  readStaticRows,
+} = require(path.join(__dirname, "../_shared/referenceData"));
 
-const shipData = require(path.join(__dirname, "../../database/static/shipTypes.json"));
-
-const SHIPS = (Array.isArray(shipData) ? shipData : shipData.ships || [])
+const SHIPS = readStaticRows(TABLE.SHIP_TYPES)
   .filter((entry) => Number(entry.categoryID) === 6)
   .map((entry) => ({
     typeID: Number(entry.typeID),

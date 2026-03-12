@@ -114,6 +114,16 @@ function buildBoundJid(client) {
   return `${client.userName || "capsuleer"}@localhost/evejs`;
 }
 
+function getRoomDomain(roomJid) {
+  const bareJid = String(roomJid || "").trim().split("/")[0];
+  const atIndex = bareJid.indexOf("@");
+  if (atIndex < 0) {
+    return "";
+  }
+
+  return bareJid.slice(atIndex + 1).trim().toLowerCase();
+}
+
 function nextMessageId() {
   messageSequence += 1;
   return `evejs-${Date.now()}-${messageSequence}`;
@@ -164,17 +174,33 @@ function getLocalRoomNameForClient(client) {
   return getLocalRoomNameForSession(session);
 }
 
-function buildConferenceRoomJid(roomName) {
-  return `${roomName}@conference.localhost`;
+function getClientRoomDomain(client) {
+  const explicitDomain = String(client && client.roomDomain ? client.roomDomain : "")
+    .trim()
+    .toLowerCase();
+  if (explicitDomain) {
+    return explicitDomain;
+  }
+
+  return "conference.localhost";
+}
+
+function buildConferenceRoomJid(roomName, domain = "conference.localhost") {
+  return `${roomName}@${domain || "conference.localhost"}`;
 }
 
 function normalizeRoomJid(roomJid, client = null) {
   const rawRoomJid = String(roomJid || "").trim();
+  const requestedDomain = getRoomDomain(rawRoomJid);
+  const roomDomain = requestedDomain || getClientRoomDomain(client);
+  if (client && requestedDomain) {
+    client.roomDomain = requestedDomain;
+  }
   if (!rawRoomJid) {
     const fallbackRoomName = client
       ? getLocalRoomNameForClient(client)
       : getLocalRoomNameForSession(null);
-    return buildConferenceRoomJid(fallbackRoomName);
+    return buildConferenceRoomJid(fallbackRoomName, roomDomain);
   }
 
   const bareJid = rawRoomJid.split("/")[0];
@@ -184,42 +210,44 @@ function normalizeRoomJid(roomJid, client = null) {
   if (!roomNamePart) {
     return buildConferenceRoomJid(
       client ? getLocalRoomNameForClient(client) : getLocalRoomNameForSession(null),
+      roomDomain,
     );
   }
 
   if (roomNamePart === "local") {
     return buildConferenceRoomJid(
       client ? getLocalRoomNameForClient(client) : getLocalRoomNameForSession(null),
+      roomDomain,
     );
   }
 
   if (roomNamePart === "corp") {
     const session = client ? findSessionForClient(client) : null;
-    return buildConferenceRoomJid(getCorpRoomNameForSession(session));
+    return buildConferenceRoomJid(getCorpRoomNameForSession(session), roomDomain);
   }
 
   const localRoomMatch = /^local_(\d+)$/i.exec(roomNamePart);
   if (localRoomMatch) {
-    return buildConferenceRoomJid(`local_${localRoomMatch[1]}`);
+    return buildConferenceRoomJid(`local_${localRoomMatch[1]}`, roomDomain);
   }
 
   const corpRoomMatch = /^corp_(\d+)$/i.exec(roomNamePart);
   if (corpRoomMatch) {
-    return buildConferenceRoomJid(`corp_${corpRoomMatch[1]}`);
+    return buildConferenceRoomJid(`corp_${corpRoomMatch[1]}`, roomDomain);
   }
 
   const legacyLocalMatch = /^solarsystemid2?_(\d+)$/i.exec(roomNamePart);
   if (legacyLocalMatch) {
-    return buildConferenceRoomJid(`local_${legacyLocalMatch[1]}`);
+    return buildConferenceRoomJid(`local_${legacyLocalMatch[1]}`, roomDomain);
   }
 
   const legacyCorpMatch = /^corpid_(\d+)$/i.exec(roomNamePart);
   if (legacyCorpMatch) {
-    return buildConferenceRoomJid(`corp_${legacyCorpMatch[1]}`);
+    return buildConferenceRoomJid(`corp_${legacyCorpMatch[1]}`, roomDomain);
   }
 
   // Keep room names stable across mixed hostnames/domains.
-  return buildConferenceRoomJid(roomNamePart);
+  return buildConferenceRoomJid(roomNamePart, roomDomain);
 }
 
 function findSessionForClient(client) {
@@ -784,6 +812,7 @@ function handleSocket(socket) {
     nick: "capsuleer",
     lastRoomJid: "",
     localWelcomeSent: false,
+    roomDomain: "",
     rooms: new Set(),
   };
 
@@ -886,7 +915,7 @@ function startXmppStub() {
     },
     handleSocket,
   );
-  server.listen(config.chatServerPort, "0.0.0.0");
+  server.listen(config.xmppServerPort, "0.0.0.0");
   server.on("error", (error) => {
     log.err(`[XMPP] stub server error: ${error.message}`);
   });

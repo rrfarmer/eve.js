@@ -205,6 +205,12 @@ function getShipDirection(entity) {
   return { x: 1, y: 0, z: 0 };
 }
 
+function doubleToInt64Bits(value) {
+  const buffer = Buffer.allocUnsafe(8);
+  buffer.writeDoubleLE(toFiniteNumber(value, 0), 0);
+  return buffer.readBigInt64LE(0);
+}
+
 function encodeShipBall(entity) {
   const position = buildVector(entity.position);
   const velocity = buildVector(entity.velocity);
@@ -253,9 +259,16 @@ function encodeShipBall(entity) {
       pushInt32(chunks, toInt32(warpState.effectStamp, 0));
       pushBigInt64(
         chunks,
-        BigInt(Math.trunc(toFiniteNumber(warpState.followRangeMarker, warpState.stopDistance))),
+        doubleToInt64Bits(
+          toFiniteNumber(warpState.followRangeMarker, -1),
+        ),
       );
-      pushBigInt64(chunks, BigInt(Math.trunc(toFiniteNumber(warpState.followID, entity.targetEntityID))));
+      pushBigInt64(
+        chunks,
+        doubleToInt64Bits(
+          toFiniteNumber(warpState.followID, 15000),
+        ),
+      );
       pushInt32(
         chunks,
         toInt32(
@@ -518,35 +531,40 @@ function buildOnSpecialFXPayload(
     moduleTypeID = null,
     targetID = null,
     chargeTypeID = null,
-    area = null,
     isOffensive = false,
     start = true,
     active = true,
-    duration = -1,
-    repeat = 0,
-    startTime = 0,
-    graphicInfo = null,
+    duration,
+    repeat,
+    startTime,
+    graphicInfo,
   } = {},
 ) {
-  return [
-    "OnSpecialFX",
-    [
-      entityID,
-      moduleID,
-      moduleTypeID,
-      targetID,
-      chargeTypeID,
-      buildList(Array.isArray(area) ? area : []),
-      String(guid || ""),
-      Boolean(isOffensive),
-      start ? 1 : 0,
-      active ? 1 : 0,
-      toInt32(duration, -1),
-      repeat === null ? 0 : toInt32(repeat, 0),
-      startTime === null ? 0 : startTime,
-      graphicInfo,
-    ],
+  const args = [
+    entityID,
+    moduleID,
+    moduleTypeID,
+    targetID,
+    chargeTypeID,
+    String(guid || ""),
+    isOffensive ? 1 : 0,
+    start ? 1 : 0,
+    active ? 1 : 0,
   ];
+  if (
+    duration !== undefined ||
+    repeat !== undefined ||
+    startTime !== undefined ||
+    graphicInfo !== undefined
+  ) {
+    args.push(
+      duration === undefined ? -1 : toFiniteNumber(duration, -1),
+      repeat === undefined ? null : repeat,
+      startTime === undefined ? null : startTime,
+      graphicInfo === undefined ? null : graphicInfo,
+    );
+  }
+  return ["OnSpecialFX", args];
 }
 
 function buildRemoveBallPayload(entityID) {

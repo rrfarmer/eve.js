@@ -1,4 +1,5 @@
 const path = require("path");
+
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
 
@@ -7,13 +8,27 @@ class BountyProxyService extends BaseService {
     super("bountyProxy");
   }
 
-  Handle_GetMyKillRights(args, session) {
-    const charId = Number(
-      session ? session.characterID || session.charid || 0 : 0,
-    );
-    log.debug(`[BountyProxy] GetMyKillRights(charID=${charId || 0})`);
-    // Return empty map: no active kill rights.
-    return { type: "dict", entries: [] };
+  Handle_GetBountiesAndKillRights() {
+    log.debug("[BountyProxy] GetBountiesAndKillRights");
+    return [
+      { type: "dict", entries: [] },
+      { type: "dict", entries: [] },
+    ];
+  }
+
+  Handle_GetMyKillRights() {
+    log.debug("[BountyProxy] GetMyKillRights");
+    return { type: "list", items: [] };
+  }
+
+  callMethod(method, args, session, kwargs) {
+    const result = super.callMethod(method, args, session, kwargs);
+    if (result !== null) {
+      return result;
+    }
+
+    log.warn(`[BountyProxy] Unhandled method fallback: ${method}`);
+    return { type: "list", items: [] };
   }
 }
 

@@ -40,20 +40,11 @@ class UserService extends BaseService {
     };
   }
 
-  /**
-   * UserLogOffCharacter
-   *
-   * Triggered by the in-client "Log off" action.
-   * Keep the TCP session alive so the client can return to character selection.
-   */
   Handle_UserLogOffCharacter(args, session) {
-    log.info("[userSvc] UserLogOffCharacter called");
+    log.info(
+      `[userSvc] UserLogOffCharacter called (charID=${session ? session.characterID || 0 : 0})`,
+    );
     return performCharacterLogoff(session, "userSvc");
-  }
-
-  // Compatibility alias used by some clients/builds.
-  Handle_LogOffCharacter(args, session) {
-    return this.Handle_UserLogOffCharacter(args, session);
   }
 }
 

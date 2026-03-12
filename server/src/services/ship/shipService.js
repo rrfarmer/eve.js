@@ -20,14 +20,12 @@ const {
 const {
   undockSession,
 } = require(path.join(__dirname, "../../space/transitions"));
-const { performCharacterLogoff } = require(path.join(
-  __dirname,
-  "../user/logoffCharacter",
-));
 const DBTYPE_I4 = 0x03;
 const DBTYPE_R8 = 0x05;
 const DBTYPE_BOOL = 0x0b;
 const DBTYPE_I8 = 0x14;
+const FILETIME_TICKS_PER_MS = 10000n;
+const FILETIME_EPOCH_OFFSET = 116444736000000000n;
 const INSTANCE_ROW_DESCRIPTOR_COLUMNS = [
   ["instanceID", DBTYPE_I8],
   ["online", DBTYPE_BOOL],
@@ -39,10 +37,15 @@ const INSTANCE_ROW_DESCRIPTOR_COLUMNS = [
   ["incapacitated", DBTYPE_BOOL],
 ];
 
+function buildCurrentFileTime() {
+  return BigInt(Date.now()) * FILETIME_TICKS_PER_MS + FILETIME_EPOCH_OFFSET;
+}
+
 class ShipService extends BaseService {
   constructor() {
     super("ship");
     this._shipConfiguration = new Map();
+    this._shipDirtTimestamps = new Map();
   }
 
   _getShipID(session) {
@@ -90,6 +93,61 @@ class ShipService extends BaseService {
 
     const singleShipId = this._extractShipId(rawValue);
     return singleShipId > 0 ? [singleShipId] : [];
+  }
+
+  _normalizeFileTime(rawValue) {
+    if (typeof rawValue === "bigint") {
+      return rawValue > 0n ? rawValue : null;
+    }
+
+    if (typeof rawValue === "number" && Number.isFinite(rawValue) && rawValue > 0) {
+      return BigInt(Math.trunc(rawValue));
+    }
+
+    if (typeof rawValue === "string" && rawValue.trim() !== "") {
+      try {
+        const parsed = BigInt(rawValue.trim());
+        return parsed > 0n ? parsed : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    if (Buffer.isBuffer(rawValue)) {
+      try {
+        const parsed = BigInt(rawValue.toString("utf8").trim());
+        return parsed > 0n ? parsed : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  _getPendingDirtTimestamp(shipID, consume = false) {
+    const numericShipID = this._extractShipId(shipID);
+    if (numericShipID <= 0) {
+      return 0n;
+    }
+
+    const dirtTimestamp = this._shipDirtTimestamps.get(numericShipID) || 0n;
+    if (consume && dirtTimestamp > 0n) {
+      this._shipDirtTimestamps.delete(numericShipID);
+    }
+
+    return dirtTimestamp;
+  }
+
+  _setDirtTimestamp(shipID, rawTimestamp = null) {
+    const numericShipID = this._extractShipId(shipID);
+    if (numericShipID <= 0) {
+      return null;
+    }
+
+    const dirtTimestamp = this._normalizeFileTime(rawTimestamp) || buildCurrentFileTime();
+    this._shipDirtTimestamps.set(numericShipID, dirtTimestamp);
+    return dirtTimestamp;
   }
 
   _buildActivationResponse(activeShip, session) {
@@ -269,6 +327,11 @@ class ShipService extends BaseService {
       return null;
     }
 
+    // Bump the active ship dirt timestamp on each boarding/activation so the
+    // hangar scene knows this hull needs a one-time visual rematerialization.
+    // Handle_GetDirtTimestamp consumes that signal on first read.
+    this._setDirtTimestamp(numericShipID);
+
     const activeShip = activationResult.activeShip || getActiveShipRecord(session.characterID);
     return this._buildActivationResponse(activeShip, session);
   }
@@ -306,16 +369,24 @@ class ShipService extends BaseService {
 
   Handle_GetDirtTimestamp(args, session, kwargs) {
     const shipID = args && args.length > 0 ? args[0] : null;
-    log.debug(`[Ship] GetDirtTimestamp(shipID=${shipID})`);
+    const dirtTimestamp = this._getPendingDirtTimestamp(shipID, true);
+    log.debug(
+      `[Ship] GetDirtTimestamp(shipID=${shipID}) -> ${String(dirtTimestamp)}`,
+    );
 
-    // FILETIME ticks (100ns since 1601) as python long-compatible value.
-    return BigInt(Date.now()) * 10000n + 116444736000000000n;
+    // The hangar view polls this during ship presentation. Returning a one-shot
+    // FILETIME only when a hull was explicitly reactivated avoids login/dock
+    // rematerialization while preserving one redraw for real boarding.
+    return dirtTimestamp;
   }
 
   Handle_SetDirtTimestamp(args, session, kwargs) {
     const shipID = args && args.length > 0 ? args[0] : null;
     const ts = args && args.length > 1 ? args[1] : null;
-    log.debug(`[Ship] SetDirtTimestamp(shipID=${shipID}, ts=${String(ts)})`);
+    const dirtTimestamp = this._setDirtTimestamp(shipID, ts);
+    log.debug(
+      `[Ship] SetDirtTimestamp(shipID=${shipID}, ts=${String(ts)}, stored=${String(dirtTimestamp)})`,
+    );
     return null;
   }
 
@@ -468,11 +539,6 @@ class ShipService extends BaseService {
   Handle_Eject(args, session, kwargs) {
     log.info("[Ship] Eject()");
     return this._leaveShip(session, null, "Eject");
-  }
-
-  Handle_SafeLogoff(args, session, kwargs) {
-    log.info("[Ship] SafeLogoff()");
-    return performCharacterLogoff(session, "Ship");
   }
 
   Handle_GetTurretModules(args, session, kwargs) {

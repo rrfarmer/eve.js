@@ -15,7 +15,10 @@ const sessionRegistry = require(path.join(
   __dirname,
   "../../services/chat/sessionRegistry",
 ));
-const chatHub = require(path.join(__dirname, "../../services/chat/chatHub"));
+const { performCharacterLogoff } = require(path.join(
+  __dirname,
+  "../../services/user/logoffCharacter",
+));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 const { MACHONETMSG_TYPE } = require(
   path.join(__dirname, "../../common/packetTypes"),
@@ -37,6 +40,17 @@ module.exports = function (serviceManager) {
 
   function logInfo(t) {
     if (config.logLevel > 0) log.info(t);
+  }
+
+  function cleanupClientSession(clientSession) {
+    if (!clientSession || clientSession._disconnectCleaned) {
+      return;
+    }
+
+    clientSession._disconnectCleaned = true;
+    performCharacterLogoff(clientSession, "tcp");
+    spaceRuntime.detachSession(clientSession, { broadcast: true });
+    sessionRegistry.unregister(clientSession);
   }
 
   const server = net
@@ -94,6 +108,7 @@ module.exports = function (serviceManager) {
                     userName: handshake.userName,
                     clientId: handshake.clientId,
                     role: handshake.role,
+                    sessionId: handshake.sessionId,
                   },
                   socket,
                   {
@@ -173,22 +188,14 @@ module.exports = function (serviceManager) {
       });
 
       socket.on("close", () => {
-        if (clientSession) {
-          spaceRuntime.detachSession(clientSession, { broadcast: true });
-          chatHub.unregisterSession(clientSession);
-          sessionRegistry.unregister(clientSession);
-        }
+        cleanupClientSession(clientSession);
         logInfo(
           `connection closed: ${socket.remoteAddress}:${socket.remotePort}`,
         );
       });
 
       socket.on("error", (err) => {
-        if (clientSession) {
-          spaceRuntime.detachSession(clientSession, { broadcast: true });
-          chatHub.unregisterSession(clientSession);
-          sessionRegistry.unregister(clientSession);
-        }
+        cleanupClientSession(clientSession);
         log.err(`[TCP] socket error: ${err.message}`);
       });
     })
@@ -203,7 +210,12 @@ module.exports = function (serviceManager) {
  * The client blocks until it receives this after the handshake.
  */
 function _sendSessionInitNotification(session, config) {
-  const sessionID = BigInt(Date.now()) * 15n;
+  const sessionID =
+    typeof session.sid === "bigint"
+      ? session.sid
+      : BigInt(session.sid || session.sessionID || (Date.now() * 15));
+  session.sid = sessionID;
+  session.sessionID = sessionID;
 
   const initialState = {
     type: "dict",

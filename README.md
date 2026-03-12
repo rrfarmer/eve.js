@@ -1,22 +1,51 @@
 # Welcome to eve.js!
-> [!WARNING]
-> Right now, the only code published here is the code that completes the handshake, as that is the only code that is 100% completed and works.
 
 > [!WARNING]
-> This repository is in its very early stages, so do not expect everything to work perfectly. I am still learning to use JavaScript, so the code could be improved. Feel free to open a PR!
+> This repo is still early-stage. The current focus is getting practical client features working, not full retail parity.
 
-### Getting started (Part 1):
-You will firstly need to patch the client. The eve.js server can only understand Placebo encoded packets, so you will need to change `start.ini` to be Placebo instead of CryptoAPI. The game will not start with a modified `start.ini` so we will have to replace `blue.dll` with a patched version.
+## Windows Quick Start
 
-**WARNING: It is strongly recommended to clone the Eve Online install files to a seperate directory before editing any files!**
+1. Install dependencies once:
 
-* **Step 1:** Clone the Eve Online install to a seperate location
-* **Step 2:** Download `blue_patched.dll` from [this Github release](https://github.com/evejs-emu/eve.js/releases/tag/blue.dll)
-* **Step 3:** Rename `blue_patched.dll` to `blue.dll`
-* **Step 4:** Move the file to the `bin64` folder inside the cloned Eve Online install directory
-* **Step 5:** Click 'Replace the file in this destination' when prompted
+```powershell
+npm ci
+npm --prefix server ci
+```
 
-Now that `blue.dll` has been replaced, we need to change `start.ini`. It will be located in the root directory of your cloned Eve Online directory.\
-Open it in Notepad, then replace `CryptoAPI` with `Placebo`. Then replace `Tranquility` with `localhost`. Save the file, then you are done with part 1.
+2. Edit `scripts\windows\EvEJSConfig.bat`.
+3. Set `EVEJS_CLIENT_PATH` to your EVE client copy.
+4. Run `scripts\windows\InstallCerts.bat` once.
+5. Start the server with `scripts\windows\StartServerOnly.bat`.
+6. Start the client with either:
+   - `scripts\windows\RunClientProxy.bat`
+   - `scripts\windows\RunClientProxyAndDebug.bat`
 
-*(optional): if you want to avoid finding the specific exe file to launch every time, you can right click the `exefile.exe` inside the `bin64` direcotry, then click 'Show more options' (if on windows 11), then 'Send to' > 'Desktop (create shorcut)'*
+The full launcher guide is in [scripts/README.md](scripts/README.md).
+
+## Important Notes
+
+- The cert installer covers both chat TLS and the local public-gateway TLS used by ship skins.
+- The launcher scripts do not patch the client binaries for you. Your client still needs the normal EvEJS localhost setup such as the patched `blue.dll` and `start.ini`.
+- Chat setup and troubleshooting are documented in [docs/CHAT.md](docs/CHAT.md).
+
+## Data Builders
+
+Reference-data builders now live under `scripts/dev/`.
+
+Useful commands:
+
+```powershell
+npm run sync:ship-data
+npm run build:ship-cosmetics-data
+npm run build:reference-data
+```
+
+## Sharing The Repo
+
+Create a clean source zip with:
+
+```powershell
+npm run zip:source
+```
+
+That uses `scripts\New-SourceZip.ps1` and excludes local scratch data such as `_local`, `client`, `node_modules`, and raw Fuzzwork dumps.

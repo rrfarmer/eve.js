@@ -8,6 +8,7 @@ module.exports = {
   serviceName: "chatServer",
   exec() {
     startXmppStub();
-    log.debug(`chatServer running on http://127.0.0.1:${config.chatServerPort}/`)
+    const host = config.xmppServerHost || "127.0.0.1";
+    log.debug(`chatServer running on tls://${host}:${config.xmppServerPort}/`)
   },
 };

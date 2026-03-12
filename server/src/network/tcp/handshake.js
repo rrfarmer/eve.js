@@ -41,6 +41,11 @@ const MARSHALED_NONE = Buffer.from([
 ]);
 
 const DEV_ACCOUNT_ROLE = "6935543428298309632";
+function createSessionID(seed = 0) {
+  const numericSeed = Number(seed) || 0;
+  return BigInt(Date.now()) * 15n + BigInt(numericSeed % 15);
+}
+
 // ---- handshake states
 const State = {
   SEND_VERSION: "SEND_VERSION",
@@ -62,6 +67,7 @@ class EVEHandshake {
     this.role = 0;
     this.address = socket.remoteAddress || "unknown";
     this.languageId = "EN";
+    this.sessionId = null;
 
     // encryption variables
     // WARNING: this was made in attempt for CryptoAPI support... failed horribly :)
@@ -537,6 +543,10 @@ class EVEHandshake {
     }
 
     // send CryptoHandshakeAck
+    if (this.sessionId === null) {
+      this.sessionId = createSessionID(this.clientId);
+    }
+
     const ack = {
       type: "dict",
       entries: [
@@ -556,7 +566,7 @@ class EVEHandshake {
             ],
           },
         ],
-        ["sessionID", { type: "long", value: BigInt(0) }],
+        ["sessionID", { type: "long", value: this.sessionId }],
         ["client_hash", null],
         ["user_clientid", { type: "long", value: BigInt(this.clientId) }],
       ],
@@ -637,3 +647,4 @@ class EVEHandshake {
 }
 
 module.exports = EVEHandshake;
+

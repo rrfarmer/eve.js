@@ -10,6 +10,11 @@ class InsurgencySolarsystemService extends BaseService {
     log.debug("[InsurgencySolarsystem] GetAllVisibleCampaigns called");
     return { type: "list", items: [] };
   }
+
+  Handle_GetLocalCampaignClientSnapshot(args, session) {
+    log.debug("[InsurgencySolarsystem] GetLocalCampaignClientSnapshot called");
+    return { type: "list", items: [] };
+  }
 }
 
 module.exports = InsurgencySolarsystemService;

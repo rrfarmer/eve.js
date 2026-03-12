@@ -7,6 +7,10 @@
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const {
+  TABLE,
+  readStaticTable,
+} = require(path.join(__dirname, "../_shared/referenceData"));
 const { resolveShipByTypeID } = require(path.join(
   __dirname,
   "../chat/shipTypeRegistry",
@@ -31,9 +35,17 @@ const ATTRIBUTE_MEMORY = 166;
 const ATTRIBUTE_PERCEPTION = 167;
 const ATTRIBUTE_WILLPOWER = 168;
 const ATTRIBUTE_PILOT_SECURITY_STATUS = 2610;
+const ATTRIBUTE_ITEM_DAMAGE = 3;
+const ATTRIBUTE_MASS = 4;
+const ATTRIBUTE_CAPACITY = 38;
+const ATTRIBUTE_SHIELD_CAPACITY = 263;
+const ATTRIBUTE_SHIELD_CHARGE_HELPER = 264;
+const ATTRIBUTE_ARMOR_HP = 265;
+const ATTRIBUTE_ARMOR_DAMAGE = 266;
 const CHARACTER_TYPE_ID = 1373;
 const CHARACTER_GROUP_ID = 1;
 const CHARACTER_CATEGORY_ID = 3;
+const FLAG_PILOT = 57;
 const DBTYPE_I4 = 0x03;
 const DBTYPE_R8 = 0x05;
 const DBTYPE_BOOL = 0x0b;
@@ -107,7 +119,11 @@ class DogmaService extends BaseService {
   }
 
   _toBoolArg(value, fallback = true) {
-    if (value === undefined || value === null) {
+    if (value === undefined) {
+      return fallback;
+    }
+
+    if (value === null) {
       return fallback;
     }
 
@@ -119,8 +135,14 @@ class DogmaService extends BaseService {
       return value !== 0;
     }
 
-    if (typeof value === "object" && value.type === "bool") {
-      return Boolean(value.value);
+    if (typeof value === "object") {
+      if (value.type === "bool") {
+        return Boolean(value.value);
+      }
+
+      if (value.type === "none") {
+        return fallback;
+      }
     }
 
     return fallback;
@@ -324,6 +346,100 @@ class DogmaService extends BaseService {
     };
   }
 
+  _buildShipAttributes(charData = {}, shipData = {}) {
+    const securityStatus = Number(
+      charData.securityStatus ??
+        charData.securityRating ??
+        shipData.securityStatus ??
+        shipData.securityRating ??
+        0,
+    );
+
+    const payload = readStaticTable(TABLE.SHIP_DOGMA_ATTRIBUTES);
+    const shipTypeID = Number(shipData.typeID);
+    const staticEntry =
+      Number.isInteger(shipTypeID) &&
+      payload &&
+      payload.shipAttributesByTypeID &&
+      typeof payload.shipAttributesByTypeID === "object"
+        ? payload.shipAttributesByTypeID[String(shipTypeID)] || null
+        : null;
+    const staticAttributes =
+      staticEntry && staticEntry.attributes && typeof staticEntry.attributes === "object"
+        ? staticEntry.attributes
+        : null;
+    const shipCondition = getShipConditionState(shipData);
+
+    const attributes = staticAttributes
+      ? Object.fromEntries(
+          Object.entries(staticAttributes)
+            .map(([attributeID, value]) => [Number(attributeID), Number(value)])
+            .filter(
+              ([attributeID, value]) =>
+                Number.isInteger(attributeID) && Number.isFinite(value),
+            ),
+        )
+      : {};
+
+    const shipMass = Number(shipData.mass);
+    if (!(ATTRIBUTE_MASS in attributes) && Number.isFinite(shipMass)) {
+      attributes[ATTRIBUTE_MASS] = shipMass;
+    }
+
+    const shipCapacity = Number(shipData.capacity);
+    if (!(ATTRIBUTE_CAPACITY in attributes) && Number.isFinite(shipCapacity)) {
+      attributes[ATTRIBUTE_CAPACITY] = shipCapacity;
+    }
+
+    const shieldCapacity = Number(attributes[ATTRIBUTE_SHIELD_CAPACITY]);
+    if (
+      Number.isFinite(shieldCapacity) &&
+      shieldCapacity >= 0 &&
+      Number.isFinite(shipCondition.shieldCharge)
+    ) {
+      attributes[ATTRIBUTE_SHIELD_CHARGE_HELPER] = Number(
+        (shieldCapacity * shipCondition.shieldCharge).toFixed(6),
+      );
+    }
+
+    const armorHP = Number(attributes[ATTRIBUTE_ARMOR_HP]);
+    if (
+      Number.isFinite(armorHP) &&
+      armorHP >= 0 &&
+      Number.isFinite(shipCondition.armorDamage)
+    ) {
+      attributes[ATTRIBUTE_ARMOR_DAMAGE] = Number(
+        (armorHP * shipCondition.armorDamage).toFixed(6),
+      );
+    }
+
+    if (Number.isFinite(shipCondition.damage)) {
+      attributes[ATTRIBUTE_ITEM_DAMAGE] = shipCondition.damage;
+    }
+
+    attributes[ATTRIBUTE_PILOT_SECURITY_STATUS] = Number.isFinite(securityStatus)
+      ? securityStatus
+      : 0;
+
+    return {
+      ...attributes,
+      [ATTRIBUTE_PILOT_SECURITY_STATUS]: Number.isFinite(securityStatus)
+        ? securityStatus
+        : 0,
+    };
+  }
+
+  _buildShipAttributeDict(charData = {}, shipData = {}) {
+    const attributes = this._buildShipAttributes(charData, shipData);
+    return {
+      type: "dict",
+      entries: Object.entries(attributes).map(([attributeID, value]) => [
+        Number(attributeID),
+        value,
+      ]),
+    };
+  }
+
   _buildEmptyDict() {
     return { type: "dict", entries: [] };
   }
@@ -344,14 +460,26 @@ class DogmaService extends BaseService {
     ];
   }
 
-  _buildCharacterInfoDict(charID, charData, shipID) {
+  _getCharacterItemLocationID(session, options = {}) {
+    const allowShipLocation = options.allowShipLocation !== false;
+    if (
+      !allowShipLocation ||
+      (session && session._deferredDockedShipSessionChange)
+    ) {
+      return this._getLocationID(session);
+    }
+
+    return this._getShipID(session);
+  }
+
+  _buildCharacterInfoDict(charID, charData, locationID) {
     return {
       type: "dict",
-      entries: this._buildCharacterInfoEntries(charID, charData, shipID),
+      entries: this._buildCharacterInfoEntries(charID, charData, locationID),
     };
   }
 
-  _buildCharacterInfoEntries(charID, charData, shipID) {
+  _buildCharacterInfoEntries(charID, charData, locationID) {
     return [
       [
         charID,
@@ -359,8 +487,8 @@ class DogmaService extends BaseService {
           itemID: charID,
           typeID: charData.typeID || CHARACTER_TYPE_ID,
           ownerID: charID,
-          locationID: shipID,
-          flagID: 0,
+          locationID,
+          flagID: FLAG_PILOT,
           groupID: CHARACTER_GROUP_ID,
           categoryID: CHARACTER_CATEGORY_ID,
           quantity: -1,
@@ -442,31 +570,40 @@ class DogmaService extends BaseService {
     const locationID = this._getLocationID(session);
     const getCharInfo = this._toBoolArg(args && args[0], true);
     const getShipInfo = this._toBoolArg(args && args[1], true);
+    const characterLocationID = this._getCharacterItemLocationID(session, {
+      allowShipLocation: getShipInfo,
+    });
     const locationInfo = this._buildEmptyDict();
 
-    const shipInfoEntry = this._buildCommonGetInfoEntry({
-      itemID: shipID,
-      typeID: shipMetadata.typeID,
-      ownerID: shipMetadata.ownerID || ownerID,
-      locationID: this._coalesce(shipMetadata.locationID, locationID),
-      flagID: this._coalesce(shipMetadata.flagID, 4),
-      groupID: shipMetadata.groupID,
-      categoryID: shipMetadata.categoryID,
-      quantity:
-        shipMetadata.quantity === undefined || shipMetadata.quantity === null
-          ? -1
-          : shipMetadata.quantity,
-      singleton:
-        shipMetadata.singleton === undefined || shipMetadata.singleton === null
-          ? 1
-          : shipMetadata.singleton,
-      stacksize:
-        shipMetadata.stacksize === undefined || shipMetadata.stacksize === null
-          ? 1
-          : shipMetadata.stacksize,
-      customInfo: shipMetadata.customInfo || "",
-      description: "ship",
-    });
+    const shipInfoEntry = getShipInfo
+      ? this._buildCommonGetInfoEntry({
+          itemID: shipID,
+          typeID: shipMetadata.typeID,
+          ownerID: shipMetadata.ownerID || ownerID,
+          locationID: this._coalesce(shipMetadata.locationID, locationID),
+          flagID: this._coalesce(shipMetadata.flagID, 4),
+          groupID: shipMetadata.groupID,
+          categoryID: shipMetadata.categoryID,
+          quantity:
+            shipMetadata.quantity === undefined ||
+            shipMetadata.quantity === null
+              ? -1
+              : shipMetadata.quantity,
+          singleton:
+            shipMetadata.singleton === undefined ||
+            shipMetadata.singleton === null
+              ? 1
+              : shipMetadata.singleton,
+          stacksize:
+            shipMetadata.stacksize === undefined ||
+            shipMetadata.stacksize === null
+              ? 1
+              : shipMetadata.stacksize,
+          customInfo: shipMetadata.customInfo || "",
+          description: "ship",
+          attributes: this._buildShipAttributeDict(charData, shipMetadata),
+        })
+      : null;
 
     return {
       type: "object",
@@ -481,7 +618,11 @@ class DogmaService extends BaseService {
             "charInfo",
             getCharInfo
               ? [
-                  this._buildCharacterInfoDict(charID, charData, shipID),
+                  this._buildCharacterInfoDict(
+                    charID,
+                    charData,
+                    characterLocationID,
+                  ),
                   this._buildCharacterBrain(),
                 ]
               : null,
@@ -497,7 +638,9 @@ class DogmaService extends BaseService {
           ],
           [
             "shipState",
-            this._buildActivationState(charID, shipID, activeShip),
+            getShipInfo
+              ? this._buildActivationState(charID, shipID, activeShip)
+              : null,
           ],
           ["systemWideEffectsOnShip", null],
           ["structureInfo", null],
@@ -536,6 +679,10 @@ class DogmaService extends BaseService {
           : shipMetadata.stacksize,
       customInfo: shipMetadata.customInfo || "",
       description: "ship",
+      attributes: this._buildShipAttributeDict(
+        this._getCharacterRecord(session) || {},
+        shipMetadata,
+      ),
     });
 
     return { type: "dict", entries: [[shipID, entry]] };
@@ -545,8 +692,8 @@ class DogmaService extends BaseService {
     log.debug("[DogmaIM] CharGetInfo");
     const charID = this._getCharID(session);
     const charData = this._getCharacterRecord(session) || {};
-    const shipID = this._getShipID(session);
-    return this._buildCharacterInfoDict(charID, charData, shipID);
+    const characterLocationID = this._getCharacterItemLocationID(session);
+    return this._buildCharacterInfoDict(charID, charData, characterLocationID);
   }
 
   Handle_ItemGetInfo(args, session) {
@@ -586,15 +733,18 @@ class DogmaService extends BaseService {
     const ownerID = charID;
     const locationID = this._getLocationID(session);
     const shipMetadata = shipRecord || this._getActiveShipRecord(session) || this._getShipMetadata(session);
+    const characterLocationID = this._getCharacterItemLocationID(session);
 
     return this._buildCommonGetInfoEntry({
       itemID,
       typeID: isCharacter ? (charData.typeID || 1373) : shipMetadata.typeID,
       ownerID,
       locationID: isCharacter
-        ? locationID
+        ? characterLocationID
         : this._coalesce(shipMetadata.locationID, locationID),
-      flagID: isCharacter ? 0 : this._coalesce(shipMetadata.flagID, 4),
+      flagID: isCharacter
+        ? FLAG_PILOT
+        : this._coalesce(shipMetadata.flagID, 4),
       groupID: isCharacter ? 1 : shipMetadata.groupID,
       categoryID: isCharacter ? 3 : shipMetadata.categoryID,
       quantity: isCharacter
@@ -620,6 +770,9 @@ class DogmaService extends BaseService {
           ),
       customInfo: isCharacter ? "" : (shipMetadata.customInfo || ""),
       description: "item",
+      attributes: isCharacter
+        ? this._buildCharacterAttributeDict(charData)
+        : this._buildShipAttributeDict(charData, shipMetadata),
     });
   }
 

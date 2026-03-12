@@ -115,6 +115,7 @@ function performCharacterLogoff(session, source = "userSvc") {
   appendChange(changes, "rolesAtOther", session.rolesAtOther ?? null, 0n);
 
   session.selectedCharacterID = 0;
+  session.lastCreatedCharacterID = 0;
   session.characterID = 0;
   session.charid = 0;
   session.characterName = "";

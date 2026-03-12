@@ -19,6 +19,10 @@ const {
   ensureCharacterSkills,
   getCharacterSkillPointTotal,
 } = require(path.join(__dirname, "../skills/skillState"));
+const {
+  setCharacterOnlineState,
+  broadcastStationGuestEvent,
+} = require(path.join(__dirname, "../station/stationPresence"));
 
 const CHARACTERS_TABLE = "characters";
 const INV_UPDATE_LOCATION = 3;
@@ -111,8 +115,8 @@ function normalizeSessionShipValue(value) {
   return value;
 }
 
-function appendSessionChange(changes, key, oldValue, newValue) {
-  if (oldValue === newValue) {
+function appendSessionChange(changes, key, oldValue, newValue, options = {}) {
+  if (!options.force && oldValue === newValue) {
     return;
   }
 
@@ -121,6 +125,26 @@ function appendSessionChange(changes, key, oldValue, newValue) {
 
 function hasLocationID(value) {
   return Number.isInteger(Number(value)) && Number(value) > 0;
+}
+
+function normalizeWorldSpaceID(record = {}) {
+  const stationID = hasLocationID(record.stationID) ? Number(record.stationID) : null;
+  const worldSpaceID = hasLocationID(record.worldSpaceID)
+    ? Number(record.worldSpaceID)
+    : null;
+
+  if (!worldSpaceID) {
+    return 0;
+  }
+
+  // NPC station hangars are station sessions, not separate worldspaces.
+  // Mirroring stationID into worldSpaceID makes the client treat login/dock as
+  // a mixed location transition and it rebuilds the hangar presentation twice.
+  if (stationID && worldSpaceID === stationID) {
+    return 0;
+  }
+
+  return worldSpaceID;
 }
 
 function deriveEmpireID(record) {
@@ -187,6 +211,9 @@ function normalizeCharacterRecord(charId, record) {
   };
   const activeShip = getActiveShipItem(charId);
   const totalSkillPoints = getCharacterSkillPointTotal(charId);
+  const gender = Number(normalized.gender);
+
+  normalized.gender = gender === 0 || gender === 1 || gender === 2 ? gender : 1;
 
   if (activeShip) {
     normalized.shipID = activeShip.itemID;
@@ -206,6 +233,7 @@ function normalizeCharacterRecord(charId, record) {
     normalized.securityStatus ?? normalized.securityRating ?? 0,
   );
   normalized.securityRating = normalized.securityStatus;
+  normalized.worldSpaceID = normalizeWorldSpaceID(normalized);
   if (Number.isFinite(totalSkillPoints) && totalSkillPoints > 0) {
     normalized.skillPoints = totalSkillPoints;
   }
@@ -386,12 +414,158 @@ function syncInventoryItemForSession(
   );
 }
 
+function queueDeferredDockedShipSessionChange(
+  session,
+  shipID,
+  previousClientShipID = null,
+  options = {},
+) {
+  if (!session) {
+    return;
+  }
+
+  const normalizedShipID = normalizeSessionShipValue(shipID);
+  if (!normalizedShipID) {
+    session._deferredDockedShipSessionChange = null;
+    return;
+  }
+
+  session._deferredDockedShipSessionChange = {
+    shipID: normalizedShipID,
+    previousClientShipID: normalizeSessionShipValue(previousClientShipID),
+    loginSelection: options.loginSelection === true,
+    queuedAt: Date.now(),
+    stationHangarListCount: 0,
+    stationHangarSelfSeen: false,
+    selfFlushTimer: null,
+  };
+}
+
+function clearDeferredDockedShipSessionChangeTimer(pending) {
+  if (!pending || !pending.selfFlushTimer) {
+    return;
+  }
+
+  clearTimeout(pending.selfFlushTimer);
+  pending.selfFlushTimer = null;
+}
+
+function scheduleDeferredDockedShipSessionChangeSelfFlush(session) {
+  if (!session || !session._deferredDockedShipSessionChange) {
+    return;
+  }
+
+  const pending = session._deferredDockedShipSessionChange;
+  if (pending.selfFlushTimer) {
+    return;
+  }
+
+  pending.selfFlushTimer = setTimeout(() => {
+    if (session._deferredDockedShipSessionChange !== pending) {
+      return;
+    }
+
+    flushDeferredDockedShipSessionChange(session, {
+      trigger: "invbroker.GetSelfInvItemTimer",
+    });
+  }, 350);
+}
+
+function clearDeferredDockedShipSessionChange(session) {
+  if (!session) {
+    return;
+  }
+
+  clearDeferredDockedShipSessionChangeTimer(
+    session._deferredDockedShipSessionChange,
+  );
+  session._deferredDockedShipSessionChange = null;
+}
+
+function shouldFlushDeferredDockedShipSessionChange(session, method) {
+  if (!session || !session._deferredDockedShipSessionChange) {
+    return false;
+  }
+
+  const pending = session._deferredDockedShipSessionChange;
+  if (method === "GetSelfInvItem") {
+    pending.stationHangarSelfSeen = true;
+    if (pending.stationHangarListCount >= 1) {
+      scheduleDeferredDockedShipSessionChangeSelfFlush(session);
+    }
+    return false;
+  }
+
+  if (method !== "List") {
+    return false;
+  }
+
+  pending.stationHangarListCount =
+    (pending.stationHangarListCount || 0) + 1;
+
+  // Login needs the active ship restored as soon as the station hangar starts
+  // listing ships. Waiting for a later pass can miss the hangar's initial
+  // ship-presentation window entirely, which is exactly the "visible for one
+  // character, invisible for most others" behavior in the latest traces.
+  if (pending.loginSelection) {
+    return pending.stationHangarListCount >= 1;
+  }
+
+  // The first station-hangar list is part of the initial bind/metadata pass.
+  // Waiting for the follow-up list keeps shipid restoration closer to the
+  // actual hangar open path instead of the char-select transition.
+  return Boolean(
+    pending.stationHangarSelfSeen || pending.stationHangarListCount >= 2,
+  );
+}
+
+function flushDeferredDockedShipSessionChange(session, options = {}) {
+  if (
+    !session ||
+    typeof session.sendSessionChange !== "function" ||
+    !session._deferredDockedShipSessionChange
+  ) {
+    return false;
+  }
+
+  const pending = session._deferredDockedShipSessionChange;
+  clearDeferredDockedShipSessionChangeTimer(pending);
+  const shipID = normalizeSessionShipValue(pending.shipID);
+  if (!shipID) {
+    session._deferredDockedShipSessionChange = null;
+    return false;
+  }
+
+  session.sendSessionChange(
+    {
+      shipid: [null, shipID],
+    },
+  );
+
+  session._deferredDockedShipSessionChange = null;
+  log.info(
+    `[CharacterState] Flushed deferred docked shipid=${shipID} trigger=${options.trigger || "unknown"}`,
+  );
+  return true;
+}
+
 function applyCharacterToSession(session, charId, options = {}) {
   if (!session) {
     return {
       success: false,
       errorMsg: "SESSION_REQUIRED",
     };
+  }
+
+  // Character selection reuses the same client session object. Any deferred
+  // docked-ship restore still hanging off a previous character selection can
+  // flush into the new login and restore the wrong shipid a second later.
+  // Start every fresh SelectCharacterID from a clean deferred state.
+  if (
+    options.selectionEvent !== false ||
+    options.deferDockedShipSessionChange === false
+  ) {
+    clearDeferredDockedShipSessionChange(session);
   }
 
   const charData = getCharacterRecord(charId);
@@ -439,6 +613,9 @@ function applyCharacterToSession(session, charId, options = {}) {
   const storedStationID = hasLocationID(charData.stationID)
     ? Number(charData.stationID)
     : null;
+  const storedWorldSpaceID = hasLocationID(charData.worldSpaceID)
+    ? Number(charData.worldSpaceID)
+    : null;
   const storedSolarSystemID = hasLocationID(charData.solarSystemID)
     ? Number(charData.solarSystemID)
     : 30000142;
@@ -471,7 +648,7 @@ function applyCharacterToSession(session, charId, options = {}) {
   session.stationid = isDocked ? stationID : null;
   session.stationID = isDocked ? stationID : null;
   session.stationid2 = isDocked ? stationID : null;
-  session.worldspaceid = isDocked ? stationID : null;
+  session.worldspaceid = storedWorldSpaceID || null;
   session.locationid = isDocked ? stationID : solarSystemID;
   session.homeStationID = homeStationID;
   session.homestationid = homeStationID;
@@ -506,10 +683,36 @@ function applyCharacterToSession(session, charId, options = {}) {
   session.rolesAtHQ = 0n;
   session.rolesAtOther = 0n;
 
+  const onlineStateResult = setCharacterOnlineState(charId, true, {
+    stationID: stationID || undefined,
+  });
+  if (!onlineStateResult.success) {
+    log.warn(
+      `[CharState] Failed to mark character ${charId} online: ${onlineStateResult.errorMsg}`,
+    );
+  }
+
   if (options.emitNotifications !== false) {
     const isCharacterSelection =
       options.selectionEvent !== false &&
       (oldCharID === undefined || oldCharID === null || oldCharID !== charId);
+    const isInitialCharacterSelection =
+      isCharacterSelection &&
+      (oldCharID === undefined || oldCharID === null || oldCharID === 0);
+    const changedDockedStation =
+      isDocked &&
+      Number(oldStationID || 0) !== Number(stationID || 0);
+    const forceDockedShipSessionChange =
+      isDocked &&
+      (
+        options.forceDockedShipSessionChange === true ||
+        isCharacterSelection ||
+        changedDockedStation
+      );
+    // Late docked-ship restoration causes the client to black-screen and
+    // rebuild the hangar ship presentation a second time. Keep docked shipid
+    // authoritative in the main session change instead of repairing it later.
+    const deferDockedShipSessionChange = false;
     if (isCharacterSelection) {
       session.sendNotification("OnCharacterSelected", "clientID", []);
     }
@@ -528,14 +731,29 @@ function applyCharacterToSession(session, charId, options = {}) {
       oldAllianceID || null,
       session.allianceID || null,
     );
-    appendSessionChange(sessionChanges, "genderID", oldGenderID, session.genderID);
+    // The client starts without character identity fields in its session.
+    // If a selected character happens to match the server-side constructor
+    // defaults (for example Minmatar 1/1), suppressing these "unchanged"
+    // values leaves the client session incomplete and breaks clone-grade
+    // checks while rendering station ships.
+    appendSessionChange(
+      sessionChanges,
+      "genderID",
+      isInitialCharacterSelection ? null : oldGenderID,
+      session.genderID,
+    );
     appendSessionChange(
       sessionChanges,
       "bloodlineID",
-      oldBloodlineID,
+      isInitialCharacterSelection ? null : oldBloodlineID,
       session.bloodlineID,
     );
-    appendSessionChange(sessionChanges, "raceID", oldRaceID, session.raceID);
+    appendSessionChange(
+      sessionChanges,
+      "raceID",
+      isInitialCharacterSelection ? null : oldRaceID,
+      session.raceID,
+    );
     appendSessionChange(sessionChanges, "schoolID", oldSchoolID, session.schoolID);
     appendSessionChange(
       sessionChanges,
@@ -576,8 +794,11 @@ function applyCharacterToSession(session, charId, options = {}) {
     appendSessionChange(
       sessionChanges,
       "shipid",
-      normalizeSessionShipValue(oldShipID),
+      forceDockedShipSessionChange ? null : normalizeSessionShipValue(oldShipID),
       normalizeSessionShipValue(session.shipID),
+      {
+        force: forceDockedShipSessionChange,
+      },
     );
     appendSessionChange(
       sessionChanges,
@@ -626,6 +847,38 @@ function applyCharacterToSession(session, charId, options = {}) {
 
     if (Object.keys(sessionChanges).length > 0) {
       session.sendSessionChange(sessionChanges);
+    }
+
+    if (deferDockedShipSessionChange) {
+      queueDeferredDockedShipSessionChange(
+        session,
+        session.shipID,
+        normalizeSessionShipValue(oldShipID),
+        {
+          loginSelection: isInitialCharacterSelection,
+        },
+      );
+    } else {
+      clearDeferredDockedShipSessionChange(session);
+    }
+
+    if (
+      isDocked &&
+      (oldCharID !== charId || Number(oldStationID || 0) !== Number(stationID || 0))
+    ) {
+      broadcastStationGuestEvent(
+        "OnCharNowInStation",
+        {
+          characterID: charId,
+          corporationID: session.corporationID,
+          allianceID: session.allianceID,
+          warFactionID: session.warFactionID,
+          stationID,
+        },
+        {
+          excludeSession: session,
+        },
+      );
     }
   }
 
@@ -677,6 +930,48 @@ function activateShipForSession(session, shipId, options = {}) {
     logSelection: options.logSelection !== false,
     selectionEvent: false,
   });
+
+  if (
+    applyResult.success &&
+    options.emitNotifications !== false
+  ) {
+    // Docked boarding does not move the hull between containers, so the client
+    // only sees a shipid session change unless we explicitly refresh the item
+    // cache entries that back the hangar/active-ship presentation.
+    const refreshedTargetShip = getActiveShipRecord(charId) || targetShip;
+    const refreshQueue = [];
+    const seenItemIds = new Set();
+
+    if (currentShip && currentShip.itemID !== targetShip.itemID) {
+      refreshQueue.push(currentShip);
+    }
+    refreshQueue.push(refreshedTargetShip);
+
+    for (const shipItem of refreshQueue) {
+      if (
+        !shipItem ||
+        seenItemIds.has(shipItem.itemID)
+      ) {
+        continue;
+      }
+
+      seenItemIds.add(shipItem.itemID);
+      syncInventoryItemForSession(
+        session,
+        shipItem,
+        {
+          locationID: shipItem.locationID,
+          flagID: shipItem.flagID,
+          quantity: shipItem.quantity,
+          singleton: shipItem.singleton,
+          stacksize: shipItem.stacksize,
+        },
+        {
+          emitCfgLocation: true,
+        },
+      );
+    }
+  }
 
   return {
     ...applyResult,
@@ -746,7 +1041,10 @@ module.exports = {
   buildInventoryItemRow,
   buildItemChangePayload,
   syncInventoryItemForSession,
+  shouldFlushDeferredDockedShipSessionChange,
+  flushDeferredDockedShipSessionChange,
   toBigInt,
   deriveEmpireID,
   deriveFactionID,
 };
+

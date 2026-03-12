@@ -1,5 +1,6 @@
 const { toBigInt } = require("../character/characterState");
 const { sendSessionSystemMessage } = require("./xmppStubServer");
+const sessionRegistry = require("./sessionRegistry");
 
 const joinedChannels = new Map();
 
@@ -123,8 +124,54 @@ function getLocalChannelName(channelID) {
   return `local_${Number(channelID || 30000142)}`;
 }
 
+function getActiveSessionsForChannel(channel) {
+  if (!channel) {
+    return [];
+  }
+
+  return sessionRegistry.getSessions().filter((session) => {
+    return (
+      hasSelectedCharacter(session) &&
+      getLocalChannelForSession(session).key === channel.key
+    );
+  });
+}
+
+function syncChannelMembership(channel) {
+  if (!channel) {
+    return new Set();
+  }
+
+  const activeSessions = getActiveSessionsForChannel(channel);
+  const members = joinedChannels.get(channel.key) || new Set();
+
+  for (const session of activeSessions) {
+    members.add(session);
+  }
+
+  for (const member of Array.from(members)) {
+    if (
+      !member ||
+      !member.socket ||
+      member.socket.destroyed ||
+      !hasSelectedCharacter(member) ||
+      getLocalChannelForSession(member).key !== channel.key
+    ) {
+      members.delete(member);
+    }
+  }
+
+  if (members.size > 0) {
+    joinedChannels.set(channel.key, members);
+  } else {
+    joinedChannels.delete(channel.key);
+  }
+
+  return members;
+}
+
 function getChannelMembers(channel) {
-  const members = joinedChannels.get(channel.key);
+  const members = syncChannelMembership(channel);
   if (!members) {
     return [];
   }

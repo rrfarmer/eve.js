@@ -1,4 +1,6 @@
 "right click > align to" does not work, ship continues in the same path it was going before.
-skills showing under different categories do no appear for newly created characters
 after Log Off, some panels may still appear (chat, overview, etc)
 other player's ships may still show even when they are over 25 au away...
+if you press the dock button while out of docking range, you will auto aproach station, but not auto dock when close enough.
+on skill page, all skill points are level 5, but max SP for each skill only shows 256,000 (for example, 256,000/768,000 but skill is lvl 5)
+not really an issue, but most recent character does not appear first in list of character selection screen.

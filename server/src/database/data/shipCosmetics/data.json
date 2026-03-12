@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "description": "Runtime ship cosmetic ownership and applied-skin state.",
+    "createdBy": "Codex",
+    "createdAt": "2026-03-11"
+  },
+  "characters": {},
+  "ships": {
+    "140000107": {
+      "shipID": 140000107,
+      "ownerID": 140000003,
+      "typeID": 24698,
+      "skinID": 192,
+      "updatedAt": "2026-03-11T22:27:40.314Z"
+    },
+    "140000108": {
+      "shipID": 140000108,
+      "ownerID": 140000003,
+      "typeID": 24692,
+      "skinID": 4727,
+      "updatedAt": "2026-03-11T22:37:00.656Z"
+    },
+    "140000112": {
+      "shipID": 140000112,
+      "ownerID": 140000004,
+      "typeID": 44996,
+      "skinID": 10216,
+      "updatedAt": "2026-03-12T04:38:20.243Z"
+    },
+    "140000130": {
+      "shipID": 140000130,
+      "ownerID": 140000006,
+      "typeID": 606,
+      "skinID": 11017,
+      "updatedAt": "2026-03-12T03:01:31.042Z"
+    },
+    "140000132": {
+      "shipID": 140000132,
+      "ownerID": 140000006,
+      "typeID": 11134,
+      "skinID": null,
+      "updatedAt": "2026-03-12T03:03:44.926Z"
+    },
+    "140000133": {
+      "shipID": 140000133,
+      "ownerID": 140000006,
+      "typeID": 44996,
+      "skinID": 12191,
+      "updatedAt": "2026-03-12T03:05:39.438Z"
+    },
+    "140000134": {
+      "shipID": 140000134,
+      "ownerID": 140000003,
+      "typeID": 671,
+      "skinID": 4965,
+      "updatedAt": "2026-03-11T22:39:22.013Z"
+    },
+    "140000135": {
+      "shipID": 140000135,
+      "ownerID": 140000003,
+      "typeID": 17726,
+      "skinID": 9091,
+      "updatedAt": "2026-03-11T22:55:46.054Z"
+    },
+    "140000136": {
+      "shipID": 140000136,
+      "ownerID": 140000003,
+      "typeID": 597,
+      "skinID": 10674,
+      "updatedAt": "2026-03-12T00:51:44.289Z"
+    }
+  }
+}

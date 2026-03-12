@@ -30,6 +30,7 @@ function Test-ExcludedPath {
     ".git\",
     "node_modules\",
     "client\",
+    "docs\",
     "server\logs\",
     "data\fuzzwork\",
     "_secondary\",

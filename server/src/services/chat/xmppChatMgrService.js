@@ -47,7 +47,7 @@ function isLoopbackHost(host) {
 }
 
 function detectChatHost(session) {
-  const configuredHost = normalizeHost(config.chatServerHost || config.serverHost);
+  const configuredHost = normalizeHost(config.xmppServerHost);
   if (isUsableHost(configuredHost)) {
     return configuredHost;
   }

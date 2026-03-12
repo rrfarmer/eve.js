@@ -4,6 +4,7 @@ const { currentFileTime } = require(path.join(
   __dirname,
   "./serviceHelpers",
 ));
+const worldData = require(path.join(__dirname, "../../space/worldData"));
 
 const DEFAULT_STATION = {
   stationID: 60003760,
@@ -129,6 +130,40 @@ function getStationRecord(session = null, overrideStationID = null) {
     overrideStationID ||
     (session && (session.stationid || session.stationID || session.locationid)) ||
     DEFAULT_STATION.stationID;
+
+  const station = worldData.getStationByID(stationID);
+  if (station) {
+    const ownerRecord =
+      NPC_OWNER_OVERRIDES[station.corporationID] ||
+      NPC_OWNER_OVERRIDES[station.ownerID] ||
+      null;
+    const solarSystem = worldData.getSolarSystemByID(station.solarSystemID);
+    return {
+      ...DEFAULT_STATION,
+      ...station,
+      stationID: station.stationID,
+      stationName: station.stationName,
+      stationTypeID: station.stationTypeID,
+      solarSystemID: station.solarSystemID,
+      solarSystemName:
+        (solarSystem && solarSystem.solarSystemName) ||
+        DEFAULT_STATION.solarSystemName,
+      constellationID: station.constellationID,
+      regionID: station.regionID,
+      ownerID: station.corporationID,
+      ownerName: ownerRecord ? ownerRecord.ownerName : DEFAULT_STATION.ownerName,
+      corporationID: station.corporationID,
+      corporationName: ownerRecord
+        ? ownerRecord.ownerName
+        : DEFAULT_STATION.corporationName,
+      corporationTicker: ownerRecord ? ownerRecord.tickerName : DEFAULT_STATION.corporationTicker,
+      security: Number(station.security || 0),
+      orbitID: station.orbitID || null,
+      x: station.position && station.position.x ? station.position.x : 0,
+      y: station.position && station.position.y ? station.position.y : 0,
+      z: station.position && station.position.z ? station.position.z : 0,
+    };
+  }
 
   return {
     ...DEFAULT_STATION,

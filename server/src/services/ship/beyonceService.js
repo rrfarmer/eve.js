@@ -6,6 +6,7 @@ const config = require(path.join(__dirname, "../../config"));
 const {
   buildBoundObjectResponse,
   normalizeNumber,
+  extractDictEntries,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const {
   throwWrappedUserError,
@@ -66,8 +67,16 @@ class BeyonceService extends BaseService {
     return null;
   }
 
-  Handle_CmdAlignTo(args, session) {
-    const targetID = normalizeNumber(args && args[0], 0);
+  Handle_CmdAlignTo(args, session, kwargs) {
+    const kwargEntries = extractDictEntries(kwargs);
+    const dstEntry = kwargEntries.find(([key]) => {
+      const normalizedKey = Buffer.isBuffer(key) ? key.toString("utf8") : String(key);
+      return normalizedKey === "dstID";
+    });
+    const targetID = normalizeNumber(
+      args && args[0] !== undefined ? args[0] : dstEntry ? dstEntry[1] : 0,
+      0,
+    );
     log.info(
       `[Beyonce] CmdAlignTo char=${session && session.characterID} target=${targetID}`,
     );

@@ -66,6 +66,53 @@ function buildAveragePriceEntry(price, adjustedPrice = null) {
   ]);
 }
 
+let staticLocationRowsById = null;
+
+function buildLocationRow(locationID, locationName, position = null) {
+  return [
+    locationID,
+    locationName,
+    Number(position && position.x) || 0.0,
+    Number(position && position.y) || 0.0,
+    Number(position && position.z) || 0.0,
+    null,
+  ];
+}
+
+function getStaticLocationRowsById() {
+  if (staticLocationRowsById) {
+    return staticLocationRowsById;
+  }
+
+  const rowsById = new Map();
+  const addLocation = (locationID, locationName, position = null) => {
+    const numericId = Number(locationID) || 0;
+    if (numericId <= 0 || !locationName) {
+      return;
+    }
+    rowsById.set(
+      numericId,
+      buildLocationRow(numericId, locationName, position),
+    );
+  };
+
+  for (const system of readStaticRows(TABLE.SOLAR_SYSTEMS)) {
+    addLocation(system.solarSystemID, system.solarSystemName, system.position);
+  }
+  for (const station of readStaticRows(TABLE.STATIONS)) {
+    addLocation(station.stationID, station.stationName, station.position);
+  }
+  for (const celestial of readStaticRows(TABLE.CELESTIALS)) {
+    addLocation(celestial.itemID, celestial.itemName, celestial.position);
+  }
+  for (const stargate of readStaticRows(TABLE.STARGATES)) {
+    addLocation(stargate.itemID, stargate.itemName, stargate.position);
+  }
+
+  staticLocationRowsById = rowsById;
+  return rowsById;
+}
+
 class ConfigService extends BaseService {
   constructor() {
     super("config");
@@ -159,16 +206,40 @@ class ConfigService extends BaseService {
     const characterResult = database.read("characters", "/")
     const characters = characterResult.success ? characterResult.data : {}
     const station = getStationRecord(session);
-    const locationNameById = new Map([
-      [station.stationID, station.stationName],
-      [station.orbitID, station.stationName],
-      [station.solarSystemID, station.solarSystemName || `System ${station.solarSystemID}`],
-      [
+    const locationRowsById = new Map();
+    const staticRowsById = getStaticLocationRowsById();
+
+    if (station) {
+      locationRowsById.set(
+        station.stationID,
+        buildLocationRow(station.stationID, station.stationName),
+      );
+      locationRowsById.set(
+        station.orbitID,
+        buildLocationRow(station.orbitID, station.stationName),
+      );
+      locationRowsById.set(
+        station.solarSystemID,
+        buildLocationRow(
+          station.solarSystemID,
+          station.solarSystemName || `System ${station.solarSystemID}`,
+        ),
+      );
+      locationRowsById.set(
         station.constellationID,
-        station.constellationName || `Constellation ${station.constellationID}`,
-      ],
-      [station.regionID, station.regionName || `Region ${station.regionID}`],
-    ]);
+        buildLocationRow(
+          station.constellationID,
+          station.constellationName || `Constellation ${station.constellationID}`,
+        ),
+      );
+      locationRowsById.set(
+        station.regionID,
+        buildLocationRow(
+          station.regionID,
+          station.regionName || `Region ${station.regionID}`,
+        ),
+      );
+    }
 
     const shipNameById = new Map();
     const charNameById = new Map();
@@ -192,18 +263,20 @@ class ConfigService extends BaseService {
         continue;
       }
 
-      if (locationNameById.has(numericId)) {
-        rows.push([numericId, locationNameById.get(numericId), 0.0, 0.0, 0.0, null]);
+      if (locationRowsById.has(numericId)) {
+        rows.push(locationRowsById.get(numericId));
+      } else if (staticRowsById.has(numericId)) {
+        rows.push(staticRowsById.get(numericId));
       } else if (shipNameById.has(numericId)) {
-        rows.push([numericId, shipNameById.get(numericId), 0.0, 0.0, 0.0, null]);
+        rows.push(buildLocationRow(numericId, shipNameById.get(numericId)));
       } else if (charNameById.has(numericId)) {
-        rows.push([numericId, charNameById.get(numericId), 0.0, 0.0, 0.0, null]);
+        rows.push(buildLocationRow(numericId, charNameById.get(numericId)));
       } else if (numericId >= 60000000 && numericId < 64000000) {
-        rows.push([numericId, `Station ${numericId}`, 0.0, 0.0, 0.0, null]);
+        rows.push(buildLocationRow(numericId, `Station ${numericId}`));
       } else if (numericId >= 30000000 && numericId < 40000000) {
-        rows.push([numericId, `System ${numericId}`, 0.0, 0.0, 0.0, null]);
+        rows.push(buildLocationRow(numericId, `System ${numericId}`));
       } else {
-        rows.push([numericId, `Location ${numericId}`, 0.0, 0.0, 0.0, null]);
+        rows.push(buildLocationRow(numericId, `Location ${numericId}`));
       }
     }
 
@@ -315,5 +388,6 @@ class ConfigService extends BaseService {
 }
 
 module.exports = ConfigService;
+
 
 

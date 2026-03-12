@@ -87,6 +87,11 @@ function resolveSessionCharacterId(session, options = {}) {
     return fallbackCharacterId;
   }
 
+  const allowGlobalFallback = options.allowGlobalFallback !== false;
+  if (!allowGlobalFallback) {
+    return fallbackCharacterId;
+  }
+
   const highestCharacterId = Object.keys(readCharacters())
     .map((charId) => toNumber(charId, 0))
     .filter((charId) => charId > 0)

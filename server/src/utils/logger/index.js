@@ -41,6 +41,7 @@ module.exports = {
   debug,
   warn,
   err,
+  error: err,
   success,
   logAsciiLogo,
 };

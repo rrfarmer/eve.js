@@ -5,6 +5,7 @@ const log = require(path.join(__dirname, "../../utils/logger"));
 
 const TABLE = Object.freeze({
   SHIP_TYPES: "shipTypes",
+  SHIP_DOGMA_ATTRIBUTES: "shipDogmaAttributes",
   SKILL_TYPES: "skillTypes",
   SOLAR_SYSTEMS: "solarSystems",
   STATIONS: "stations",
@@ -74,3 +75,4 @@ module.exports = {
   readStaticRows,
   clearReferenceCache,
 };
+

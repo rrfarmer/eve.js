@@ -1,5 +1,5 @@
 /**
- * eve.js main entry point
+ * EVE.js — Main Entry Point
  *
  * Initializes the service manager, registers core game services,
  * and starts the TCP server.
@@ -19,6 +19,7 @@ const ServiceManager = require(
 const startTCPServer = require(path.join(__dirname, "./src/network/tcp"));
 
 // main startup
+
 log.logAsciiLogo();
 console.log();
 log.info("starting eve.js...");
@@ -76,6 +77,11 @@ console.log();
 const secondaryServicesDir = path.join(__dirname, "./src/_secondary");
 
 function loadSecondaryServices(dir) {
+  if (!fs.existsSync(dir)) {
+    log.debug(`secondary services directory not found: ${dir}`);
+    return;
+  }
+
   const files = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const file of files) {
@@ -100,9 +106,9 @@ function loadSecondaryServices(dir) {
         console.log();
       } catch (err) {
         log.err(
-          `failed to start secondary service ${file.parentPath}: ${err.message}`,
+          `failed to start secondary service ${fullPath}: ${err.message}`,
         );
-        console.log()
+        console.log();
       }
     }
   }

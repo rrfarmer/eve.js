@@ -221,6 +221,8 @@ function buildShipItem({
     categoryID: toNumber(metadata.categoryID, SHIP_CATEGORY_ID),
     customInfo: String(customInfo || ""),
     itemName: metadata.name || itemName || "Ship",
+    mass: toFiniteNumber(metadata.mass, 0),
+    capacity: toFiniteNumber(metadata.capacity, 0),
     spaceState: normalizeSpaceState(spaceState),
     conditionState: normalizeShipConditionState(conditionState),
   };
@@ -315,7 +317,7 @@ function nextItemID(charId, items, characterRecord = null) {
       continue;
     }
 
-    if (item.ownerID === toNumber(charId, 0) && item.itemID > maxItemID) {
+    if (item.itemID > maxItemID) {
       maxItemID = item.itemID;
     }
   }
@@ -485,19 +487,76 @@ function findCharacterShipByType(charId, typeId, stationId = null) {
   return ships.find((entry) => entry.typeID === numericTypeId) || null;
 }
 
-function getActiveShipItem(charId) {
+function ensureCharacterActiveShipItem(charId, existingRecord = null) {
   ensureMigrated();
+
+  const numericCharId = toNumber(charId, 0);
+  if (numericCharId <= 0) {
+    return null;
+  }
+
   const characters = readCharacters();
-  const record = characters[String(charId)];
+  const record = existingRecord || characters[String(numericCharId)];
   if (!record) {
     return null;
   }
 
-  return (
-    findCharacterShipItem(charId, record.shipID) ||
-    listCharacterShipItems(charId)[0] ||
-    null
-  );
+  const activeShip = findCharacterShipItem(numericCharId, record.shipID);
+  if (activeShip) {
+    return activeShip;
+  }
+
+  const ownedShips = listCharacterShipItems(numericCharId);
+  if (ownedShips.length > 0) {
+    const repairedShip = ownedShips[0];
+    const syncResult = syncCharacterActiveShip(numericCharId, repairedShip);
+    if (!syncResult.success) {
+      log.warn(
+        `[ItemStore] Failed to repair active ship for char=${numericCharId} from owned ship=${repairedShip.itemID}`,
+      );
+    } else {
+      log.info(
+        `[ItemStore] Repaired active ship for char=${numericCharId} -> ship=${repairedShip.itemID}`,
+      );
+    }
+    return repairedShip;
+  }
+
+  const stationID = toNumber(record.stationID, 60003760);
+  const items = readItems();
+  const starterShip = buildShipItem({
+    itemID: nextItemID(numericCharId, items, record),
+    typeID: record.shipTypeID || DEFAULT_SHIP_TYPE_ID,
+    ownerID: numericCharId,
+    locationID: stationID,
+    flagID: ITEM_FLAGS.HANGAR,
+    itemName: record.shipName || null,
+  });
+
+  items[String(starterShip.itemID)] = starterShip;
+  if (!writeItems(items)) {
+    log.warn(
+      `[ItemStore] Failed to provision starter ship for char=${numericCharId}`,
+    );
+    return null;
+  }
+
+  const syncResult = syncCharacterActiveShip(numericCharId, starterShip);
+  if (!syncResult.success) {
+    log.warn(
+      `[ItemStore] Provisioned starter ship=${starterShip.itemID} for char=${numericCharId} but failed to sync character record`,
+    );
+  } else {
+    log.info(
+      `[ItemStore] Provisioned starter ship for char=${numericCharId} -> ship=${starterShip.itemID}`,
+    );
+  }
+
+  return cloneValue(starterShip);
+}
+
+function getActiveShipItem(charId) {
+  return ensureCharacterActiveShipItem(charId);
 }
 
 function syncCharacterActiveShip(charId, shipItem) {
@@ -660,71 +719,6 @@ function spawnShipInStationHangar(charId, stationId, shipType) {
   };
 }
 
-function ensureCharacterInventory(charId) {
-  ensureMigrated();
-  const numericCharId = toNumber(charId, 0);
-  if (numericCharId <= 0) {
-    return {
-      success: false,
-      errorMsg: "CHARACTER_NOT_FOUND",
-    };
-  }
-
-  const characters = readCharacters();
-  const record = characters[String(numericCharId)];
-  if (!record || typeof record !== "object") {
-    return {
-      success: false,
-      errorMsg: "CHARACTER_NOT_FOUND",
-    };
-  }
-
-  const stationID = toNumber(record.stationID, 60003760);
-  const ownedShips = listCharacterShipItems(numericCharId);
-
-  let activeShip =
-    ownedShips.find((entry) => entry.itemID === toNumber(record.shipID, 0)) ||
-    ownedShips[0] ||
-    null;
-
-  if (!activeShip) {
-    const starterShip = buildShipItem({
-      itemID: nextItemID(numericCharId, readItems(), record),
-      typeID: record.shipTypeID || DEFAULT_SHIP_TYPE_ID,
-      ownerID: numericCharId,
-      locationID: stationID,
-      flagID: ITEM_FLAGS.HANGAR,
-      itemName: record.shipName || null,
-    });
-    const items = readItems();
-    items[String(starterShip.itemID)] = starterShip;
-    if (!writeItems(items)) {
-      return {
-        success: false,
-        errorMsg: "WRITE_ERROR",
-      };
-    }
-    activeShip = starterShip;
-  }
-
-  const shipNeedsSync =
-    toNumber(record.shipID, 0) !== activeShip.itemID ||
-    toNumber(record.shipTypeID, 0) !== activeShip.typeID ||
-    String(record.shipName || "") !== String(activeShip.itemName || "");
-
-  if (shipNeedsSync) {
-    const syncResult = syncCharacterActiveShip(numericCharId, activeShip);
-    if (!syncResult.success) {
-      return syncResult;
-    }
-  }
-
-  return {
-    success: true,
-    data: cloneValue(activeShip),
-  };
-}
-
 function setActiveShipForCharacter(charId, shipId) {
   const shipItem = findCharacterShipItem(charId, shipId);
   if (!shipItem) {
@@ -797,8 +791,8 @@ module.exports = {
   findCharacterShipItem,
   findShipItemById,
   findCharacterShipByType,
+  ensureCharacterActiveShipItem,
   getActiveShipItem,
-  ensureCharacterInventory,
   spawnShipInStationHangar,
   updateShipItem,
   setShipPackagingState,
@@ -812,3 +806,4 @@ module.exports = {
   getShipConditionState,
   normalizeShipConditionState,
 };
+

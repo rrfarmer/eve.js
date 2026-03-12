@@ -51,20 +51,12 @@ class LSCService extends BaseService {
 
   Handle_JoinChannels(args, session) {
     log.debug("[LSCService] JoinChannels");
-    if (!chatHub.hasSelectedCharacter(session)) {
-      return { type: "list", items: [] };
-    }
-
     const { result } = chatHub.joinLocalChannel(session);
     return { type: "list", items: [result] };
   }
 
   Handle_JoinChannel(args, session) {
     log.debug("[LSCService] JoinChannel");
-    if (!chatHub.hasSelectedCharacter(session)) {
-      return null;
-    }
-
     const { result } = chatHub.joinLocalChannel(session);
     return result;
   }
@@ -88,10 +80,6 @@ class LSCService extends BaseService {
     log.debug(`[LSCService] SendMessage: ${message}`);
 
     if (!message) {
-      return null;
-    }
-
-    if (!chatHub.hasSelectedCharacter(session)) {
       return null;
     }
 

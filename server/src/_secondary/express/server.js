@@ -7,23 +7,57 @@ const crypto = require("crypto");
 
 const config = require("../../config");
 const log = require("../../utils/logger");
+const { handleGatewayStream } = require("./publicGatewayLocal");
 
-const ENABLE_LOCAL_INTERCEPT = true;
+function shouldEnableLocalInterceptByDefault() {
+  // The proxy may be advertised on a LAN address instead of loopback, but it
+  // still needs to terminate gateway traffic locally for cosmetics/public APIs.
+  return true;
+}
+
+function parseBooleanEnv(value, fallback = false) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+
+  return fallback;
+}
+
+const ENABLE_LOCAL_INTERCEPT = parseBooleanEnv(
+  process.env.EVEJS_PROXY_LOCAL_INTERCEPT,
+  shouldEnableLocalInterceptByDefault(),
+);
 const LOCAL_INTERCEPT_HOSTS = new Set([
   "dev-public-gateway.evetech.net",
   "public-gateway.evetech.net",
 ]);
 
 function shouldInterceptHost(hostname) {
-  const normalized = String(hostname || "").trim().toLowerCase();
+  const normalized = String(hostname || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, "");
   if (!normalized) {
     return false;
   }
 
+  if (LOCAL_INTERCEPT_HOSTS.has(normalized)) {
+    return true;
+  }
+
   return (
-    LOCAL_INTERCEPT_HOSTS.has(normalized) ||
-    normalized.endsWith(".evetech.net") ||
-    normalized.endsWith(".eveonline.com")
+    normalized === "public-gateway.evetech.net" ||
+    normalized === "dev-public-gateway.evetech.net" ||
+    normalized.startsWith("public-gateway.") ||
+    normalized.startsWith("dev-public-gateway.")
   );
 }
 
@@ -132,28 +166,68 @@ function pipeHttpProxyRequest(req, res, targetUrl) {
   req.pipe(upstreamReq);
 }
 
-function createLocalSecureResponder(httpsPort, app) {
-  const certPath = path.join(__dirname, "./certs/cert.pem");
-  const keyPath = path.join(__dirname, "./certs/key.pem");
-  const certPem = fs.readFileSync(certPath);
+function loadLocalTlsOptions() {
+  const certDir = path.join(__dirname, "./certs");
+  const gatewayLeafCertPath = path.join(certDir, "gateway-dev-cert.pem");
+  const gatewayLeafKeyPath = path.join(certDir, "gateway-dev-key.pem");
+  const pfxPath = path.join(certDir, "gateway-dev.pfx");
+  const passphrasePath = path.join(certDir, "gateway-dev-passphrase.txt");
+  const certPath = path.join(certDir, "gateway-dev-cert.pem");
 
-  const tlsOptions = {
-    key: fs.readFileSync(keyPath),
-    cert: certPem,
-    allowHTTP1: true,
-    ALPNProtocols: ["h2", "http/1.1"],
+  if (fs.existsSync(gatewayLeafCertPath) && fs.existsSync(gatewayLeafKeyPath)) {
+    return {
+      tlsOptions: {
+        key: fs.readFileSync(gatewayLeafKeyPath),
+        cert: fs.readFileSync(gatewayLeafCertPath),
+        allowHTTP1: true,
+        ALPNProtocols: ["h2", "http/1.1"],
+      },
+      certPem: fs.readFileSync(gatewayLeafCertPath),
+    };
+  }
+
+  if (fs.existsSync(pfxPath)) {
+    return {
+      tlsOptions: {
+        pfx: fs.readFileSync(pfxPath),
+        passphrase: fs.existsSync(passphrasePath)
+          ? fs.readFileSync(passphrasePath, "utf8").trim()
+          : "",
+        allowHTTP1: true,
+        ALPNProtocols: ["h2", "http/1.1"],
+      },
+      certPem: fs.existsSync(certPath) ? fs.readFileSync(certPath) : null,
+    };
+  }
+
+  const legacyCertPath = path.join(certDir, "cert.pem");
+  const legacyKeyPath = path.join(certDir, "key.pem");
+  return {
+    tlsOptions: {
+      key: fs.readFileSync(legacyKeyPath),
+      cert: fs.readFileSync(legacyCertPath),
+      allowHTTP1: true,
+      ALPNProtocols: ["h2", "http/1.1"],
+    },
+    certPem: fs.readFileSync(legacyCertPath),
   };
+}
+
+function createLocalSecureResponder(httpsPort) {
+  const { tlsOptions, certPem } = loadLocalTlsOptions();
 
   try {
-    const x509 = new crypto.X509Certificate(certPem);
-    // log.debug(
-    //   `[local https cert] subject=${x509.subject} issuer=${x509.issuer} validTo=${x509.validTo}`,
-    // );
+    if (certPem) {
+      const x509 = new crypto.X509Certificate(certPem);
+      log.debug(
+        `[local https cert] subject=${x509.subject} issuer=${x509.issuer} validTo=${x509.validTo}`,
+      );
+    }
   } catch (err) {
     console.error("[LOCAL HTTPS CERT PARSE ERROR]", err.message);
   }
 
-  const secureServer = http2.createSecureServer(tlsOptions, app);
+  const secureServer = http2.createSecureServer(tlsOptions);
 
   secureServer.on("connection", (socket) => {
     console.log(
@@ -176,11 +250,19 @@ function createLocalSecureResponder(httpsPort, app) {
     const authority = headers[":authority"] || headers.host || "";
     const contentType = String(headers["content-type"] || "");
 
-    // console.log("---- LOCAL HTTP2 STREAM ----");
-    // console.log("METHOD:", method);
-    // console.log("PATH:", routePath);
-    // console.log("AUTHORITY:", authority);
-    // console.log("CONTENT-TYPE:", contentType || "<none>");
+    console.log("---- LOCAL HTTP2 STREAM ----");
+    console.log("METHOD:", method);
+    console.log("PATH:", routePath);
+    console.log("AUTHORITY:", authority);
+    console.log("CONTENT-TYPE:", contentType || "<none>");
+
+    stream.on("error", (err) => {
+      console.error("[LOCAL HTTP2 STREAM ERROR]", err.message);
+    });
+
+    if (contentType.includes("application/grpc") && handleGatewayStream(stream, headers)) {
+      return;
+    }
 
     let bodyLength = 0;
     stream.on("data", (chunk) => {
@@ -188,22 +270,32 @@ function createLocalSecureResponder(httpsPort, app) {
     });
 
     stream.on("end", () => {
-      // console.log("BODY BYTES:", bodyLength);
-    });
-
-    stream.on("error", (err) => {
-      console.error("[LOCAL HTTP2 STREAM ERROR]", err.message);
+      console.log("BODY BYTES:", bodyLength);
     });
 
     if (contentType.includes("application/grpc")) {
-      stream.respond({
-        ":status": 200,
-        "content-type": "application/grpc+proto",
-        "grpc-encoding": "identity",
-        "grpc-accept-encoding": "identity",
-        "grpc-status": "0",
+      stream.respond(
+        {
+          ":status": 200,
+          "content-type": "application/grpc+proto",
+          "grpc-encoding": "identity",
+          "grpc-accept-encoding": "identity",
+        },
+        { waitForTrailers: true },
+      );
+      stream.on("wantTrailers", () => {
+        try {
+          stream.sendTrailers({
+            "grpc-status": "12",
+            "grpc-message": encodeURIComponent(
+              `eve.js local gateway has no handler for ${routePath}`,
+            ),
+          });
+        } catch (err) {
+          console.error("[LOCAL HTTP2 TRAILER ERROR]", err.message);
+        }
       });
-      stream.end(Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00]));
+      stream.end();
       return;
     }
 
@@ -214,34 +306,26 @@ function createLocalSecureResponder(httpsPort, app) {
     stream.end(JSON.stringify(makeHttp2Payload(headers)));
   });
 
-  secureServer.on("request", (req, res) => {
-    // console.log("---- LOCAL HTTPS HTTP1 REQUEST ----");
-    // console.log("METHOD:", req.method);
-    // console.log("PATH:", req.url);
-
-    res.statusCode = 200;
-    res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify(makeResponsePayload(req)));
-  });
-
   secureServer.on("sessionError", (err) => {
     console.error("[LOCAL HTTP2 SESSION ERROR]", err.message);
   });
 
   secureServer.on("tlsClientError", (err) => {
-    // console.error(
-    //   "[LOCAL HTTPS TLS ERROR]",
-    //   err.message,
-    //   "code=",
-    //   err.code || "n/a",
-    // );
+    console.error(
+      "[LOCAL HTTPS TLS ERROR]",
+      err.message,
+      "code=",
+      err.code || "n/a",
+    );
   });
 
   secureServer.on("error", (err) => {
     console.error("[LOCAL HTTPS SERVER ERROR]", err.message);
   });
 
-  secureServer.listen(httpsPort, "127.0.0.1");
+  secureServer.listen(httpsPort, "127.0.0.1", () => {
+    log.debug(`local https responder listening on 127.0.0.1:${httpsPort}`);
+  });
 }
 
 function wireTunnel(clientSocket, upstreamSocket, head, label) {
@@ -278,15 +362,15 @@ function wireTunnel(clientSocket, upstreamSocket, head, label) {
   });
 
   upstreamSocket.on("close", () => {
-    // console.log(
-    //   `[PROXY TUNNEL CLOSE upstream] ${label} up=${upBytes} down=${downBytes}`,
-    // );
+    console.log(
+      `[PROXY TUNNEL CLOSE upstream] ${label} up=${upBytes} down=${downBytes}`,
+    );
   });
 
   clientSocket.on("close", () => {
-    // console.log(
-    //   `[PROXY TUNNEL CLOSE client] ${label} up=${upBytes} down=${downBytes}`,
-    // );
+    console.log(
+      `[PROXY TUNNEL CLOSE client] ${label} up=${upBytes} down=${downBytes}`,
+    );
   });
 
   upstreamSocket.on("error", (err) => {
@@ -316,17 +400,24 @@ function startServer() {
       return;
     }
 
-    if (targetUrl && shouldInterceptHost(targetUrl.hostname)) {
+    if (targetUrl && ENABLE_LOCAL_INTERCEPT && shouldInterceptHost(targetUrl.hostname)) {
       console.log(
         `[HTTP PROXY INTERCEPT] ${req.method} ${targetUrl.href} -> LOCAL STUB`,
       );
+      next();
+      return;
     }
 
-    // console.log("---- HTTP REQUEST ----");
-    // console.log("URL:", req.url);
-    // console.log("METHOD:", req.method);
-    // console.log("HEADERS:", req.headers);
-    // console.log("----------------------");
+    if (targetUrl) {
+      pipeHttpProxyRequest(req, res, targetUrl);
+      return;
+    }
+
+    console.log("---- HTTP REQUEST ----");
+    console.log("URL:", req.url);
+    console.log("METHOD:", req.method);
+    console.log("HEADERS:", req.headers);
+    console.log("----------------------");
     next();
   });
 
@@ -343,9 +434,10 @@ function startServer() {
   const redirectUrl = new URL(config.microservicesRedirectUrl);
   const httpPort = Number.parseInt(redirectUrl.port, 10);
   const httpsPort = httpPort + 1;
+  const bindHost = config.microservicesBindHost || "0.0.0.0";
 
   if (ENABLE_LOCAL_INTERCEPT) {
-    createLocalSecureResponder(httpsPort, app);
+    createLocalSecureResponder(httpsPort);
   }
 
   const proxyServer = http.createServer(app);
@@ -364,9 +456,9 @@ function startServer() {
     const connectHost = interceptLocal ? "127.0.0.1" : host;
     const connectPort = interceptLocal ? httpsPort : port;
 
-    // console.log(
-    //   `[HTTPS CONNECT] ${targetRaw} -> ${interceptLocal ? "LOCAL" : "REMOTE"} ${connectHost}:${connectPort}`,
-    // );
+    console.log(
+      `[HTTPS CONNECT] ${targetRaw} -> ${interceptLocal ? "LOCAL" : "REMOTE"} ${connectHost}:${connectPort}`,
+    );
 
     const upstreamSocket = net.connect(connectPort, connectHost, () => {
       clientSocket.write(
@@ -399,7 +491,15 @@ function startServer() {
     console.error("[PROXY SERVER ERROR]", err.message);
   });
 
-  proxyServer.listen(httpPort, "127.0.0.1");
+  proxyServer.listen(httpPort, bindHost, () => {
+    log.debug(`express proxy listener bound to ${bindHost}:${httpPort}`);
+  });
+
+  log.debug(
+    `express proxy mode: ${
+      ENABLE_LOCAL_INTERCEPT ? "local intercept enabled" : "transparent forward"
+    }`,
+  );
 }
 
 module.exports = {

@@ -233,22 +233,15 @@ class PacketDispatcher {
           }
           return true;
         } catch (err) {
-          const wrappedError = isMachoWrappedException(err);
-          if (wrappedError) {
-            log.debug(
-              `[CallReq] Wrapped exception in ${serviceName}::${call.method}: ${err.message}`,
-            );
-          } else {
-            log.err(
-              `[CallReq] Error in ${serviceName}::${call.method}: ${err.message}`,
-            );
-          }
+          log.err(
+            `[CallReq] Error in ${serviceName}::${call.method}: ${err.message}`,
+          );
           if (traceSpaceCall) {
             appendSpaceDebug(
               `CallErr service=${service.name} method=${call.method} callID=${callID} error=${err && err.stack ? err.stack : err.message}`,
             );
           }
-          if (wrappedError) {
+          if (isMachoWrappedException(err)) {
             this._sendErrorResponse(pkt, err.machoErrorResponse, session);
           } else {
             this._sendCallResponse(pkt, null, session);

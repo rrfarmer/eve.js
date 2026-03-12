@@ -243,3 +243,4 @@ module.exports = {
   getCharacterSkills,
   getSkillTypes,
 };
+

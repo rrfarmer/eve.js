@@ -10,5 +10,11 @@
     "id": 2,
     "role": "6935543428298309632",
     "banned": false
+  },
+  "test123": {
+    "passwordhash": "bf4ed208915dcbc7623e39e219ae6746bc311912",
+    "id": 3,
+    "role": "6935543428298309632",
+    "banned": false
   }
 }

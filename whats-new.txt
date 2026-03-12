@@ -1,1 +1,5 @@
-fix /tr for teleporting to other players
+ship SKINS fully functional!
+easier set up thanks to john, he revised all scripts.
+capacitor, shield, armor, and hull now shows when in space.
+fixed bugs for newly created characters.
+warp kind of works.

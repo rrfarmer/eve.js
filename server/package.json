@@ -12,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "net": "^1.0.2",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "protobufjs": "^8.0.0"
   }
 }

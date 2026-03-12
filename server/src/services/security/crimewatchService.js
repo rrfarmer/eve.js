@@ -2,6 +2,9 @@ const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
 const config = require(path.join(__dirname, "../../config"));
+const {
+  getCharacterRecord,
+} = require(path.join(__dirname, "../character/characterState"));
 
 class CrimewatchService extends BaseService {
   constructor() {
@@ -97,10 +100,20 @@ class CrimewatchService extends BaseService {
     return [myCombatTimers, myEngagements, flaggedCharacters, safetyLevel];
   }
 
-  Handle_GetMySecurityStatus(args, session, kwargs) {
-    log.debug("[CrimewatchService] GetMySecurityStatus called");
-    // Client expects a numeric security status value.
-    return 0.0;
+  Handle_GetMySecurityStatus(args, session) {
+    const charID =
+      (session && (session.characterID || session.charid || session.userid)) || 0;
+    const charData = charID ? getCharacterRecord(charID) || {} : {};
+    const securityStatus = Number(
+      charData.securityStatus ?? charData.securityRating ?? 0,
+    );
+    const normalizedStatus = Number.isFinite(securityStatus) ? securityStatus : 0;
+
+    log.debug(
+      `[CrimewatchService] GetMySecurityStatus(charID=${charID}) -> ${normalizedStatus}`,
+    );
+
+    return normalizedStatus;
   }
 }
 

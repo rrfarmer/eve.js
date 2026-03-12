@@ -20,12 +20,15 @@ const INCLUDE_STARGATES_IN_SCENE = false;
 const DEFAULT_STATION_INTERACTION_RADIUS = 1000;
 const DEFAULT_STATION_UNDOCK_DISTANCE = 8000;
 const DEFAULT_STATION_DOCKING_RADIUS = 2500;
+const DEFAULT_STATION_WARP_RANGE = 1000;
 const STATION_DOCK_ACCEPT_DELAY_MS = 4000;
 const LEGACY_STATION_NORMALIZATION_RADIUS = 100000;
 const MOVEMENT_DEBUG_PATH = path.join(__dirname, "../../logs/space-movement-debug.log");
 const DESTINY_DEBUG_PATH = path.join(__dirname, "../../logs/space-destiny-debug.log");
+const WARP_DEBUG_PATH = path.join(__dirname, "../../logs/space-warp-debug.log");
 const WATCHER_CORRECTION_INTERVAL_MS = 500;
 const WATCHER_POSITION_CORRECTION_INTERVAL_MS = 1000;
+const WARP_POSITION_CORRECTION_INTERVAL_MS = 250;
 const MOVEMENT_TRACE_WINDOW_MS = 5000;
 const MAX_SUBWARP_SPEED_FRACTION = 1.0;
 const DESTINY_STAMP_INTERVAL_MS = 1000;
@@ -33,6 +36,21 @@ const DESTINY_STAMP_MAX_LEAD = 1;
 const DESTINY_ACCEL_LOG_DENOMINATOR = Math.log(10000);
 const DESTINY_ALIGN_LOG_DENOMINATOR = Math.log(4);
 const TURN_ALIGNMENT_RADIANS = 4 * (Math.PI / 180);
+const WARP_ALIGNMENT_RADIANS = 6 * (Math.PI / 180);
+const WARP_ENTRY_SPEED_FRACTION = 0.749;
+const PILOT_WARP_SPEED_SEED_SCALE_MIN = 0.7;
+const PILOT_WARP_SPEED_SEED_SCALE_MAX = 0.85;
+const PILOT_WARP_SPEED_SEED_SCALE_CEILING = 0.9;
+const PILOT_WARP_START_GUIDANCE_FRACTION = 0.4;
+const WARP_DECEL_RATE_MAX = 2;
+const WARP_DROPOUT_SPEED_MAX_MS = 100;
+const WARP_ACCEL_EXPONENT = 5;
+const WARP_DECEL_EXPONENT = 5;
+const WARP_MEDIUM_DISTANCE_AU = 12;
+const WARP_LONG_DISTANCE_AU = 24;
+const WARP_COMPLETION_DISTANCE_RATIO = 0.005;
+const WARP_COMPLETION_DISTANCE_MIN_METERS = 100000;
+const WARP_COMPLETION_DISTANCE_MAX_METERS = 2500000;
 
 let nextStamp = 0;
 let nextMovementTraceID = 1;
@@ -187,6 +205,22 @@ function getMovementTraceSnapshot(entity, now = Date.now()) {
   };
 }
 
+function summarizePendingWarp(pendingWarp) {
+  if (!pendingWarp) {
+    return null;
+  }
+
+  return {
+    requestedAtMs: toInt(pendingWarp.requestedAtMs, 0),
+    stopDistance: roundNumber(pendingWarp.stopDistance),
+    totalDistance: roundNumber(pendingWarp.totalDistance),
+    warpSpeedAU: roundNumber(pendingWarp.warpSpeedAU, 3),
+    targetEntityID: toInt(pendingWarp.targetEntityID, 0),
+    targetPoint: summarizeVector(pendingWarp.targetPoint),
+    rawDestination: summarizeVector(pendingWarp.rawDestination),
+  };
+}
+
 function armMovementTrace(entity, reason, context = {}, now = Date.now()) {
   if (!entity) {
     return null;
@@ -226,6 +260,19 @@ function appendDestinyDebug(entry) {
     );
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to write destiny debug log: ${error.message}`);
+  }
+}
+
+function appendWarpDebug(entry) {
+  try {
+    fs.mkdirSync(path.dirname(WARP_DEBUG_PATH), { recursive: true });
+    fs.appendFileSync(
+      WARP_DEBUG_PATH,
+      `[${new Date().toISOString()}] ${entry}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    log.warn(`[SpaceRuntime] Failed to write warp debug log: ${error.message}`);
   }
 }
 
@@ -408,12 +455,22 @@ function getShipDockingDistanceToStation(entity, station) {
     return Number.POSITIVE_INFINITY;
   }
 
-  return Math.max(
+  const interactionDistance = Math.max(
     0,
     distance(entity.position, station.position) -
       entity.radius -
       getStationInteractionRadius(station),
   );
+
+  if (hasRealStationDockData(station)) {
+    const dockPointDistance = Math.max(
+      0,
+      distance(entity.position, getStationDockPosition(station)) - entity.radius,
+    );
+    return Math.min(interactionDistance, dockPointDistance);
+  }
+
+  return interactionDistance;
 }
 
 function canShipDockAtStation(entity, station, maxDistance = DEFAULT_STATION_DOCKING_RADIUS) {
@@ -534,7 +591,32 @@ function serializeWarpState(entity) {
     totalDistance: toFiniteNumber(entity.warpState.totalDistance, 0),
     stopDistance: toFiniteNumber(entity.warpState.stopDistance, 0),
     maxWarpSpeedMs: toFiniteNumber(entity.warpState.maxWarpSpeedMs, 0),
+    cruiseWarpSpeedMs: toFiniteNumber(entity.warpState.cruiseWarpSpeedMs, 0),
+    warpFloorSpeedMs: toFiniteNumber(entity.warpState.warpFloorSpeedMs, 0),
+    warpDropoutSpeedMs: toFiniteNumber(
+      entity.warpState.warpDropoutSpeedMs,
+      toFiniteNumber(entity.warpState.warpFloorSpeedMs, 0),
+    ),
+    accelDistance: toFiniteNumber(entity.warpState.accelDistance, 0),
+    cruiseDistance: toFiniteNumber(entity.warpState.cruiseDistance, 0),
+    decelDistance: toFiniteNumber(entity.warpState.decelDistance, 0),
+    accelExponent: toFiniteNumber(entity.warpState.accelExponent, WARP_ACCEL_EXPONENT),
+    decelExponent: toFiniteNumber(entity.warpState.decelExponent, WARP_DECEL_EXPONENT),
+    accelRate: toFiniteNumber(
+      entity.warpState.accelRate,
+      toFiniteNumber(entity.warpState.accelExponent, WARP_ACCEL_EXPONENT),
+    ),
+    decelRate: toFiniteNumber(
+      entity.warpState.decelRate,
+      toFiniteNumber(entity.warpState.decelExponent, WARP_DECEL_EXPONENT),
+    ),
     warpSpeed: toInt(entity.warpState.warpSpeed, 30),
+    commandStamp: toInt(entity.warpState.commandStamp, 0),
+    startupGuidanceAtMs: toFiniteNumber(entity.warpState.startupGuidanceAtMs, 0),
+    startupGuidanceStamp: toInt(entity.warpState.startupGuidanceStamp, 0),
+    cruiseBumpAtMs: toFiniteNumber(entity.warpState.cruiseBumpAtMs, 0),
+    cruiseBumpStamp: toInt(entity.warpState.cruiseBumpStamp, 0),
+    effectAtMs: toFiniteNumber(entity.warpState.effectAtMs, 0),
     effectStamp: toInt(entity.warpState.effectStamp, 0),
     targetEntityID: toInt(entity.warpState.targetEntityID, 0),
     followID: toInt(entity.warpState.followID, 0),
@@ -542,10 +624,239 @@ function serializeWarpState(entity) {
       entity.warpState.followRangeMarker,
       entity.warpState.stopDistance,
     ),
+    profileType: String(entity.warpState.profileType || "legacy"),
     origin: cloneVector(entity.warpState.origin, entity.position),
     rawDestination: cloneVector(entity.warpState.rawDestination, entity.position),
     targetPoint: cloneVector(entity.warpState.targetPoint, entity.position),
   };
+}
+
+function buildOfficialWarpReferenceProfile(
+  warpDistanceMeters,
+  warpSpeedAU,
+  maxSubwarpSpeedMs,
+) {
+  const totalDistance = Math.max(toFiniteNumber(warpDistanceMeters, 0), 0);
+  const resolvedWarpSpeedAU = Math.max(toFiniteNumber(warpSpeedAU, 0), 0.001);
+  const resolvedSubwarpSpeedMs = Math.max(
+    Math.min(toFiniteNumber(maxSubwarpSpeedMs, 0) / 2, WARP_DROPOUT_SPEED_MAX_MS),
+    1,
+  );
+  const kAccel = resolvedWarpSpeedAU;
+  const kDecel = Math.min(resolvedWarpSpeedAU / 3, 2);
+
+  let maxWarpSpeedMs = resolvedWarpSpeedAU * ONE_AU_IN_METERS;
+  let accelDistance = maxWarpSpeedMs / kAccel;
+  let decelDistance = maxWarpSpeedMs / kDecel;
+  const minimumDistance = accelDistance + decelDistance;
+  const cruiseDistance = Math.max(totalDistance - minimumDistance, 0);
+  let cruiseTimeSeconds = 0;
+  let profileType = "long";
+
+  if (minimumDistance > totalDistance) {
+    profileType = "short";
+    maxWarpSpeedMs =
+      (totalDistance * kAccel * kDecel) /
+      Math.max(kAccel + kDecel, 0.001);
+    accelDistance = maxWarpSpeedMs / kAccel;
+    decelDistance = maxWarpSpeedMs / kDecel;
+  } else {
+    cruiseTimeSeconds = cruiseDistance / maxWarpSpeedMs;
+  }
+
+  const accelTimeSeconds =
+    Math.log(Math.max(maxWarpSpeedMs / kAccel, 1)) / kAccel;
+  const decelTimeSeconds =
+    Math.log(Math.max(maxWarpSpeedMs / resolvedSubwarpSpeedMs, 1)) / kDecel;
+  const totalTimeSeconds =
+    accelTimeSeconds + cruiseTimeSeconds + decelTimeSeconds;
+
+  return {
+    profileType,
+    warpDistanceMeters: roundNumber(totalDistance, 3),
+    warpDistanceAU: roundNumber(totalDistance / ONE_AU_IN_METERS, 6),
+    warpSpeedAU: roundNumber(resolvedWarpSpeedAU, 3),
+    kAccel: roundNumber(kAccel, 6),
+    kDecel: roundNumber(kDecel, 6),
+    warpDropoutSpeedMs: roundNumber(resolvedSubwarpSpeedMs, 3),
+    maxWarpSpeedMs: roundNumber(maxWarpSpeedMs, 3),
+    maxWarpSpeedAU: roundNumber(maxWarpSpeedMs / ONE_AU_IN_METERS, 6),
+    accelDistance: roundNumber(accelDistance, 3),
+    accelDistanceAU: roundNumber(accelDistance / ONE_AU_IN_METERS, 6),
+    cruiseDistance: roundNumber(
+      Math.max(totalDistance - accelDistance - decelDistance, 0),
+      3,
+    ),
+    cruiseDistanceAU: roundNumber(
+      Math.max(totalDistance - accelDistance - decelDistance, 0) /
+        ONE_AU_IN_METERS,
+      6,
+    ),
+    decelDistance: roundNumber(decelDistance, 3),
+    decelDistanceAU: roundNumber(decelDistance / ONE_AU_IN_METERS, 6),
+    minimumDistance: roundNumber(
+      Math.min(minimumDistance, totalDistance),
+      3,
+    ),
+    minimumDistanceAU: roundNumber(
+      Math.min(minimumDistance, totalDistance) / ONE_AU_IN_METERS,
+      6,
+    ),
+    accelTimeMs: roundNumber(accelTimeSeconds * 1000, 3),
+    cruiseTimeMs: roundNumber(cruiseTimeSeconds * 1000, 3),
+    decelTimeMs: roundNumber(decelTimeSeconds * 1000, 3),
+    totalTimeMs: roundNumber(totalTimeSeconds * 1000, 3),
+    ceilTotalSeconds: Math.ceil(totalTimeSeconds),
+  };
+}
+
+function buildWarpProfileDelta(warpState, officialProfile) {
+  if (!warpState || !officialProfile) {
+    return null;
+  }
+
+  return {
+    durationMs: roundNumber(
+      toFiniteNumber(warpState.durationMs, 0) -
+        toFiniteNumber(officialProfile.totalTimeMs, 0),
+      3,
+    ),
+    accelTimeMs: roundNumber(
+      toFiniteNumber(warpState.accelTimeMs, 0) -
+        toFiniteNumber(officialProfile.accelTimeMs, 0),
+      3,
+    ),
+    cruiseTimeMs: roundNumber(
+      toFiniteNumber(warpState.cruiseTimeMs, 0) -
+        toFiniteNumber(officialProfile.cruiseTimeMs, 0),
+      3,
+    ),
+    decelTimeMs: roundNumber(
+      toFiniteNumber(warpState.decelTimeMs, 0) -
+        toFiniteNumber(officialProfile.decelTimeMs, 0),
+      3,
+    ),
+    maxWarpSpeedMs: roundNumber(
+      toFiniteNumber(warpState.maxWarpSpeedMs, 0) -
+        toFiniteNumber(officialProfile.maxWarpSpeedMs, 0),
+      3,
+    ),
+    accelDistance: roundNumber(
+      toFiniteNumber(warpState.accelDistance, 0) -
+        toFiniteNumber(officialProfile.accelDistance, 0),
+      3,
+    ),
+    cruiseDistance: roundNumber(
+      toFiniteNumber(warpState.cruiseDistance, 0) -
+        toFiniteNumber(officialProfile.cruiseDistance, 0),
+      3,
+    ),
+    decelDistance: roundNumber(
+      toFiniteNumber(warpState.decelDistance, 0) -
+        toFiniteNumber(officialProfile.decelDistance, 0),
+      3,
+    ),
+  };
+}
+
+function getWarpPhaseName(warpState, elapsedMs) {
+  const elapsed = Math.max(toFiniteNumber(elapsedMs, 0), 0);
+  const accelTimeMs = Math.max(toFiniteNumber(warpState && warpState.accelTimeMs, 0), 0);
+  const cruiseTimeMs = Math.max(toFiniteNumber(warpState && warpState.cruiseTimeMs, 0), 0);
+  const durationMs = Math.max(toFiniteNumber(warpState && warpState.durationMs, 0), 0);
+
+  if (elapsed < accelTimeMs) {
+    return "accel";
+  }
+  if (elapsed < accelTimeMs + cruiseTimeMs) {
+    return "cruise";
+  }
+  if (elapsed < durationMs) {
+    return "decel";
+  }
+  return "complete";
+}
+
+function buildWarpRuntimeDiagnostics(entity, now = Date.now()) {
+  if (!entity || !entity.warpState) {
+    return null;
+  }
+
+  const warpState = entity.warpState;
+  const elapsedMs = Math.max(
+    0,
+    toFiniteNumber(now, Date.now()) - toFiniteNumber(warpState.startTimeMs, now),
+  );
+  const progress = getWarpProgress(warpState, now);
+  const positionRemainingDistance = Math.max(
+    distance(entity.position, warpState.targetPoint),
+    0,
+  );
+  const profileRemainingDistance = Math.max(
+    toFiniteNumber(warpState.totalDistance, 0) - toFiniteNumber(progress.traveled, 0),
+    0,
+  );
+  const velocityMagnitude = magnitude(entity.velocity);
+
+  return {
+    stamp: getCurrentDestinyStamp(now),
+    phase: getWarpPhaseName(warpState, elapsedMs),
+    elapsedMs: roundNumber(elapsedMs, 3),
+    remainingMs: roundNumber(
+      Math.max(toFiniteNumber(warpState.durationMs, 0) - elapsedMs, 0),
+      3,
+    ),
+    progressComplete: Boolean(progress.complete),
+    progressDistance: roundNumber(toFiniteNumber(progress.traveled, 0), 3),
+    progressDistanceAU: roundNumber(
+      toFiniteNumber(progress.traveled, 0) / ONE_AU_IN_METERS,
+      6,
+    ),
+    progressRemainingDistance: roundNumber(profileRemainingDistance, 3),
+    progressRemainingDistanceAU: roundNumber(
+      profileRemainingDistance / ONE_AU_IN_METERS,
+      6,
+    ),
+    progressSpeedMs: roundNumber(toFiniteNumber(progress.speed, 0), 3),
+    progressSpeedAU: roundNumber(
+      toFiniteNumber(progress.speed, 0) / ONE_AU_IN_METERS,
+      6,
+    ),
+    entitySpeedMs: roundNumber(velocityMagnitude, 3),
+    entitySpeedAU: roundNumber(velocityMagnitude / ONE_AU_IN_METERS, 6),
+    positionRemainingDistance: roundNumber(positionRemainingDistance, 3),
+    positionRemainingDistanceAU: roundNumber(
+      positionRemainingDistance / ONE_AU_IN_METERS,
+      6,
+    ),
+    remainingDistanceDelta: roundNumber(
+      positionRemainingDistance - profileRemainingDistance,
+      3,
+    ),
+  };
+}
+
+function logWarpDebug(event, entity, extra = {}) {
+  if (!entity) {
+    return;
+  }
+
+  const now = Date.now();
+  appendWarpDebug(JSON.stringify({
+    event,
+    atMs: now,
+    destinyStamp: getCurrentDestinyStamp(now),
+    charID: entity.characterID || 0,
+    shipID: entity.itemID || 0,
+    systemID: entity.systemID || 0,
+    mode: entity.mode || "UNKNOWN",
+    maxVelocity: roundNumber(entity.maxVelocity, 3),
+    speedFraction: roundNumber(entity.speedFraction, 3),
+    pendingWarp: summarizePendingWarp(entity.pendingWarp),
+    warpState: serializeWarpState(entity),
+    warpRuntime: buildWarpRuntimeDiagnostics(entity, now),
+    ...extra,
+  }));
 }
 
 function serializeSpaceState(entity) {
@@ -564,6 +875,15 @@ function serializeSpaceState(entity) {
     orbitSign: entity.orbitSign < 0 ? -1 : 1,
     warpState: serializeWarpState(entity),
   };
+}
+
+function getActualSpeedFraction(entity) {
+  if (!entity) {
+    return 0;
+  }
+
+  const maxVelocity = Math.max(toFiniteNumber(entity.maxVelocity, 0), 0.001);
+  return clamp(magnitude(entity.velocity) / maxVelocity, 0, 1);
 }
 
 function isReadyForDestiny(session) {
@@ -610,18 +930,6 @@ function buildShipPrimeUpdatesForEntities(entities, stampOverride = null) {
   return updates;
 }
 
-function orderEntitiesWithEgoFirst(entities, egoEntityID) {
-  const ordered = Array.isArray(entities) ? [...entities] : [];
-  const egoIndex = ordered.findIndex(
-    (entity) => Number(entity && entity.itemID) === Number(egoEntityID || 0),
-  );
-  if (egoIndex > 0) {
-    const [egoEntity] = ordered.splice(egoIndex, 1);
-    ordered.unshift(egoEntity);
-  }
-  return ordered;
-}
-
 function buildPositionVelocityCorrectionUpdates(entity, options = {}) {
   const stamp = toInt(options.stamp, getMovementStamp());
   const updates = [];
@@ -635,6 +943,241 @@ function buildPositionVelocityCorrectionUpdates(entity, options = {}) {
     stamp,
     payload: destiny.buildSetBallVelocityPayload(entity.itemID, entity.velocity),
   });
+  return updates;
+}
+
+function buildWarpStartCommandUpdate(entity, stamp, warpState) {
+  return {
+    stamp,
+    payload: destiny.buildWarpToPayload(
+      entity.itemID,
+      // WarpTo expects the raw destination plus a separate stop distance.
+      // Feeding the already stop-adjusted target point here leaves the
+      // piloting client stuck in a half-initialized local warp.
+      warpState.rawDestination,
+      warpState.stopDistance,
+      warpState.warpSpeed,
+    ),
+  };
+}
+
+function buildWarpStartMaxSpeedUpdate(entity, stamp, warpState) {
+  const peakWarpSpeed =
+    warpState && warpState.profileType === "short"
+      ? toFiniteNumber(warpState.maxWarpSpeedMs, 0)
+      : toFiniteNumber(warpState && warpState.cruiseWarpSpeedMs, 0);
+  const activationWarpSpeed = getPilotWarpSeedSpeed(entity, warpState, peakWarpSpeed);
+  return {
+    stamp,
+    payload: destiny.buildSetMaxSpeedPayload(
+      entity.itemID,
+      Math.max(activationWarpSpeed, toFiniteNumber(entity.maxVelocity, 0)),
+    ),
+  };
+}
+
+function getPilotWarpSeedSpeed(entity, warpState, peakWarpSpeed = null) {
+  const resolvedPeakWarpSpeed = Math.max(
+    toFiniteNumber(
+      peakWarpSpeed,
+      warpState && warpState.profileType === "short"
+        ? toFiniteNumber(warpState && warpState.maxWarpSpeedMs, 0)
+        : toFiniteNumber(warpState && warpState.cruiseWarpSpeedMs, 0),
+    ),
+    0,
+  );
+  const warpSpeedAU = Math.max(
+    resolvedPeakWarpSpeed / ONE_AU_IN_METERS,
+    toFiniteNumber(entity && entity.warpSpeedAU, 0),
+    0,
+  );
+  const totalDistanceAU = Math.max(
+    toFiniteNumber(warpState && warpState.totalDistance, 0) / ONE_AU_IN_METERS,
+    0,
+  );
+  const warpSpeedPenalty = clamp((warpSpeedAU - 3) / 2, 0, 1) * 0.15;
+  const shortWarpPenalty = totalDistanceAU < 6 ? 0.05 : 0;
+  const longWarpBonus =
+    clamp(
+      (totalDistanceAU - WARP_MEDIUM_DISTANCE_AU) /
+        (WARP_LONG_DISTANCE_AU - WARP_MEDIUM_DISTANCE_AU),
+      0,
+      1,
+    ) * 0.15;
+  const pilotWarpSeedScale = clamp(
+    PILOT_WARP_SPEED_SEED_SCALE_MAX +
+      longWarpBonus -
+      warpSpeedPenalty -
+      shortWarpPenalty,
+    PILOT_WARP_SPEED_SEED_SCALE_MIN,
+    PILOT_WARP_SPEED_SEED_SCALE_CEILING,
+  );
+  return resolvedPeakWarpSpeed * pilotWarpSeedScale;
+}
+
+function getWarpPhaseDelayMs(warpState, phaseFraction) {
+  return Math.max(
+    toFiniteNumber(warpState && warpState.accelTimeMs, 0) * phaseFraction,
+    0,
+  );
+}
+
+function getWarpPhaseStamp(
+  warpStartStamp,
+  warpState,
+  phaseFraction,
+  roundDelayFn = Math.floor,
+) {
+  return (
+    warpStartStamp +
+    Math.max(
+      1,
+      roundDelayFn(
+        getWarpPhaseDelayMs(warpState, phaseFraction) /
+          DESTINY_STAMP_INTERVAL_MS,
+      ),
+    )
+  );
+}
+
+function getPilotWarpStartupGuidanceStamp(warpStartStamp, warpState) {
+  return getWarpPhaseStamp(
+    warpStartStamp,
+    warpState,
+    PILOT_WARP_START_GUIDANCE_FRACTION,
+  );
+}
+
+function shouldSchedulePilotWarpCruiseBump(warpState) {
+  // warplogs50 still shows the delayed pilot-only cruise SetMaxSpeed rebase
+  // lining up with the same late warp pin. Keep the startup seed that gets
+  // the ego ball moving, but stop rebasing pilot max speed again mid-warp.
+  return false;
+}
+
+function getPilotWarpStartupGuidanceAtMs(warpState) {
+  // The current pilot-only startup velocity nudge lands far too early on the
+  // official exponential accel curve to matter. On a 5 AU/s hull it is still
+  // on the order of 1e-6 AU/s, but it still rebases the ego ball. Disable it
+  // and let the client enter warp from WarpTo + seed + immediate effect.
+  return 0;
+}
+
+function getPilotWarpCruiseBumpAtMs(warpState) {
+  const startTimeMs = toFiniteNumber(warpState && warpState.startTimeMs, Date.now());
+  const accelTimeMs = Math.max(
+    toFiniteNumber(warpState && warpState.accelTimeMs, 0),
+    0,
+  );
+  const accelEndAtMs = startTimeMs + accelTimeMs;
+  const startupGuidanceAtMs = getPilotWarpStartupGuidanceAtMs(warpState);
+  return Math.max(
+    accelEndAtMs,
+    startupGuidanceAtMs + DESTINY_STAMP_INTERVAL_MS,
+  );
+}
+
+function getPilotWarpEffectAtMs(warpState) {
+  // The client's active warp loop is keyed off ball.effectStamp > 0. Delaying
+  // the pilot effect until the end of accel leaves the ego ball entering
+  // "active warp" late and consistently stalling far behind the server curve.
+  return toFiniteNumber(warpState && warpState.startTimeMs, Date.now());
+}
+
+function getPilotWarpCruiseBumpStamp(warpStartStamp, warpState) {
+  return getCurrentDestinyStamp(getPilotWarpCruiseBumpAtMs(warpState));
+}
+
+function getPilotWarpEffectStamp(warpStartStamp, warpState) {
+  return warpStartStamp;
+}
+
+function buildWarpCruiseMaxSpeedUpdate(entity, stamp, warpState) {
+  const cruiseWarpSpeedMs = Math.max(
+    toFiniteNumber(warpState && warpState.cruiseWarpSpeedMs, 0),
+    toFiniteNumber(entity && entity.maxVelocity, 0),
+  );
+  return {
+    stamp,
+    payload: destiny.buildSetMaxSpeedPayload(entity.itemID, cruiseWarpSpeedMs),
+  };
+}
+
+function getWarpAccelRate(warpSpeedAU) {
+  return Math.max(toFiniteNumber(warpSpeedAU, 0), 0.001);
+}
+
+function getWarpDecelRate(warpSpeedAU) {
+  return clamp(getWarpAccelRate(warpSpeedAU) / 3, 0.001, WARP_DECEL_RATE_MAX);
+}
+
+function getWarpDropoutSpeedMs(entity) {
+  return Math.max(
+    Math.min(
+      toFiniteNumber(entity && entity.maxVelocity, 0) / 2,
+      WARP_DROPOUT_SPEED_MAX_MS,
+    ),
+    1,
+  );
+}
+
+function getWarpCompletionDistance(warpState) {
+  const stopDistance = Math.max(
+    toFiniteNumber(warpState && warpState.stopDistance, 0),
+    0,
+  );
+  return clamp(
+    stopDistance * WARP_COMPLETION_DISTANCE_RATIO,
+    WARP_COMPLETION_DISTANCE_MIN_METERS,
+    WARP_COMPLETION_DISTANCE_MAX_METERS,
+  );
+}
+
+function buildWarpStartEffectUpdate(entity, stamp) {
+  return {
+    stamp,
+    payload: destiny.buildOnSpecialFXPayload(entity.itemID, "effects.Warping"),
+  };
+}
+
+function buildWarpCompletionUpdates(entity, stamp) {
+  return [
+    {
+      stamp,
+      payload: destiny.buildSetSpeedFractionPayload(entity.itemID, 0),
+    },
+    {
+      stamp,
+      payload: destiny.buildSetBallPositionPayload(entity.itemID, entity.position),
+    },
+    {
+      stamp,
+      payload: destiny.buildSetBallVelocityPayload(entity.itemID, entity.velocity),
+    },
+    {
+      stamp,
+      payload: destiny.buildStopPayload(entity.itemID),
+    },
+  ];
+}
+
+function buildWarpStartUpdates(entity, warpState, stampOverride = null) {
+  const stamp =
+    stampOverride === null ? getNextStamp() : toInt(stampOverride, getNextStamp());
+  const updates = [
+    buildWarpStartCommandUpdate(entity, stamp, warpState),
+    buildWarpStartEffectUpdate(entity, stamp),
+    {
+      stamp,
+      payload: destiny.buildSetBallMassivePayload(entity.itemID, false),
+    },
+  ];
+  if (magnitude(entity.velocity) > 0.5) {
+    updates.push({
+      stamp,
+      payload: destiny.buildSetBallVelocityPayload(entity.itemID, entity.velocity),
+    });
+  }
   return updates;
 }
 
@@ -735,6 +1278,7 @@ function logMovementDebug(event, entity, extra = {}) {
     targetPoint: summarizeVector(entity.targetPoint),
     targetEntityID: entity.targetEntityID || 0,
     dockingTargetID: entity.dockingTargetID || 0,
+    pendingWarp: summarizePendingWarp(entity.pendingWarp),
     speed: roundNumber(magnitude(entity.velocity), 3),
     turn: entity.lastTurnMetrics || null,
     motion: entity.lastMotionDebug || null,
@@ -803,17 +1347,61 @@ function buildWarpState(rawWarpState, position, warpSpeedAU) {
   if (!rawWarpState || typeof rawWarpState !== "object") {
     return null;
   }
+  const resolvedWarpSpeedAU = Math.max(toFiniteNumber(warpSpeedAU, 0), 0.001);
+  const startTimeMs = toFiniteNumber(rawWarpState.startTimeMs, Date.now());
+  const accelTimeMs = toFiniteNumber(rawWarpState.accelTimeMs, 0);
+  const startupGuidanceAtMs = toFiniteNumber(
+    rawWarpState.startupGuidanceAtMs,
+    startTimeMs + getWarpPhaseDelayMs(rawWarpState, PILOT_WARP_START_GUIDANCE_FRACTION),
+  );
+  const cruiseBumpAtMs = toFiniteNumber(
+    rawWarpState.cruiseBumpAtMs,
+    startTimeMs + Math.max(accelTimeMs, 0),
+  );
+  const effectAtMs = toFiniteNumber(
+    rawWarpState.effectAtMs,
+    cruiseBumpAtMs + DESTINY_STAMP_INTERVAL_MS,
+  );
 
   return {
-    startTimeMs: toFiniteNumber(rawWarpState.startTimeMs, Date.now()),
+    startTimeMs,
     durationMs: toFiniteNumber(rawWarpState.durationMs, 0),
-    accelTimeMs: toFiniteNumber(rawWarpState.accelTimeMs, 0),
+    accelTimeMs,
     cruiseTimeMs: toFiniteNumber(rawWarpState.cruiseTimeMs, 0),
     decelTimeMs: toFiniteNumber(rawWarpState.decelTimeMs, 0),
     totalDistance: toFiniteNumber(rawWarpState.totalDistance, 0),
     stopDistance: toFiniteNumber(rawWarpState.stopDistance, 0),
     maxWarpSpeedMs: toFiniteNumber(rawWarpState.maxWarpSpeedMs, 0),
+    cruiseWarpSpeedMs: toFiniteNumber(rawWarpState.cruiseWarpSpeedMs, 0),
+    warpFloorSpeedMs: toFiniteNumber(rawWarpState.warpFloorSpeedMs, 0),
+    warpDropoutSpeedMs: toFiniteNumber(
+      rawWarpState.warpDropoutSpeedMs,
+      toFiniteNumber(rawWarpState.warpFloorSpeedMs, WARP_DROPOUT_SPEED_MAX_MS),
+    ),
+    accelDistance: toFiniteNumber(rawWarpState.accelDistance, 0),
+    cruiseDistance: toFiniteNumber(rawWarpState.cruiseDistance, 0),
+    decelDistance: toFiniteNumber(rawWarpState.decelDistance, 0),
+    accelExponent: toFiniteNumber(rawWarpState.accelExponent, WARP_ACCEL_EXPONENT),
+    decelExponent: toFiniteNumber(rawWarpState.decelExponent, WARP_DECEL_EXPONENT),
+    accelRate: Math.max(
+      toFiniteNumber(rawWarpState.accelRate, 0) ||
+        toFiniteNumber(rawWarpState.accelExponent, 0) ||
+        getWarpAccelRate(resolvedWarpSpeedAU),
+      0.001,
+    ),
+    decelRate: Math.max(
+      toFiniteNumber(rawWarpState.decelRate, 0) ||
+        toFiniteNumber(rawWarpState.decelExponent, 0) ||
+        getWarpDecelRate(resolvedWarpSpeedAU),
+      0.001,
+    ),
     warpSpeed: toInt(rawWarpState.warpSpeed, Math.round(warpSpeedAU * 10)),
+    commandStamp: toInt(rawWarpState.commandStamp, 0),
+    startupGuidanceAtMs,
+    startupGuidanceStamp: toInt(rawWarpState.startupGuidanceStamp, 0),
+    cruiseBumpAtMs,
+    cruiseBumpStamp: toInt(rawWarpState.cruiseBumpStamp, 0),
+    effectAtMs,
     effectStamp: toInt(rawWarpState.effectStamp, 0),
     targetEntityID: toInt(rawWarpState.targetEntityID, 0),
     followID: toInt(rawWarpState.followID, 0),
@@ -821,6 +1409,7 @@ function buildWarpState(rawWarpState, position, warpSpeedAU) {
       rawWarpState.followRangeMarker,
       rawWarpState.stopDistance,
     ),
+    profileType: String(rawWarpState.profileType || "legacy"),
     origin: cloneVector(rawWarpState.origin, position),
     rawDestination: cloneVector(rawWarpState.rawDestination, position),
     targetPoint: cloneVector(rawWarpState.targetPoint, position),
@@ -916,12 +1505,19 @@ function buildShipEntity(session, shipItem, systemID) {
       mode === "WARP"
         ? buildWarpState(spaceState.warpState, position, warpSpeedAU)
         : null,
+    pendingWarp: null,
     dockingTargetID: null,
     pendingDock: null,
     session,
     lastPersistAt: 0,
     lastObserverCorrectionBroadcastAt: 0,
     lastObserverPositionBroadcastAt: 0,
+    lastWarpCorrectionBroadcastAt: 0,
+    lastPilotWarpStartupGuidanceStamp: 0,
+    lastPilotWarpVelocityStamp: 0,
+    lastPilotWarpEffectStamp: 0,
+    lastPilotWarpCruiseBumpStamp: 0,
+    lastWarpDiagnosticStamp: 0,
     lastMovementDebugAt: 0,
     lastMotionDebug: null,
     movementTrace: null,
@@ -950,7 +1546,13 @@ function clearTrackingState(entity) {
   entity.followRange = 0;
   entity.orbitDistance = 0;
   entity.warpState = null;
+  entity.pendingWarp = null;
   entity.dockingTargetID = null;
+  entity.lastPilotWarpStartupGuidanceStamp = 0;
+  entity.lastPilotWarpVelocityStamp = 0;
+  entity.lastPilotWarpEffectStamp = 0;
+  entity.lastPilotWarpCruiseBumpStamp = 0;
+  entity.lastWarpDiagnosticStamp = 0;
 }
 
 function resetEntityMotion(entity) {
@@ -1177,23 +1779,39 @@ function advanceFollowMovement(entity, target, deltaSeconds) {
     return { changed: true };
   }
 
-  const targetPoint = cloneVector(target.position);
+  const dockingApproach =
+    target.kind === "station" &&
+    Number(entity.dockingTargetID || 0) === Number(target.itemID || 0);
+  const targetPoint = dockingApproach
+    ? getStationDockPosition(target)
+    : cloneVector(target.position);
   const separation = subtractVectors(targetPoint, entity.position);
   const currentDistance = magnitude(separation);
   const desiredRange = Math.max(
     0,
     toFiniteNumber(entity.followRange, 0) +
       entity.radius +
-      (target.radius || 0),
+      (dockingApproach ? 0 : (target.radius || 0)),
   );
   const gap = currentDistance - desiredRange;
-  const targetSpeed = magnitude(target.velocity || { x: 0, y: 0, z: 0 });
+  const targetSpeed = dockingApproach
+    ? 0
+    : magnitude(target.velocity || { x: 0, y: 0, z: 0 });
   const desiredDirection =
-    gap > 50
+    dockingApproach
+      ? normalizeVector(separation, entity.direction)
+      : gap > 50
       ? normalizeVector(separation, entity.direction)
       : normalizeVector(target.velocity, normalizeVector(separation, entity.direction));
   const desiredSpeed =
-    gap > 50
+    dockingApproach
+      ? Math.min(
+          entity.maxVelocity,
+          gap > 25
+            ? Math.max(gap * 0.5, entity.maxVelocity * 0.25)
+            : 0,
+        )
+      : gap > 50
       ? Math.min(
           entity.maxVelocity,
           Math.max(targetSpeed, Math.max(gap * 0.5, entity.maxVelocity * 0.25)),
@@ -1274,30 +1892,54 @@ function buildWarpProfile(entity, destination, options = {}) {
     toFiniteNumber(options.warpSpeedAU, 0) > 0
       ? toFiniteNumber(options.warpSpeedAU, 0)
       : entity.warpSpeedAU;
-  const nominalWarpSpeedMs = Math.max(warpSpeedAU * ONE_AU_IN_METERS, 10000);
-  const nominalAccelTimeMs = Math.max(1500, Math.min(4000, entity.alignTime * 500));
-  const nominalDecelTimeMs = nominalAccelTimeMs;
-  const nominalAccelDistance =
-    0.5 * nominalWarpSpeedMs * (nominalAccelTimeMs / 1000);
-  const nominalDecelDistance =
-    0.5 * nominalWarpSpeedMs * (nominalDecelTimeMs / 1000);
+  const cruiseWarpSpeedMs = Math.max(warpSpeedAU * ONE_AU_IN_METERS, 10000);
+  const accelRate = getWarpAccelRate(warpSpeedAU);
+  const decelRate = getWarpDecelRate(warpSpeedAU);
+  const warpDropoutSpeedMs = getWarpDropoutSpeedMs(entity);
 
-  let accelTimeMs = nominalAccelTimeMs;
+  let profileType = "long";
+  let accelDistance = 0;
+  let cruiseDistance = 0;
+  let decelDistance = 0;
+  let accelTimeMs = 0;
   let cruiseTimeMs = 0;
-  let decelTimeMs = nominalDecelTimeMs;
-  let maxWarpSpeedMs = nominalWarpSpeedMs;
+  let decelTimeMs = 0;
+  let maxWarpSpeedMs = cruiseWarpSpeedMs;
+  const accelDistanceAtCruise = Math.max(cruiseWarpSpeedMs / accelRate, 0);
+  const decelDistanceAtCruise = Math.max(cruiseWarpSpeedMs / decelRate, 0);
+  const shortWarpDistanceThreshold = accelDistanceAtCruise + decelDistanceAtCruise;
 
-  if (totalDistance > nominalAccelDistance + nominalDecelDistance) {
-    const cruiseDistance = totalDistance - nominalAccelDistance - nominalDecelDistance;
-    cruiseTimeMs = (cruiseDistance / nominalWarpSpeedMs) * 1000;
+  if (totalDistance < shortWarpDistanceThreshold) {
+    profileType = "short";
+    maxWarpSpeedMs =
+      (totalDistance * accelRate * decelRate) /
+      Math.max(accelRate + decelRate, 0.001);
+    accelDistance = Math.max(maxWarpSpeedMs / accelRate, 0);
+    decelDistance = Math.max(maxWarpSpeedMs / decelRate, 0);
+    accelTimeMs =
+      (Math.log(Math.max(maxWarpSpeedMs / accelRate, 1)) /
+        accelRate) *
+      1000;
+    decelTimeMs =
+      (Math.log(Math.max(maxWarpSpeedMs / warpDropoutSpeedMs, 1)) /
+        decelRate) *
+      1000;
   } else {
-    const accelSeconds = nominalAccelTimeMs / 1000;
-    const decelSeconds = nominalDecelTimeMs / 1000;
-    const accelRate = nominalWarpSpeedMs / accelSeconds;
-    const decelRate = nominalWarpSpeedMs / decelSeconds;
-    maxWarpSpeedMs = Math.sqrt((2 * totalDistance * accelRate * decelRate) / (accelRate + decelRate));
-    accelTimeMs = (maxWarpSpeedMs / accelRate) * 1000;
-    decelTimeMs = (maxWarpSpeedMs / decelRate) * 1000;
+    accelDistance = accelDistanceAtCruise;
+    decelDistance = decelDistanceAtCruise;
+    accelTimeMs =
+      (Math.log(Math.max(cruiseWarpSpeedMs / accelRate, 1)) /
+        accelRate) *
+      1000;
+    decelTimeMs =
+      (Math.log(Math.max(cruiseWarpSpeedMs / warpDropoutSpeedMs, 1)) /
+        decelRate) *
+      1000;
+    cruiseDistance = Math.max(
+      totalDistance - accelDistance - decelDistance,
+      0,
+    );
+    cruiseTimeMs = (cruiseDistance / cruiseWarpSpeedMs) * 1000;
   }
 
   return {
@@ -1309,15 +1951,126 @@ function buildWarpProfile(entity, destination, options = {}) {
     totalDistance,
     stopDistance,
     maxWarpSpeedMs,
+    cruiseWarpSpeedMs,
+    warpFloorSpeedMs: warpDropoutSpeedMs,
+    warpDropoutSpeedMs,
+    accelDistance,
+    cruiseDistance,
+    decelDistance,
+    accelExponent: accelRate,
+    decelExponent: decelRate,
+    accelRate,
+    decelRate,
     warpSpeed: Math.max(1, Math.round(warpSpeedAU * 10)),
+    commandStamp: toInt(options.commandStamp, 0),
+    startupGuidanceStamp: toInt(options.startupGuidanceStamp, 0),
+    cruiseBumpStamp: toInt(options.cruiseBumpStamp, 0),
     effectStamp: toInt(options.effectStamp, getNextStamp()),
     targetEntityID: toInt(options.targetEntityID, 0),
-    followID: toInt(options.targetEntityID, 0),
-    followRangeMarker: stopDistance,
+    // The live client expects opaque warp markers here, not echoed target ids
+    // or stop distances.
+    followID: toFiniteNumber(options.followID, 15000),
+    followRangeMarker: toFiniteNumber(options.followRangeMarker, -1),
+    profileType,
     origin: cloneVector(entity.position),
     rawDestination,
     targetPoint,
   };
+}
+
+function buildPendingWarpRequest(entity, destination, options = {}) {
+  const rawDestination = cloneVector(destination, entity.position);
+  const stopDistance = Math.max(0, toFiniteNumber(options.stopDistance, 0));
+  const travelVector = subtractVectors(rawDestination, entity.position);
+  const direction = normalizeVector(travelVector, entity.direction);
+  const targetPoint = subtractVectors(
+    rawDestination,
+    scaleVector(direction, stopDistance),
+  );
+  const totalDistance = distance(entity.position, targetPoint);
+  if (totalDistance < MIN_WARP_DISTANCE_METERS) {
+    return null;
+  }
+
+  const warpSpeedAU =
+    toFiniteNumber(options.warpSpeedAU, 0) > 0
+      ? toFiniteNumber(options.warpSpeedAU, 0)
+      : entity.warpSpeedAU;
+
+  return {
+    requestedAtMs: Date.now(),
+    stopDistance,
+    totalDistance,
+    warpSpeedAU,
+    rawDestination,
+    targetPoint,
+    targetEntityID: toInt(options.targetEntityID, 0) || null,
+  };
+}
+
+function evaluatePendingWarp(entity, pendingWarp, now = Date.now()) {
+  const desiredDirection = normalizeVector(
+    subtractVectors(pendingWarp.targetPoint, entity.position),
+    entity.direction,
+  );
+  const turnMetrics = getTurnMetrics(entity.direction, desiredDirection);
+  const degrees = (turnMetrics.radians * 180) / Math.PI;
+  const actualSpeedFraction = getActualSpeedFraction(entity);
+  const alignTimeMs = Math.max(
+    1000,
+    toFiniteNumber(entity.alignTime, 0) * 1000,
+  );
+  const elapsedMs = Math.max(
+    0,
+    toInt(now, Date.now()) - toInt(pendingWarp.requestedAtMs, 0),
+  );
+  const forced = elapsedMs >= (alignTimeMs + 300);
+  return {
+    ready:
+      (Number.isFinite(degrees) &&
+        degrees <= (WARP_ALIGNMENT_RADIANS * 180) / Math.PI &&
+        actualSpeedFraction >= WARP_ENTRY_SPEED_FRACTION) ||
+      forced,
+    forced,
+    degrees: roundNumber(degrees, 3),
+    actualSpeedFraction: roundNumber(actualSpeedFraction, 3),
+    elapsedMs,
+    desiredDirection,
+  };
+}
+
+function activatePendingWarp(entity, pendingWarp) {
+  const warpState = buildWarpProfile(entity, pendingWarp.rawDestination, {
+    stopDistance: pendingWarp.stopDistance,
+    targetEntityID: pendingWarp.targetEntityID,
+    warpSpeedAU: pendingWarp.warpSpeedAU,
+    commandStamp: 0,
+    startupGuidanceStamp: 0,
+    cruiseBumpStamp: 0,
+    effectStamp: 0,
+  });
+  if (!warpState) {
+    return null;
+  }
+
+  entity.mode = "WARP";
+  entity.speedFraction = 1;
+  entity.direction = normalizeVector(
+    subtractVectors(warpState.targetPoint, entity.position),
+    entity.direction,
+  );
+  entity.targetPoint = cloneVector(warpState.targetPoint);
+  entity.targetEntityID = warpState.targetEntityID || null;
+  entity.warpState = warpState;
+  entity.pendingWarp = null;
+  entity.velocity = { x: 0, y: 0, z: 0 };
+  entity.lastWarpCorrectionBroadcastAt = 0;
+  entity.lastPilotWarpStartupGuidanceStamp = 0;
+  entity.lastPilotWarpVelocityStamp = 0;
+  entity.lastPilotWarpEffectStamp = 0;
+  entity.lastPilotWarpCruiseBumpStamp = 0;
+  entity.lastWarpDiagnosticStamp = 0;
+  return warpState;
 }
 
 function getWarpProgress(warpState, now) {
@@ -1325,12 +2078,43 @@ function getWarpProgress(warpState, now) {
   const accelMs = warpState.accelTimeMs;
   const cruiseMs = warpState.cruiseTimeMs;
   const decelMs = warpState.decelTimeMs;
-  const accelSeconds = Math.max(accelMs / 1000, 0.001);
-  const decelSeconds = Math.max(decelMs / 1000, 0.001);
-  const accelRate = warpState.maxWarpSpeedMs / accelSeconds;
-  const decelRate = warpState.maxWarpSpeedMs / decelSeconds;
-  const accelDistance = 0.5 * warpState.maxWarpSpeedMs * accelSeconds;
-  const cruiseDistance = warpState.maxWarpSpeedMs * (cruiseMs / 1000);
+  const resolvedWarpSpeedAU = Math.max(
+    toFiniteNumber(warpState.warpSpeed, 0) / 10,
+    toFiniteNumber(warpState.cruiseWarpSpeedMs, 0) / ONE_AU_IN_METERS,
+    0.001,
+  );
+  const accelRate = Math.max(
+    toFiniteNumber(warpState.accelRate, 0) ||
+      toFiniteNumber(warpState.accelExponent, 0) ||
+      getWarpAccelRate(resolvedWarpSpeedAU),
+    0.001,
+  );
+  const decelRate = Math.max(
+    toFiniteNumber(warpState.decelRate, 0) ||
+      toFiniteNumber(warpState.decelExponent, 0) ||
+      getWarpDecelRate(resolvedWarpSpeedAU),
+    0.001,
+  );
+  const maxWarpSpeedMs = Math.max(toFiniteNumber(warpState.maxWarpSpeedMs, 0), 0);
+  const warpDropoutSpeedMs = Math.max(
+    Math.min(
+      toFiniteNumber(
+        warpState.warpDropoutSpeedMs,
+        toFiniteNumber(warpState.warpFloorSpeedMs, WARP_DROPOUT_SPEED_MAX_MS),
+      ),
+      maxWarpSpeedMs || 1,
+    ),
+    1,
+  );
+  const accelDistance = Math.max(toFiniteNumber(warpState.accelDistance, 0), 0);
+  const cruiseDistance = Math.max(toFiniteNumber(warpState.cruiseDistance, 0), 0);
+  const decelDistance = Math.max(toFiniteNumber(warpState.decelDistance, 0), 0);
+  const cruiseWarpSpeedMs = Math.max(
+    toFiniteNumber(warpState.cruiseWarpSpeedMs, maxWarpSpeedMs),
+    0,
+  );
+  const decelSeconds = Math.max(decelMs / 1000, 0);
+  const decelStartMs = accelMs + cruiseMs;
 
   if (elapsedMs >= warpState.durationMs) {
     return { complete: true, traveled: warpState.totalDistance, speed: 0 };
@@ -1338,10 +2122,17 @@ function getWarpProgress(warpState, now) {
 
   if (elapsedMs < accelMs) {
     const seconds = elapsedMs / 1000;
+    const speed = Math.min(
+      maxWarpSpeedMs,
+      accelRate * Math.exp(accelRate * seconds),
+    );
     return {
       complete: false,
-      traveled: 0.5 * accelRate * (seconds ** 2),
-      speed: accelRate * seconds,
+      traveled: Math.min(
+        accelDistance,
+        Math.max(speed / accelRate, 0),
+      ),
+      speed,
     };
   }
 
@@ -1349,21 +2140,42 @@ function getWarpProgress(warpState, now) {
     const seconds = (elapsedMs - accelMs) / 1000;
     return {
       complete: false,
-      traveled: accelDistance + (warpState.maxWarpSpeedMs * seconds),
-      speed: warpState.maxWarpSpeedMs,
+      traveled: accelDistance + (cruiseWarpSpeedMs * seconds),
+      speed: cruiseWarpSpeedMs,
     };
   }
 
-  const seconds = (elapsedMs - accelMs - cruiseMs) / 1000;
-  return {
+  const seconds = Math.min(
+    (elapsedMs - decelStartMs) / 1000,
+    decelSeconds,
+  );
+  const speed = Math.max(
+    warpDropoutSpeedMs,
+    maxWarpSpeedMs * Math.exp(-decelRate * seconds),
+  );
+  const progress = {
     complete: false,
     traveled:
       accelDistance +
       cruiseDistance +
-      (warpState.maxWarpSpeedMs * seconds) -
-      (0.5 * decelRate * (seconds ** 2)),
-    speed: Math.max(0, warpState.maxWarpSpeedMs - (decelRate * seconds)),
+      Math.min(
+        decelDistance,
+        Math.max((maxWarpSpeedMs - speed) / decelRate, 0),
+      ),
+    speed,
   };
+  const remainingDistance = Math.max(
+    toFiniteNumber(warpState.totalDistance, 0) - progress.traveled,
+    0,
+  );
+  if (remainingDistance <= getWarpCompletionDistance(warpState)) {
+    return {
+      complete: true,
+      traveled: warpState.totalDistance,
+      speed: 0,
+    };
+  }
+  return progress;
 }
 
 function getWarpStopDistanceForTarget(shipEntity, targetEntity, minimumRange = 0) {
@@ -1376,7 +2188,11 @@ function getWarpStopDistanceForTarget(shipEntity, targetEntity, minimumRange = 0
     case "sun":
       return Math.max(targetRadius + 5000000, desiredRange) + (shipEntity.radius * 2);
     case "station":
-      return Math.max(Math.max(2500, targetRadius * 0.25), desiredRange) + (shipEntity.radius * 2);
+      return (
+        targetRadius +
+        Math.max(DEFAULT_STATION_WARP_RANGE, desiredRange) +
+        (shipEntity.radius * 2)
+      );
     case "stargate":
       return Math.max(Math.max(2500, targetRadius * 0.3), desiredRange) + (shipEntity.radius * 2);
     default:
@@ -1430,6 +2246,10 @@ function advanceMovement(entity, scene, deltaSeconds, now) {
         : scaleVector(direction, progress.speed);
 
       if (progress.complete) {
+        const completedWarpState = serializeWarpState({
+          warpState: entity.warpState,
+          position: entity.position,
+        });
         entity.mode = "STOP";
         entity.speedFraction = 0;
         entity.targetPoint = cloneVector(entity.position);
@@ -1439,6 +2259,7 @@ function advanceMovement(entity, scene, deltaSeconds, now) {
             distance(previousPosition, entity.position) > 1 ||
             distance(previousVelocity, entity.velocity) > 0.5,
           warpCompleted: true,
+          completedWarpState,
         };
       }
 
@@ -1547,24 +2368,7 @@ class SolarSystemScene {
         break;
       case "WARP":
         if (entity.warpState) {
-          const warpStamp = entity.warpState.effectStamp || modeStamp;
-          updates.push({
-            stamp: warpStamp,
-            payload: destiny.buildWarpToPayload(
-              entity.itemID,
-              entity.warpState.targetPoint,
-              entity.warpState.stopDistance,
-              entity.warpState.warpSpeed,
-            ),
-          });
-          updates.push({
-            stamp: warpStamp,
-            payload: destiny.buildOnSpecialFXPayload(entity.itemID, "effects.Warping"),
-          });
-          updates.push({
-            stamp: warpStamp,
-            payload: destiny.buildSetBallMassivePayload(entity.itemID, false),
-          });
+          updates.push(...buildWarpStartUpdates(entity, entity.warpState));
         }
         break;
       default:
@@ -1599,6 +2403,15 @@ class SolarSystemScene {
     }
 
     const shipEntity = buildShipEntity(session, shipItem, this.systemID);
+    if (shipEntity.mode === "WARP" && shipEntity.warpState) {
+      log.warn(
+        `[SpaceRuntime] Restoring persisted warp state for ship=${shipEntity.itemID} on login is unsupported; spawning stopped at current position instead.`,
+      );
+      resetEntityMotion(shipEntity);
+      shipEntity.warpState = null;
+      shipEntity.pendingWarp = null;
+      shipEntity.targetEntityID = null;
+    }
     normalizeLegacyStationState(shipEntity);
     if (options.spawnStopped) {
       resetEntityMotion(shipEntity);
@@ -1713,6 +2526,26 @@ class SolarSystemScene {
     this.sendDestinyUpdates(session, updates);
   }
 
+  sendStateRefresh(session, egoEntity, stampOverride = null) {
+    if (!session || !egoEntity || !isReadyForDestiny(session)) {
+      return;
+    }
+
+    const stamp =
+      stampOverride === null ? getNextStamp() : toInt(stampOverride, getNextStamp());
+    this.sendDestinyUpdates(session, [
+      {
+        stamp,
+        payload: destiny.buildSetStatePayload(
+          stamp,
+          this.system,
+          egoEntity.itemID,
+          this.getAllVisibleEntities(),
+        ),
+      },
+    ]);
+  }
+
   ensureInitialBallpark(session, options = {}) {
     if (!session || !session._space) {
       return false;
@@ -1727,14 +2560,8 @@ class SolarSystemScene {
       return false;
     }
 
-    const dynamicEntities = orderEntitiesWithEgoFirst(
-      this.getDynamicEntities(),
-      egoEntity.itemID,
-    );
-    const visibleEntities = orderEntitiesWithEgoFirst(
-      this.getAllVisibleEntities(),
-      egoEntity.itemID,
-    );
+    const dynamicEntities = this.getDynamicEntities();
+    const visibleEntities = this.getAllVisibleEntities();
     // V23.02 expects destiny statestamps on a coarse shared clock, but space
     // bootstrap still needs a strict AddBalls2 -> SetState -> prime/mode order.
     const bootstrapBaseStamp = getCurrentDestinyStamp();
@@ -1783,50 +2610,66 @@ class SolarSystemScene {
     return true;
   }
 
-  repositionSession(session, shipItem, options = {}) {
-    if (!session || !session._space || !shipItem) {
-      return null;
-    }
-
+  relocateShip(session, spaceState = {}) {
     const entity = this.getShipEntityForSession(session);
-    if (!entity || Number(entity.itemID) !== Number(shipItem.itemID || 0)) {
-      return null;
+    if (!entity) {
+      return false;
     }
 
-    entity.position = cloneVector(
-      options.position || (shipItem.spaceState && shipItem.spaceState.position),
-      entity.position,
+    clearTrackingState(entity);
+    entity.position = cloneVector(spaceState.position, entity.position);
+    entity.direction = normalizeVector(spaceState.direction, entity.direction);
+    entity.velocity = cloneVector(spaceState.velocity, { x: 0, y: 0, z: 0 });
+    entity.speedFraction = clamp(
+      toFiniteNumber(spaceState.speedFraction, 0),
+      0,
+      MAX_SUBWARP_SPEED_FRACTION,
     );
-    entity.direction = normalizeVector(
-      cloneVector(
-        options.direction || (shipItem.spaceState && shipItem.spaceState.direction),
-        entity.direction,
-      ),
-      entity.direction,
+    entity.mode = normalizeMode(
+      spaceState.mode,
+      entity.speedFraction > 0 ? "GOTO" : "STOP",
     );
-    entity.systemID = this.systemID;
-    resetEntityMotion(entity);
+    entity.targetPoint = cloneVector(
+      spaceState.targetPoint,
+      entity.mode === "STOP"
+        ? entity.position
+        : addVectors(entity.position, scaleVector(entity.direction, 1.0e16)),
+    );
+
+    if (entity.mode === "STOP") {
+      entity.speedFraction = 0;
+      entity.velocity = { x: 0, y: 0, z: 0 };
+      entity.targetPoint = cloneVector(entity.position);
+    }
+
     persistShipEntity(entity);
 
-    if (session._space) {
-      session._space.pendingUndockMovement = false;
-      session._space.initialStateSent = true;
-    }
-
-    const stamp = getMovementStamp();
+    const stamp = getNextStamp();
     const updates = [
       {
         stamp,
-        payload: destiny.buildStopPayload(entity.itemID),
+        payload: destiny.buildSetBallPositionPayload(entity.itemID, entity.position),
       },
-      ...buildPositionVelocityCorrectionUpdates(entity, {
-        includePosition: true,
+      {
         stamp,
-      }),
+        payload: destiny.buildSetBallVelocityPayload(entity.itemID, entity.velocity),
+      },
+      {
+        stamp,
+        payload: destiny.buildSetSpeedFractionPayload(entity.itemID, entity.speedFraction),
+      },
+      ...(entity.mode === "STOP"
+        ? [
+            {
+              stamp,
+              payload: destiny.buildStopPayload(entity.itemID),
+            },
+          ]
+        : this.buildModeUpdates(entity, stamp)),
     ];
-    this.broadcastMovementUpdates(updates);
 
-    return entity;
+    this.broadcastMovementUpdates(updates);
+    return true;
   }
 
   broadcastAddBalls(entities, excludedSession = null) {
@@ -1871,19 +2714,6 @@ class SolarSystemScene {
       }
       this.sendDestinyUpdates(session, [update]);
     }
-  }
-
-  removeBallFromSession(session, entityID) {
-    if (!session || !isReadyForDestiny(session) || !entityID) {
-      return false;
-    }
-
-    const update = {
-      stamp: getNextStamp(),
-      payload: destiny.buildRemoveBallsPayload([entityID]),
-    };
-    this.sendDestinyUpdates(session, [update]);
-    return true;
   }
 
   broadcastMovementUpdates(updates, excludedSession = null) {
@@ -2197,55 +3027,59 @@ class SolarSystemScene {
       };
     }
 
-    const warpState = buildWarpProfile(entity, point, {
+    const pendingWarp = buildPendingWarpRequest(entity, point, {
       ...options,
       warpSpeedAU: options.warpSpeedAU || entity.warpSpeedAU,
-      effectStamp: getNextStamp(),
     });
-    if (!warpState) {
+    if (!pendingWarp) {
       return {
         success: false,
         errorMsg: "WARP_DISTANCE_TOO_CLOSE",
       };
     }
 
+    const now = Date.now();
     clearTrackingState(entity);
-    entity.mode = "WARP";
+    entity.pendingWarp = pendingWarp;
+    entity.mode = "GOTO";
     entity.speedFraction = 1;
     entity.direction = normalizeVector(
-      subtractVectors(warpState.targetPoint, entity.position),
+      subtractVectors(pendingWarp.targetPoint, entity.position),
       entity.direction,
     );
-    entity.targetPoint = cloneVector(warpState.targetPoint);
-    entity.targetEntityID = warpState.targetEntityID || null;
-    entity.warpState = warpState;
-    entity.velocity = { x: 0, y: 0, z: 0 };
+    entity.targetPoint = cloneVector(pendingWarp.targetPoint);
+    entity.targetEntityID = pendingWarp.targetEntityID || null;
     persistShipEntity(entity);
+    armMovementTrace(entity, "warp", {
+      pendingWarp: summarizePendingWarp(pendingWarp),
+    }, now);
+    logMovementDebug("warp.requested", entity);
+    logWarpDebug("warp.requested", entity, {
+      officialProfile: buildOfficialWarpReferenceProfile(
+        pendingWarp.totalDistance,
+        pendingWarp.warpSpeedAU,
+        entity.maxVelocity,
+      ),
+    });
 
-    const warpStamp = warpState.effectStamp;
+    const movementStamp = getMovementStamp(now);
     this.broadcastMovementUpdates([
       {
-        stamp: warpStamp,
-        payload: destiny.buildWarpToPayload(
+        stamp: movementStamp,
+        payload: destiny.buildGotoDirectionPayload(
           entity.itemID,
-          warpState.targetPoint,
-          warpState.stopDistance,
-          warpState.warpSpeed,
+          getCommandDirection(entity, entity.direction),
         ),
       },
       {
-        stamp: warpStamp,
-        payload: destiny.buildOnSpecialFXPayload(entity.itemID, "effects.Warping"),
-      },
-      {
-        stamp: warpStamp,
-        payload: destiny.buildSetBallMassivePayload(entity.itemID, false),
+        stamp: movementStamp,
+        payload: destiny.buildSetSpeedFractionPayload(entity.itemID, 1),
       },
     ]);
 
     return {
       success: true,
-      data: warpState,
+      data: pendingWarp,
     };
   }
 
@@ -2412,6 +3246,8 @@ class SolarSystemScene {
     this.lastTickAt = now;
 
     const sharedUpdates = [];
+    const sessionOnlyPreEffectUpdates = [];
+    const sessionOnlyUpdates = [];
     const watcherOnlyUpdates = [];
     const dockRequests = new Map();
     for (const entity of this.dynamicEntities.values()) {
@@ -2431,6 +3267,146 @@ class SolarSystemScene {
       }
 
       const result = advanceMovement(entity, this, deltaSeconds, now);
+      if (entity.pendingWarp && entity.mode !== "WARP") {
+        const pendingWarpState = evaluatePendingWarp(entity, entity.pendingWarp, now);
+        if (pendingWarpState.ready) {
+          const warpState = activatePendingWarp(entity, entity.pendingWarp);
+          if (warpState) {
+            const warpStartStamp = getNextStamp(now);
+            warpState.commandStamp = warpStartStamp;
+            warpState.startupGuidanceAtMs = getPilotWarpStartupGuidanceAtMs(warpState);
+            warpState.startupGuidanceStamp = getCurrentDestinyStamp(
+              warpState.startupGuidanceAtMs,
+            );
+            warpState.cruiseBumpAtMs = shouldSchedulePilotWarpCruiseBump(warpState)
+              ? getPilotWarpCruiseBumpAtMs(warpState)
+              : 0;
+            warpState.cruiseBumpStamp = shouldSchedulePilotWarpCruiseBump(warpState)
+              ? getPilotWarpCruiseBumpStamp(warpStartStamp, warpState)
+              : 0;
+            warpState.effectAtMs = getPilotWarpEffectAtMs(warpState);
+            warpState.effectStamp = getPilotWarpEffectStamp(warpStartStamp, warpState);
+            const warpCommandUpdates = [
+              buildWarpStartCommandUpdate(entity, warpStartStamp, warpState),
+            ];
+            const warpStartUpdates = [
+              ...warpCommandUpdates,
+              buildWarpStartEffectUpdate(entity, warpStartStamp),
+            ];
+            const pilotWarpStartUpdates = [
+              buildWarpStartMaxSpeedUpdate(entity, warpStartStamp, warpState),
+              ...warpCommandUpdates,
+              ...(warpState.effectStamp <= warpStartStamp
+                ? [buildWarpStartEffectUpdate(entity, warpState.effectStamp)]
+                : []),
+              ...(warpState.cruiseBumpStamp > 0 &&
+              warpState.cruiseBumpStamp <= warpStartStamp
+                ? [
+                    buildWarpCruiseMaxSpeedUpdate(
+                      entity,
+                      warpState.cruiseBumpStamp,
+                      warpState,
+                    ),
+                  ]
+                : []),
+            ];
+            if (entity.session && isReadyForDestiny(entity.session)) {
+              sessionOnlyPreEffectUpdates.push({
+                session: entity.session,
+                // Crucible's warp-start path does not send a full SetState here.
+                // Rebased SetState at warp entry resets the piloting client's
+                // destiny history, and the live V23.02 client then reports
+                // "extended warp ... interpolating:0" before the tunnel effect
+                // falls into Warp.AlignToDirection()'s zero-vector path.
+                //
+                // warplogs47 proved the pilot still needs one warp-time
+                // SetMaxSpeed seed at startup; removing it leaves the ego ball
+                // stuck at the full starting distance until the final landing
+                // anchor. The next attempt at a later cruise SetMaxSpeed
+                // handoff still pinned the client in warplogs50, so the pilot
+                // keeps only the startup seed while later in-warp authority is
+                // handled by live position/velocity sync once cruise begins.
+                updates: pilotWarpStartUpdates,
+              });
+              watcherOnlyUpdates.push({
+                excludedSession: entity.session,
+                updates: warpStartUpdates,
+              });
+              sessionOnlyUpdates.push({
+                session: entity.session,
+                updates: [
+                  {
+                    stamp: warpStartStamp,
+                    payload: destiny.buildSetBallMassivePayload(entity.itemID, false),
+                  },
+                ],
+              });
+            } else {
+              sharedUpdates.push(...warpStartUpdates);
+            }
+            persistShipEntity(entity);
+            logMovementDebug("warp.started", entity, {
+              pendingWarpState,
+              warpState: serializeWarpState(entity),
+              warpCommandStamp: warpStartStamp,
+              warpEffectStamp: warpState.effectStamp,
+            });
+            const officialProfile = buildOfficialWarpReferenceProfile(
+              warpState.totalDistance,
+              Math.max(
+                toFiniteNumber(warpState.warpSpeed, 0) / 10,
+                toFiniteNumber(warpState.cruiseWarpSpeedMs, 0) / ONE_AU_IN_METERS,
+              ),
+              entity.maxVelocity,
+            );
+            const peakWarpSpeed =
+              warpState.profileType === "short"
+                ? toFiniteNumber(warpState.maxWarpSpeedMs, 0)
+                : toFiniteNumber(warpState.cruiseWarpSpeedMs, 0);
+            logWarpDebug("warp.started", entity, {
+              pendingWarpState,
+              officialProfile,
+              profileDelta: buildWarpProfileDelta(warpState, officialProfile),
+              pilotPlan: {
+                startMaxSpeedOverride: true,
+                seedSpeedMs: roundNumber(
+                  getPilotWarpSeedSpeed(entity, warpState, peakWarpSpeed),
+                  3,
+                ),
+                seedSpeedAU: roundNumber(
+                  getPilotWarpSeedSpeed(entity, warpState, peakWarpSpeed) /
+                    ONE_AU_IN_METERS,
+                  6,
+                ),
+                commandStamp: warpStartStamp,
+                startupGuidanceAtMs: roundNumber(
+                  toFiniteNumber(warpState.startupGuidanceAtMs, 0),
+                  3,
+                ),
+                startupGuidanceStamp: warpState.startupGuidanceStamp,
+                cruiseBumpAtMs: roundNumber(
+                  toFiniteNumber(warpState.cruiseBumpAtMs, 0),
+                  3,
+                ),
+                cruiseBumpStamp: warpState.cruiseBumpStamp,
+                effectAtMs: roundNumber(
+                  toFiniteNumber(warpState.effectAtMs, 0),
+                  3,
+                ),
+                effectStamp: warpState.effectStamp,
+              },
+            });
+            continue;
+          }
+
+          entity.pendingWarp = null;
+          logMovementDebug("warp.aborted", entity, {
+            reason: "WARP_DISTANCE_TOO_CLOSE_AFTER_ALIGN",
+            pendingWarpState,
+          });
+        }
+      }
+
       if (!result.changed) {
         if (traceActive) {
           logMovementDebug("trace.tick.idle", entity, {
@@ -2441,31 +3417,158 @@ class SolarSystemScene {
         continue;
       }
 
-      const observerNeedsPositionAnchor =
-        entity.mode === "WARP" ||
-        (now - entity.lastObserverPositionBroadcastAt) >=
-          WATCHER_POSITION_CORRECTION_INTERVAL_MS;
-      const correctionStamp = getMovementStamp(now);
-      const correctionUpdates = buildPositionVelocityCorrectionUpdates(entity, {
-        stamp: correctionStamp,
-        includePosition: observerNeedsPositionAnchor,
-      });
-      const correctionDebug = {
-        stamp: correctionStamp,
-        includePosition: observerNeedsPositionAnchor,
-        includeVelocity: true,
-        target:
-          entity.mode === "WARP"
-            ? "pilot-and-watchers"
-            : "watchers-only",
-        dispatched: false,
-      };
-
+      let correctionDebug = null;
       if (entity.mode === "WARP") {
-        sharedUpdates.push(...correctionUpdates);
-        entity.lastObserverPositionBroadcastAt = now;
-        correctionDebug.dispatched = correctionUpdates.length > 0;
+        const warpState = entity.warpState || null;
+        const warpCommandStamp = toInt(
+          warpState && warpState.commandStamp,
+          0,
+        );
+        const warpEffectStamp = toInt(
+          warpState && warpState.effectStamp,
+          warpCommandStamp,
+        );
+        const warpStartupGuidanceStamp = toInt(
+          warpState && warpState.startupGuidanceStamp,
+          getPilotWarpStartupGuidanceStamp(warpCommandStamp, warpState),
+        );
+        const warpStartupGuidanceAtMs = toFiniteNumber(
+          warpState && warpState.startupGuidanceAtMs,
+          getPilotWarpStartupGuidanceAtMs(warpState),
+        );
+        const warpCruiseBumpStamp = toInt(warpState && warpState.cruiseBumpStamp, 0);
+        const warpCruiseBumpAtMs = toFiniteNumber(
+          warpState && warpState.cruiseBumpAtMs,
+          shouldSchedulePilotWarpCruiseBump(warpState)
+            ? getPilotWarpCruiseBumpAtMs(warpState)
+            : 0,
+        );
+        const warpEffectAtMs = toFiniteNumber(
+          warpState && warpState.effectAtMs,
+          getPilotWarpEffectAtMs(warpState),
+        );
+        const warpElapsedMs = Math.max(
+          0,
+          toFiniteNumber(now, Date.now()) -
+            toFiniteNumber(warpState && warpState.startTimeMs, now),
+        );
+        const warpCorrectionStamp = Math.max(
+          getMovementStamp(now),
+          warpCommandStamp,
+        );
+        const hasMeaningfulWarpVelocity = magnitude(entity.velocity) > 0.5;
+        if (
+          !result.warpCompleted &&
+          entity.session &&
+          isReadyForDestiny(entity.session)
+        ) {
+          const pilotWarpPhaseUpdates = [];
+          const pilotWarpPhaseStamp = warpCorrectionStamp;
+          const shouldSendPilotWarpCruiseBump =
+            warpCruiseBumpStamp > warpCommandStamp &&
+            now >= warpCruiseBumpAtMs &&
+            entity.lastPilotWarpCruiseBumpStamp !== warpCruiseBumpStamp;
+          const shouldSendPilotWarpEffect =
+            warpEffectStamp > warpCommandStamp &&
+            now >= warpEffectAtMs &&
+            entity.lastPilotWarpEffectStamp !== warpEffectStamp;
+          if (shouldSendPilotWarpCruiseBump) {
+            pilotWarpPhaseUpdates.push(
+              buildWarpCruiseMaxSpeedUpdate(
+                entity,
+                pilotWarpPhaseStamp,
+                warpState,
+              ),
+            );
+            entity.lastPilotWarpCruiseBumpStamp = warpCruiseBumpStamp;
+          }
+          if (shouldSendPilotWarpEffect) {
+            pilotWarpPhaseUpdates.push(
+              buildWarpStartEffectUpdate(entity, pilotWarpPhaseStamp),
+            );
+            entity.lastPilotWarpEffectStamp = warpEffectStamp;
+          }
+          if (pilotWarpPhaseUpdates.length > 0) {
+            sessionOnlyUpdates.push({
+              session: entity.session,
+              updates: pilotWarpPhaseUpdates,
+            });
+            logWarpDebug("warp.pilot.phase", entity, {
+              stamp: pilotWarpPhaseStamp,
+              cruiseBump: shouldSendPilotWarpCruiseBump,
+              effect: shouldSendPilotWarpEffect,
+            });
+          }
+        }
+        const warpObserverUpdates = [
+          {
+            stamp: warpCorrectionStamp,
+            payload: destiny.buildSetBallPositionPayload(
+              entity.itemID,
+              entity.position,
+            ),
+          },
+        ];
+        correctionDebug = {
+          stamp: warpCorrectionStamp,
+          includePosition: true,
+          includeVelocity: true,
+          target: "pilot-warp-edges+watchers",
+          dispatched: false,
+        };
+        if (
+          !result.warpCompleted &&
+          now - entity.lastWarpCorrectionBroadcastAt >=
+          WARP_POSITION_CORRECTION_INTERVAL_MS
+        ) {
+          // Keep the piloting client on its local WarpTo simulation. Pilot-side
+          // position re-anchors or self velocity rebases during warp cause the
+          // live client to drop interpolation and fight its own heading. That
+          // is the exact warplogs52 regression: the first pilot-only
+          // SetBallPosition + SetBallVelocity snapped distance from 17.17 AU
+          // back to 21.81 AU and started the tunnel reorientation loop.
+          //
+          // Keep watcher corrections for everyone else, but let the piloting
+          // client stay on a pure local WarpTo simulation until the landing
+          // anchor/Stop batch.
+          if (hasMeaningfulWarpVelocity) {
+            warpObserverUpdates.push({
+              stamp: warpCorrectionStamp,
+              payload: destiny.buildSetBallVelocityPayload(
+                entity.itemID,
+                entity.velocity,
+              ),
+            });
+          }
+          watcherOnlyUpdates.push({
+            excludedSession: entity.session || null,
+            updates: warpObserverUpdates,
+          });
+          entity.lastWarpCorrectionBroadcastAt = now;
+          correctionDebug.dispatched = warpObserverUpdates.length > 0;
+        }
+        if (entity.lastWarpDiagnosticStamp !== warpCorrectionStamp) {
+          logWarpDebug("warp.progress", entity, {
+            stamp: warpCorrectionStamp,
+          });
+          entity.lastWarpDiagnosticStamp = warpCorrectionStamp;
+        }
       } else {
+        const observerNeedsPositionAnchor =
+          (now - entity.lastObserverPositionBroadcastAt) >=
+            WATCHER_POSITION_CORRECTION_INTERVAL_MS;
+        const correctionStamp = getMovementStamp(now);
+        const correctionUpdates = buildPositionVelocityCorrectionUpdates(entity, {
+          stamp: correctionStamp,
+          includePosition: observerNeedsPositionAnchor,
+        });
+        correctionDebug = {
+          stamp: correctionStamp,
+          includePosition: observerNeedsPositionAnchor,
+          includeVelocity: true,
+          target: "watchers-only",
+          dispatched: false,
+        };
         if (now - entity.lastObserverCorrectionBroadcastAt >= WATCHER_CORRECTION_INTERVAL_MS) {
           watcherOnlyUpdates.push({
             excludedSession: entity.session || null,
@@ -2513,13 +3616,53 @@ class SolarSystemScene {
       }
 
       if (result.warpCompleted) {
-        sharedUpdates.push({
-          stamp: getNextStamp(),
-          payload: destiny.buildStopPayload(entity.itemID),
+        const warpCompletionStamp = getNextStamp();
+        sharedUpdates.push(...buildWarpCompletionUpdates(entity, warpCompletionStamp));
+        if (entity.session && isReadyForDestiny(entity.session)) {
+          sessionOnlyUpdates.push({
+            session: entity.session,
+            updates: [
+              {
+                stamp: warpCompletionStamp,
+                payload: destiny.buildSetMaxSpeedPayload(
+                  entity.itemID,
+                  entity.maxVelocity,
+                ),
+              },
+              {
+                stamp: warpCompletionStamp,
+                payload: destiny.buildSetBallMassivePayload(entity.itemID, true),
+              },
+            ],
+          });
+        }
+        logMovementDebug("warp.completed", entity, {
+          completionStamp: warpCompletionStamp,
         });
-        sharedUpdates.push({
-          stamp: getNextStamp(),
-          payload: destiny.buildSetBallMassivePayload(entity.itemID, true),
+        logWarpDebug("warp.completed", entity, {
+          completionStamp: warpCompletionStamp,
+          completedWarpState: result.completedWarpState,
+          officialProfile: buildOfficialWarpReferenceProfile(
+            result.completedWarpState.totalDistance,
+            Math.max(
+              toFiniteNumber(result.completedWarpState.warpSpeed, 0) / 10,
+              toFiniteNumber(result.completedWarpState.cruiseWarpSpeedMs, 0) /
+                ONE_AU_IN_METERS,
+            ),
+            entity.maxVelocity,
+          ),
+          profileDelta: buildWarpProfileDelta(
+            result.completedWarpState,
+            buildOfficialWarpReferenceProfile(
+              result.completedWarpState.totalDistance,
+              Math.max(
+                toFiniteNumber(result.completedWarpState.warpSpeed, 0) / 10,
+                toFiniteNumber(result.completedWarpState.cruiseWarpSpeedMs, 0) /
+                  ONE_AU_IN_METERS,
+              ),
+              entity.maxVelocity,
+            ),
+          ),
         });
       }
 
@@ -2542,7 +3685,13 @@ class SolarSystemScene {
       }
     }
 
+    for (const batch of sessionOnlyPreEffectUpdates) {
+      this.sendDestinyUpdates(batch.session, batch.updates);
+    }
     this.broadcastMovementUpdates(sharedUpdates);
+    for (const batch of sessionOnlyUpdates) {
+      this.sendDestinyUpdates(batch.session, batch.updates);
+    }
     for (const batch of watcherOnlyUpdates) {
       this.broadcastMovementUpdates(batch.updates, batch.excludedSession);
     }
@@ -2619,9 +3768,9 @@ class SpaceRuntime {
     return scene ? scene.ensureInitialBallpark(session, options) : false;
   }
 
-  repositionSession(session, shipItem, options = {}) {
+  relocateShip(session, spaceState = {}) {
     const scene = this.getSceneForSession(session);
-    return scene ? scene.repositionSession(session, shipItem, options) : null;
+    return scene ? scene.relocateShip(session, spaceState) : false;
   }
 
   gotoDirection(session, direction) {
@@ -2674,11 +3823,6 @@ class SpaceRuntime {
 
   getStationUndockSpawnState(station) {
     return getStationUndockSpawnState(station);
-  }
-
-  removeBallFromSession(session, entityID) {
-    const scene = this.getSceneForSession(session);
-    return scene ? scene.removeBallFromSession(session, entityID) : false;
   }
 
   canDockAtStation(session, stationID, maxDistance = DEFAULT_STATION_DOCKING_RADIUS) {

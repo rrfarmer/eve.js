@@ -1,84 +1,232 @@
 /**
- * SERVER CONFIGURATION
- * (skeleton code by AI, revised by Icey and John)
+ * EVE.js Server Configuration
  *
- * default values live here.
- * local overrides can be supplied in evejs.config.json at the repository root
+ * Default values live here. Optional local overrides can be supplied in
+ * evejs.config.local.json at the repository root, or with EVEJS_* env vars.
  */
 
-// removed sharedConfigPath as i dont see a use case for it.
-// also removed support for environment variables. dont see a use case for it.
-
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
-const configPath = path.join(__dirname, "../../../evejs.config.json");
+let nextBoundId = 1;
+
+const rootDir = path.resolve(__dirname, "../../..");
+const localConfigPath = path.join(rootDir, "evejs.config.local.json");
+const sharedConfigPath = path.join(rootDir, "evejs.config.json");
 
 const defaults = {
-  /**
-   * DEV MODE:
-   * - auto create non-existant accounts.
-   * - authenticates you even when password is incorrect
-   */
-  devMode: true,
+  // dev mode does the following
+  //  - auto creates users when they log in (and user is not in database)
+  //  - authenticates you even when password is incorrect
+  devMode: false,
 
   // the launcher writes the detected client path here
   clientPath: "",
-  autoLaunch: false,
+  autoLaunch: true,
 
   // client version info
   clientVersion: 23.02,
-  clientBuild: 3223220,
+  clientBuild: 3145366,
   eveBirthday: 170472,
   machoVersion: 496,
   projectCodename: "crucible",
   projectRegion: "ccp",
   projectVersion: "V23.02@ccp",
 
-  // WARNING: logLevel not implemented at the moment
   // 2: log everything; 1: log errors (default); 0: log nothing;
   logLevel: 2,
 
-  /**
-   * #### WARNING ####
-   * it is not recommended to change config values
-   * below unless you know what you are doing!
-   * #### WARNING ####
-   */
+  // #### WARNING #### \\
+  // it is recommended not to edit the config values
+  // below unless you know what you're doing!
+  // #### WARNING #### \\
 
-  // main server (default for clients is 26000)
+  // main server
   serverPort: 26000,
 
-  // TODO: change so it is port instead of url
-  // image server (default for clients is 26001)
+  // image server
+  // imageServerPort: 26001,
   imageServerUrl: "http://127.0.0.1:26001/",
 
-  // WARNING: microservices not implemented at the moment
   // where microservices will be sent instead of official CCP servers.
   microservicesRedirectUrl: "http://localhost:26002/",
+  microservicesBindHost: "0.0.0.0",
+  publicHost: "",
 
-  // chat server (default for clients is 5222)
-  chatServerPort: 5222,
-  // optional explicit host/ip announced by XmppChatMgr.
-  // if empty, the server auto-detects from session socket/network interfaces.
-  chatServerHost: "",
+  // chat server
+  xmppServerHost: "",
+  xmppServerPort: 5222,
 
-  // DO NOT CHANGE
+  // modern eve_public user-license stubs
+  omegaLicenseEnabled: true,
+
   // proxy node ID: evemu uses 0xFFAA
   proxyNodeId: 0xffaa,
 };
 
-// read json config from root dir
-let configJson = JSON.parse(fs.readFileSync(configPath))
+function readJsonConfig(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
 
-// assemble config
-const config = {
-  ...defaults,
-  ...configJson
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    throw new Error(`Invalid JSON in ${filePath}: ${error.message}`);
+  }
 }
 
-// bound ID stuff
-let nextBoundId = 1;
+function parseBoolean(value) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+
+  return undefined;
+}
+
+function parseNumber(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function withDefinedEntries(values) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined),
+  );
+}
+
+function normalizeHost(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.startsWith("::ffff:")) {
+    return normalized.slice("::ffff:".length);
+  }
+
+  if (normalized === "::1") {
+    return "127.0.0.1";
+  }
+
+  return normalized;
+}
+
+function isUsableHost(host) {
+  const normalized = normalizeHost(host);
+  return Boolean(normalized) && normalized !== "0.0.0.0" && normalized !== "::";
+}
+
+function isLoopbackHost(host) {
+  const normalized = normalizeHost(host).toLowerCase();
+  return (
+    normalized === "127.0.0.1" ||
+    normalized === "localhost" ||
+    normalized === "::1"
+  );
+}
+
+function detectPublicHost(preferredHost = "") {
+  const preferred = normalizeHost(preferredHost);
+  if (isUsableHost(preferred)) {
+    return preferred;
+  }
+
+  const interfaces = os.networkInterfaces();
+  for (const addresses of Object.values(interfaces)) {
+    if (!Array.isArray(addresses)) {
+      continue;
+    }
+
+    const candidate = addresses.find(
+      (entry) => entry && entry.family === "IPv4" && !entry.internal,
+    );
+    if (candidate && isUsableHost(candidate.address)) {
+      return normalizeHost(candidate.address);
+    }
+  }
+
+  return "127.0.0.1";
+}
+
+function rewriteLoopbackUrlHost(rawUrl, replacementHost) {
+  if (!rawUrl) {
+    return rawUrl;
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    if (!isLoopbackHost(parsed.hostname) || !isUsableHost(replacementHost)) {
+      return rawUrl;
+    }
+
+    parsed.hostname = replacementHost;
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+const fileConfig = {
+  ...readJsonConfig(sharedConfigPath),
+  ...readJsonConfig(localConfigPath),
+};
+
+const envConfig = withDefinedEntries({
+  devMode: parseBoolean(process.env.EVEJS_DEV_MODE),
+  clientPath: process.env.EVEJS_CLIENT_PATH || undefined,
+  autoLaunch: parseBoolean(process.env.EVEJS_AUTO_LAUNCH),
+  logLevel: parseNumber(process.env.EVEJS_LOG_LEVEL),
+  serverPort: parseNumber(process.env.EVEJS_SERVER_PORT),
+  imageServerUrl: process.env.EVEJS_IMAGE_SERVER_URL || undefined,
+  microservicesRedirectUrl:
+    process.env.EVEJS_MICROSERVICES_REDIRECT_URL || undefined,
+  microservicesBindHost:
+    process.env.EVEJS_MICROSERVICES_BIND_HOST || undefined,
+  publicHost: process.env.EVEJS_PUBLIC_HOST || undefined,
+  xmppServerHost: process.env.EVEJS_XMPP_SERVER_HOST || undefined,
+  xmppServerPort: parseNumber(process.env.EVEJS_XMPP_SERVER_PORT),
+  omegaLicenseEnabled: parseBoolean(process.env.EVEJS_OMEGA_LICENSE),
+  proxyNodeId: parseNumber(process.env.EVEJS_PROXY_NODE_ID),
+});
+
+const config = {
+  ...defaults,
+  ...fileConfig,
+  ...envConfig,
+};
+
+const legacyChatHost = normalizeHost(fileConfig.chatServerHost || process.env.EVEJS_CHAT_SERVER_HOST);
+const resolvedPublicHost = detectPublicHost(
+  config.publicHost || config.xmppServerHost || legacyChatHost,
+);
+config.publicHost = resolvedPublicHost;
+config.microservicesBindHost = normalizeHost(config.microservicesBindHost) || "0.0.0.0";
+config.microservicesRedirectUrl = rewriteLoopbackUrlHost(
+  config.microservicesRedirectUrl,
+  resolvedPublicHost,
+);
+config.imageServerUrl = rewriteLoopbackUrlHost(
+  config.imageServerUrl,
+  resolvedPublicHost,
+);
+if (!isUsableHost(config.xmppServerHost) && isUsableHost(legacyChatHost)) {
+  config.xmppServerHost = legacyChatHost;
+}
+
 config.getNextBoundId = function getNextBoundId() {
   return nextBoundId++;
 };

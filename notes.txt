@@ -32,6 +32,9 @@ this solves the issue where the client says ... has no attribute 'Index'
 ###     TO-DO LIST      ###
 ###########################
 
+- fix: when i leave current ship (to go to pod) then reboard my ship, pod stays in inventory...
+- if user signs in on different client, and user is already active in another client, kick active user off.
+- fix all stations orientation. they all face same direction.
 - sort the service files and place them in the correct folders
 - (50%) skill plan server (https)
 - (50%) factionwf server (https)
@@ -45,8 +48,8 @@ this solves the issue where the client says ... has no attribute 'Index'
 ###   BIG TO-DO LIST    ###
 ###########################
 
-station services (fitting, market... etc)
-warping
+station services ((50%) fitting, market... etc)
+(50%) warping
 
 ###########################
 ###   WHERE I LEFT OFF  ###
@@ -60,11 +63,4 @@ insurgencySolarsystem::GetLocalCampaignClientSnapshot()
 bountyProxy::GetBountiesAndKillRights()
 scanMgr::SignalTrackerRegister()
 essMgr::GetDataForClientSolarSystem()
-
-when merging:
-  what i changed:
-    - chatCommands.js
-    - transitions.js
-    - worldData.js
-    - chatHub.js
-    - packetDispatcher.js
+achievementTrackerMgr::HasEverWarped()

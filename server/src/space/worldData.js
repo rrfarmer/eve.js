@@ -18,8 +18,8 @@ function buildMaps() {
   const solarSystemsById = new Map();
   const stationsById = new Map();
   const stationsBySystem = new Map();
-  const celestialsBySystem = new Map();
   const celestialsById = new Map();
+  const celestialsBySystem = new Map();
   const stargatesById = new Map();
   const stargatesBySystem = new Map();
   const movementByTypeId = new Map();
@@ -108,14 +108,14 @@ function getStationsForSystem(solarSystemID) {
   ];
 }
 
+function getCelestialByID(celestialID) {
+  return ensureLoaded().celestialsById.get(Number(celestialID)) || null;
+}
+
 function getCelestialsForSystem(solarSystemID) {
   return [
     ...(ensureLoaded().celestialsBySystem.get(Number(solarSystemID)) || []),
   ];
-}
-
-function getCelestialByID(celestialID) {
-  return ensureLoaded().celestialsById.get(Number(celestialID)) || null;
 }
 
 function getStargatesForSystem(solarSystemID) {

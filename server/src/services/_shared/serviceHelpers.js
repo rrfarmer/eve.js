@@ -190,6 +190,16 @@ function buildBoundObjectResponse(service, args, session, kwargs) {
   const boundId = config.getNextBoundId();
   const objectId = [`N=${config.proxyNodeId}:${boundId}`, currentFileTime()];
 
+  if (session) {
+    if (!session._boundObjectIDs || typeof session._boundObjectIDs !== "object") {
+      session._boundObjectIDs = {};
+    }
+    if (service && service.name) {
+      session._boundObjectIDs[service.name] = objectId[0];
+    }
+    session.lastBoundObjectID = objectId[0];
+  }
+
   let callResult = null;
   if (nestedCall && Array.isArray(nestedCall) && nestedCall.length >= 1) {
     const methodName = normalizeText(nestedCall[0], "");

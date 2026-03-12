@@ -77,6 +77,11 @@ class ClientSession {
     this.clientID = handshakeData.clientId || 0;
     this.clientId = this.clientID; // alias for camelCase consistency
     this.role = handshakeData.role || 0;
+    this.sid =
+      typeof handshakeData.sessionId === "bigint"
+        ? handshakeData.sessionId
+        : BigInt(handshakeData.sessionId || (Date.now() * 15));
+    this.sessionID = this.sid;
 
     // Character data (set after character selection)
     this.characterID = 0;
@@ -175,7 +180,7 @@ class ClientSession {
    * From EVEmu C++ SessionChangeNotification::Encode():
    *   PyObject("macho.SessionChangeNotification", [type, src, dst, userID, payload, {}, null])
    */
-  sendSessionChange(changes) {
+  sendSessionChange(changes, options = {}) {
     if (!this.socket || this.socket.destroyed) return;
 
     // Build the session change dict — each entry is [oldValue, newValue]
@@ -189,14 +194,21 @@ class ClientSession {
       }
       changeEntries.push([key, [oldVal, newVal]]);
     }
+    const sessionID =
+      options && Object.prototype.hasOwnProperty.call(options, "sessionId")
+        ? typeof options.sessionId === "bigint"
+          ? options.sessionId
+          : BigInt(options.sessionId || 0)
+        : this.sid;
+
     appendSessionChangeDebug(
-      `send keys=${JSON.stringify(changeEntries.map(([key]) => key))} payload=${JSON.stringify(changeEntries, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
+      `send sid=${String(sessionID)} keys=${JSON.stringify(changeEntries.map(([key]) => key))} payload=${JSON.stringify(changeEntries, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
     );
 
     // SessionChangeNotification payload per General.xmlp:
     //   tuple(sessionID: long, tuple(clueless: int, changes: dict), nodesOfInterest: listInt)
     const payload = [
-      { type: "long", value: 0n }, // sessionID
+      { type: "long", value: sessionID }, // sessionID
       [0, { type: "dict", entries: changeEntries }], // [clueless=0, changes dict]
       { type: "list", items: [-1, config.proxyNodeId] }, // nodesOfInterest
     ];

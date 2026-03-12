@@ -1,15 +1,10 @@
-const fs = require("fs");
 const path = require("path");
-const zlib = require("zlib");
 
 const log = require("../../utils/logger");
-
-const REFERENCE_INV_TYPES_PATH = "C:\\evemu_Crucible\\sql\\base\\invTypes.sql.gz";
-const REFERENCE_INV_GROUPS_PATH = "C:\\evemu_Crucible\\sql\\base\\invGroups.sql.gz";
-const GENERATED_SHIP_DATA_PATH = path.join(
-  __dirname,
-  "../../database/static/shipTypes.json",
-);
+const {
+  TABLE,
+  readStaticRows,
+} = require(path.join(__dirname, "../_shared/referenceData"));
 const SHIP_CATEGORY_ID = 6;
 const FALLBACK_SHIPS = [
   { typeID: 606, name: "Velator", groupID: 237, categoryID: SHIP_CATEGORY_ID },
@@ -82,14 +77,9 @@ function buildFallbackRegistry() {
   return registry;
 }
 
-function loadGeneratedRegistry() {
-  if (!fs.existsSync(GENERATED_SHIP_DATA_PATH)) {
-    return null;
-  }
-
+function loadDbRegistry() {
   try {
-    const raw = JSON.parse(fs.readFileSync(GENERATED_SHIP_DATA_PATH, "utf8"));
-    const ships = Array.isArray(raw) ? raw : raw.ships;
+    const ships = readStaticRows(TABLE.SHIP_TYPES);
     if (!Array.isArray(ships) || ships.length === 0) {
       return null;
     }
@@ -102,80 +92,10 @@ function loadGeneratedRegistry() {
     return registry.byTypeID.size > 0 ? registry : null;
   } catch (error) {
     log.warn(
-      `[ShipRegistry] Failed to load generated ship data ${GENERATED_SHIP_DATA_PATH}: ${error.message}`,
+      `[ShipRegistry] Failed to load ship reference data from database: ${error.message}`,
     );
     return null;
   }
-}
-
-function parseShipGroupIDs() {
-  if (!fs.existsSync(REFERENCE_INV_GROUPS_PATH)) {
-    return null;
-  }
-
-  const shipGroupIDs = new Set();
-
-  try {
-    const sql = zlib.gunzipSync(
-      fs.readFileSync(REFERENCE_INV_GROUPS_PATH),
-    ).toString("utf8");
-    const rowPattern = /\((\d+),\s*(\d+),\s*'((?:''|[^'])*)'/g;
-    let match = null;
-
-    while ((match = rowPattern.exec(sql)) !== null) {
-      const groupID = Number(match[1]);
-      const categoryID = Number(match[2]);
-      if (categoryID === SHIP_CATEGORY_ID) {
-        shipGroupIDs.add(groupID);
-      }
-    }
-  } catch (error) {
-    log.warn(`[ShipRegistry] Failed to parse invGroups.sql.gz: ${error.message}`);
-    return null;
-  }
-
-  return shipGroupIDs;
-}
-
-function parseReferenceRegistry() {
-  if (!fs.existsSync(REFERENCE_INV_TYPES_PATH)) {
-    return null;
-  }
-
-  const shipGroupIDs = parseShipGroupIDs();
-  if (!shipGroupIDs || shipGroupIDs.size === 0) {
-    return null;
-  }
-
-  const registry = createRegistry();
-
-  try {
-    const sql = zlib.gunzipSync(fs.readFileSync(REFERENCE_INV_TYPES_PATH)).toString(
-      "utf8",
-    );
-    const rowPattern = /\((\d+),\s*(\d+),\s*'((?:''|[^'])*)'/g;
-    let match = null;
-
-    while ((match = rowPattern.exec(sql)) !== null) {
-      const typeID = Number(match[1]);
-      const groupID = Number(match[2]);
-      if (!shipGroupIDs.has(groupID)) {
-        continue;
-      }
-
-      addEntry(registry, {
-        typeID,
-        groupID,
-        categoryID: SHIP_CATEGORY_ID,
-        name: match[3].replace(/''/g, "'"),
-      });
-    }
-  } catch (error) {
-    log.warn(`[ShipRegistry] Failed to parse invTypes.sql.gz: ${error.message}`);
-    return null;
-  }
-
-  return registry.byTypeID.size > 0 ? registry : null;
 }
 
 function loadRegistry() {
@@ -183,26 +103,13 @@ function loadRegistry() {
     return cachedRegistry;
   }
 
-  const generatedRegistry = loadGeneratedRegistry();
-  if (generatedRegistry) {
-    cachedRegistry = generatedRegistry;
+  const dbRegistry = loadDbRegistry();
+  if (dbRegistry) {
+    cachedRegistry = dbRegistry;
     return cachedRegistry;
   }
 
-  const fallbackRegistry = buildFallbackRegistry();
-  const referenceRegistry = parseReferenceRegistry();
-  if (!referenceRegistry) {
-    cachedRegistry = fallbackRegistry;
-    return cachedRegistry;
-  }
-
-  for (const entry of fallbackRegistry.byTypeID.values()) {
-    if (!referenceRegistry.byTypeID.has(entry.typeID)) {
-      addEntry(referenceRegistry, entry);
-    }
-  }
-
-  cachedRegistry = referenceRegistry;
+  cachedRegistry = buildFallbackRegistry();
   return cachedRegistry;
 }
 
@@ -278,3 +185,4 @@ module.exports = {
   resolveShipByName,
   resolveShipByTypeID,
 };
+

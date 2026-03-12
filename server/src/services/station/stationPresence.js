@@ -63,6 +63,27 @@ function listOnlineGuestsInStation(stationID) {
     return [];
   }
 
+  const liveGuests = [];
+  const seenCharacterIds = new Set();
+
+  for (const session of sessionRegistry.getSessions()) {
+    const presence = snapshotSessionPresence(session);
+    if (!presence || presence.stationID !== normalizedStationID) {
+      continue;
+    }
+
+    if (seenCharacterIds.has(presence.characterID)) {
+      continue;
+    }
+
+    seenCharacterIds.add(presence.characterID);
+    liveGuests.push(buildGuestTuple(presence));
+  }
+
+  if (liveGuests.length > 0) {
+    return liveGuests;
+  }
+
   const characters = readCharacters();
   const guests = [];
 
@@ -79,7 +100,7 @@ function listOnlineGuestsInStation(stationID) {
       toNumber(characterID, 0),
       toNumber(record.corporationID, 0),
       toNumber(record.allianceID, 0),
-      toNumber(record.factionID, 0),
+      toNumber(record.warFactionID ?? record.factionID, 0),
     ]);
   }
 

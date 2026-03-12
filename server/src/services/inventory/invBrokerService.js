@@ -17,12 +17,18 @@ const {
   getCharacterShips,
   findCharacterShip,
   getActiveShipRecord,
+  shouldFlushDeferredDockedShipSessionChange,
+  flushDeferredDockedShipSessionChange,
 } = require(path.join(__dirname, "../character/characterState"));
 const {
   ITEM_FLAGS,
   listContainerItems,
   findShipItemById,
 } = require(path.join(__dirname, "./itemStore"));
+const {
+  DEFAULT_STATION,
+  getStationRecord,
+} = require(path.join(__dirname, "../_shared/stationStaticData"));
 const {
   getCharacterSkills,
   SKILL_FLAG_ID,
@@ -35,10 +41,10 @@ const inventoryDebugPath = path.join(
 const CHARACTER_TYPE_ID = 1373;
 const CHARACTER_GROUP_ID = 1;
 const CHARACTER_CATEGORY_ID = 3;
-const STATION_TYPE_ID = 1529;
+const STATION_TYPE_ID = DEFAULT_STATION.stationTypeID;
 const STATION_GROUP_ID = 15;
 const STATION_CATEGORY_ID = 3;
-const STATION_OWNER_ID = 1000127;
+const STATION_OWNER_ID = DEFAULT_STATION.ownerID;
 const INVENTORY_ROW_HEADER = {
   type: "list",
   items: [
@@ -314,6 +320,27 @@ class InvBrokerService extends BaseService {
     };
   }
 
+  _buildStationItemOverrides(session, overrideStationID = null) {
+    const station = getStationRecord(session, overrideStationID);
+    const stationID = this._normalizeInventoryId(station.stationID, this._getStationId(session));
+    return {
+      itemID: stationID,
+      typeID: this._normalizeInventoryId(station.stationTypeID, STATION_TYPE_ID),
+      ownerID: this._normalizeInventoryId(
+        station.ownerID || station.corporationID,
+        STATION_OWNER_ID,
+      ),
+      locationID: stationID,
+      flagID: 0,
+      quantity: 1,
+      groupID: STATION_GROUP_ID,
+      categoryID: STATION_CATEGORY_ID,
+      customInfo: "",
+      singleton: 1,
+      stacksize: 1,
+    };
+  }
+
   _getCharacterContainerItems(session, requestedFlag = null) {
     const numericFlag =
       requestedFlag === null || requestedFlag === undefined
@@ -346,24 +373,13 @@ class InvBrokerService extends BaseService {
     }
 
     if (numericInventoryID === stationId || numericInventoryID === 0) {
-      return {
-        itemID: stationId,
-        typeID: STATION_TYPE_ID,
-        ownerID: STATION_OWNER_ID,
-        locationID: stationId,
-        flagID: 0,
-        quantity: 1,
-        groupID: STATION_GROUP_ID,
-        categoryID: STATION_CATEGORY_ID,
-        customInfo: "",
-        singleton: 1,
-        stacksize: 1,
-      };
+      return this._buildStationItemOverrides(session, stationId);
     }
 
+    const stationItem = this._buildStationItemOverrides(session, stationId);
     return {
       itemID: numericInventoryID,
-      typeID: STATION_TYPE_ID,
+      typeID: stationItem.typeID,
       ownerID: this._getCharacterId(session),
       locationID: stationId,
       flagID: 0,
@@ -645,19 +661,48 @@ class InvBrokerService extends BaseService {
     };
   }
 
-  Handle_GetInventoryFromId(args, session) {
+  Handle_GetInventoryFromId(args, session, kwargs) {
     const itemid = args && args.length > 0 ? args[0] : 0;
     const numericItemId = this._normalizeInventoryId(itemid);
     const charId = this._getCharacterId(session);
     const stationId = this._getStationId(session);
+    const boundContext = this._getBoundContext(session);
     const boundShip =
       findCharacterShip(charId, numericItemId) ||
       findShipItemById(numericItemId);
+    const explicitLocationID =
+      this._extractKwarg(kwargs, "locationID") ??
+      (args && args.length > 2 ? args[2] : undefined);
+    const normalizedExplicitLocationID =
+      explicitLocationID === undefined || explicitLocationID === null
+        ? 0
+        : this._normalizeInventoryId(explicitLocationID);
+    const inheritedLocationID =
+      boundContext &&
+      boundContext.locationID !== null &&
+      boundContext.locationID !== undefined
+        ? this._normalizeInventoryId(boundContext.locationID)
+        : 0;
+    const shipLocationID = boundShip
+      ? this._normalizeInventoryId(boundShip.locationID)
+      : 0;
+    const resolvedLocationID =
+      normalizedExplicitLocationID > 0
+        ? normalizedExplicitLocationID
+        : boundShip && inheritedLocationID > 0
+          ? inheritedLocationID
+          : shipLocationID > 0
+            ? shipLocationID
+            : numericItemId === stationId
+              ? stationId
+              : itemid;
     this._traceInventory("GetInventoryFromId", session, { args });
-    log.debug(`[InvBroker] GetInventoryFromId(itemid=${itemid})`);
+    log.debug(
+      `[InvBroker] GetInventoryFromId(itemid=${itemid}, locationID=${resolvedLocationID})`,
+    );
     return this._makeBoundSubstruct({
       inventoryID: itemid,
-      locationID: itemid,
+      locationID: resolvedLocationID,
       flagID:
         numericItemId === charId
           ? null
@@ -1012,12 +1057,24 @@ class InvBrokerService extends BaseService {
       const callKwargs = nestedCall.length > 2 ? nestedCall[2] : null;
 
       log.debug(`[InvBroker] MachoBindObject nested call: ${methodName}`);
-      callResult = this.callMethod(
-        methodName,
-        Array.isArray(callArgs) ? callArgs : [callArgs],
-        session,
-        callKwargs,
-      );
+      const previousBoundObjectID = session
+        ? session.currentBoundObjectID
+        : null;
+      try {
+        if (session) {
+          session.currentBoundObjectID = idString;
+        }
+        callResult = this.callMethod(
+          methodName,
+          Array.isArray(callArgs) ? callArgs : [callArgs],
+          session,
+          callKwargs,
+        );
+      } finally {
+        if (session) {
+          session.currentBoundObjectID = previousBoundObjectID || null;
+        }
+      }
     }
 
     return [
@@ -1027,6 +1084,32 @@ class InvBrokerService extends BaseService {
       },
       callResult != null ? callResult : null,
     ];
+  }
+
+  afterCallResponse(method, session) {
+    if (!session) {
+      return;
+    }
+
+    if (
+      method !== "List" &&
+      method !== "GetSelfInvItem"
+    ) {
+      return;
+    }
+
+    const boundContext = this._getBoundContext(session);
+    if (!boundContext || boundContext.kind !== "stationHangar") {
+      return;
+    }
+
+    if (!shouldFlushDeferredDockedShipSessionChange(session, method)) {
+      return;
+    }
+
+    flushDeferredDockedShipSessionChange(session, {
+      trigger: `invbroker.${method}`,
+    });
   }
 }
 
