@@ -6,6 +6,7 @@ const { buildDict, buildList, normalizeText } = require(path.join(
   __dirname,
   "../_shared/serviceHelpers",
 ));
+
 const {
   getCorporationFittings,
   saveCorporationFitting,
@@ -27,7 +28,7 @@ class CorpFittingMgrService extends BaseService {
     super("corpFittingMgr");
   }
 
-  _resolveOwnerID(args, session) {
+    _resolveOwnerID(args, session) {
     const numericArgs = extractPositiveIntegers(args || []);
     return numericArgs[0] || (session && (session.corporationID || session.corpid)) || 0;
   }

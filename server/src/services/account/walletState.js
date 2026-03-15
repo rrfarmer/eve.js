@@ -4,6 +4,10 @@ const sessionRegistry = require(path.join(
   __dirname,
   "../chat/sessionRegistry",
 ));
+const { publishPlexBalanceChangedNotice } = require(path.join(
+  __dirname,
+  "../../_secondary/express/publicGatewayLocal",
+));
 const {
   getCharacterRecord,
   updateCharacterRecord,
@@ -28,6 +32,7 @@ const JOURNAL_CURRENCY = {
 const DEFAULT_WALLET = {
   balance: 100000.0,
   aurBalance: 0.0,
+  plexBalance: 2222,
   balanceChange: 0.0,
 };
 const MAX_JOURNAL_ENTRIES = 100;
@@ -43,6 +48,24 @@ function normalizeMoney(value, fallback = 0) {
   }
 
   return Math.round(numeric * 100) / 100;
+}
+
+function normalizePlex(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.trunc(numeric));
+}
+
+function normalizePlexDelta(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return Math.trunc(numeric);
 }
 
 function getFileTimeNowString() {
@@ -63,6 +86,7 @@ function getCharacterWallet(charId) {
     characterID: Number(charId),
     balance: normalizeMoney(record.balance, DEFAULT_WALLET.balance),
     aurBalance: normalizeMoney(record.aurBalance, DEFAULT_WALLET.aurBalance),
+    plexBalance: normalizePlex(record.plexBalance, DEFAULT_WALLET.plexBalance),
     balanceChange: normalizeMoney(
       record.balanceChange,
       DEFAULT_WALLET.balanceChange,
@@ -94,6 +118,7 @@ function syncWalletToSession(session, wallet) {
 
   session.balance = wallet.balance;
   session.aurBalance = wallet.aurBalance;
+  session.plexBalance = wallet.plexBalance;
   session.balanceChange = wallet.balanceChange;
 }
 
@@ -131,6 +156,30 @@ function notifyCharacterWalletChange(charId, wallet, options = {}) {
           ? options.balance
           : wallet.balance,
     });
+  }
+}
+
+function emitPlexBalanceChangeToSession(session, balance) {
+  if (!session || typeof session.sendNotification !== "function") {
+    return;
+  }
+
+  const normalizedBalance = normalizePlex(balance, 0);
+  // The client assets reference both spellings, so send both safe variants.
+  session.sendNotification("PlexBalanceChanged", "clientID", [normalizedBalance]);
+  session.sendNotification("PLEXBalanceChanged", "clientID", [normalizedBalance]);
+}
+
+function notifyCharacterPlexBalanceChange(charId, wallet) {
+  const sessions = sessionRegistry
+    .getSessions()
+    .filter(
+      (session) => Number(session.characterID || 0) === Number(charId || 0),
+    );
+
+  for (const session of sessions) {
+    syncWalletToSession(session, wallet);
+    emitPlexBalanceChangeToSession(session, wallet.plexBalance);
   }
 }
 
@@ -273,6 +322,61 @@ function transferCharacterBalance(fromCharId, toCharId, amount, options = {}) {
   };
 }
 
+function setCharacterPlexBalance(charId, nextBalance) {
+  const currentWallet = getCharacterWallet(charId);
+  if (!currentWallet) {
+    return {
+      success: false,
+      errorMsg: "CHARACTER_NOT_FOUND",
+    };
+  }
+
+  const normalizedBalance = normalizePlex(
+    nextBalance,
+    currentWallet.plexBalance,
+  );
+  const writeResult = updateCharacterRecord(charId, (record) => {
+    record.plexBalance = normalizedBalance;
+    return record;
+  });
+  if (!writeResult.success) {
+    return writeResult;
+  }
+
+  const updatedWallet = {
+    ...currentWallet,
+    plexBalance: normalizedBalance,
+  };
+  notifyCharacterPlexBalanceChange(charId, updatedWallet);
+  publishPlexBalanceChangedNotice(
+    charId,
+    updatedWallet.plexBalance,
+    normalizedBalance - currentWallet.plexBalance,
+  );
+
+  return {
+    success: true,
+    data: updatedWallet,
+    previousBalance: currentWallet.plexBalance,
+    delta: normalizedBalance - currentWallet.plexBalance,
+  };
+}
+
+function adjustCharacterPlexBalance(charId, amount) {
+  const currentWallet = getCharacterWallet(charId);
+  if (!currentWallet) {
+    return {
+      success: false,
+      errorMsg: "CHARACTER_NOT_FOUND",
+    };
+  }
+
+  return setCharacterPlexBalance(
+    charId,
+    currentWallet.plexBalance + normalizePlexDelta(amount, 0),
+  );
+}
+
 module.exports = {
   ACCOUNT_KEY,
   ACCOUNT_KEY_NAME,
@@ -282,8 +386,12 @@ module.exports = {
   getCharacterWalletJournal,
   syncWalletToSession,
   emitAccountChangeToSession,
+  emitPlexBalanceChangeToSession,
   notifyCharacterWalletChange,
+  notifyCharacterPlexBalanceChange,
   setCharacterBalance,
   adjustCharacterBalance,
+  setCharacterPlexBalance,
+  adjustCharacterPlexBalance,
   transferCharacterBalance,
 };

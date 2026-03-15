@@ -2,6 +2,10 @@ const path = require("path");
 
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const { getCharacterRecord } = require(path.join(
+  __dirname,
+  "../character/characterState",
+));
 const {
   buildDict,
   buildFiletimeLong,
@@ -11,11 +15,38 @@ const {
   resolveBoundNodeId,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 
-function buildCloneState() {
+function buildCloneState(session = null) {
+  const charData = getCharacterRecord(session && session.characterID) || {};
+  const clones = Array.isArray(charData.jumpClones) ? charData.jumpClones : [];
+  const implants = Array.isArray(charData.implants) ? charData.implants : [];
   return buildKeyVal([
-    ["clones", buildDict([])],
-    ["implants", buildDict([])],
-    ["timeLastJump", buildFiletimeLong(0n)],
+    [
+      "clones",
+      buildDict(
+        clones.map((entry, index) => [
+          Number(entry.cloneID || entry.itemID || index + 1),
+          buildKeyVal([
+            ["cloneID", Number(entry.cloneID || 0)],
+            ["stationID", Number(entry.stationID || charData.cloneStationID || 0)],
+            ["name", entry.name || ""],
+          ]),
+        ]),
+      ),
+    ],
+    [
+      "implants",
+      buildDict(
+        implants.map((entry, index) => [
+          Number(entry.typeID || entry.itemID || index + 1),
+          buildKeyVal([
+            ["typeID", Number(entry.typeID || 0)],
+            ["slot", Number(entry.slot || 0)],
+            ["name", entry.name || ""],
+          ]),
+        ]),
+      ),
+    ],
+    ["timeLastJump", buildFiletimeLong(charData.timeLastCloneJump || 0n)],
   ]);
 }
 
@@ -34,9 +65,9 @@ class JumpCloneService extends BaseService {
     return buildBoundObjectResponse(this, args, session, kwargs);
   }
 
-  Handle_GetCloneState() {
+  Handle_GetCloneState(args, session) {
     log.debug("[JumpCloneSvc] GetCloneState");
-    return buildCloneState();
+    return buildCloneState(session);
   }
 
   Handle_GetShipCloneState() {
@@ -54,9 +85,9 @@ class JumpCloneService extends BaseService {
     return null;
   }
 
-  Handle_GetStationCloneState() {
+  Handle_GetStationCloneState(args, session) {
     log.debug("[JumpCloneSvc] GetStationCloneState");
-    return buildCloneState();
+    return buildCloneState(session);
   }
 
   Handle_OfferShipCloneInstallation() {

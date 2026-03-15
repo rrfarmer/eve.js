@@ -5,6 +5,17 @@ const { buildList } = require(path.join(
   __dirname,
   "../_shared/serviceHelpers",
 ));
+const { buildDict } = require(path.join(
+  __dirname,
+  "../_shared/serviceHelpers",
+));
+const { getCharacterRecord } = require(path.join(
+  __dirname,
+  "../character/characterState",
+));
+const {
+  getCorporationInfoRecord,
+} = require(path.join(__dirname, "./corporationState"));
 
 function resolveCorporationID(session) {
   return (
@@ -22,12 +33,29 @@ function resolveCEOID(session) {
 
 function buildCorporationKeyVal(session) {
   const corporationID = resolveCorporationID(session);
-  const ceoID = resolveCEOID(session);
+  const info =
+    getCorporationInfoRecord(corporationID) || {
+      corporationID,
+      corporationName: "Your Corp Name",
+      ticker: "TICKR",
+      ceoID: resolveCEOID(session),
+      creatorID: resolveCEOID(session),
+      allianceID: (session && (session.allianceID || session.allianceid)) || null,
+      description: "A custom corporation.",
+      url: "",
+      stationID: null,
+      deleted: 0,
+      taxRate: 0.0,
+      memberCount: 1,
+      shares: 1000,
+      loyaltyPointTaxRate: 0.0,
+      friendlyFire: 0,
+    };
   const row = [
-    corporationID,
-    "Your Corp Name",
-    "TICKR",
-    ceoID,
+    info.corporationID,
+    info.corporationName,
+    info.ticker,
+    info.ceoID,
     1,
   ];
 
@@ -37,10 +65,13 @@ function buildCorporationKeyVal(session) {
     args: {
       type: "dict",
       entries: [
-        ["corporationID", corporationID],
-        ["corporationName", "Your Corp Name"],
-        ["ticker", "TICKR"],
-        ["ceoID", ceoID],
+        ["corporationID", info.corporationID],
+        ["corporationName", info.corporationName],
+        ["ticker", info.ticker],
+        ["tickerName", info.tickerName || info.ticker],
+        ["ceoID", info.ceoID],
+        ["creatorID", info.creatorID],
+        ["allianceID", info.allianceID],
         ["membership", 1],
         [
           "header",
@@ -54,11 +85,22 @@ function buildCorporationKeyVal(session) {
         ],
         ["row", row],
         ["line", row],
-        ["description", "A custom corporation."],
-        ["url", "http://localhost"],
-        ["taxRate", 0.0],
-        ["memberCount", 1],
-        ["shares", 1000],
+        ["description", info.description || ""],
+        ["url", info.url || ""],
+        ["stationID", info.stationID],
+        ["deleted", info.deleted],
+        ["taxRate", info.taxRate],
+        ["loyaltyPointTaxRate", info.loyaltyPointTaxRate || 0.0],
+        ["friendlyFire", info.friendlyFire || 0],
+        ["memberCount", info.memberCount],
+        ["shares", info.shares],
+        ["shape1", info.shape1 ?? null],
+        ["shape2", info.shape2 ?? null],
+        ["shape3", info.shape3 ?? null],
+        ["color1", info.color1 ?? null],
+        ["color2", info.color2 ?? null],
+        ["color3", info.color3 ?? null],
+        ["typeface", info.typeface ?? null],
       ],
     },
   };
@@ -140,34 +182,70 @@ class CorpRegistryService extends BaseService {
     return { type: "dict", entries: [] };
   }
 
+  Handle_GetInfoWindowDataForChar(args, session) {
+    const charId =
+      args && args.length > 0
+        ? Number(args[0]) || 0
+        : session
+          ? session.characterID || session.charid || 0
+          : 0;
+    const charData = charId ? getCharacterRecord(charId) || {} : {};
+
+    log.debug(`[CorpRegistry] GetInfoWindowDataForChar(${charId})`);
+
+    return {
+      type: "object",
+      name: "util.KeyVal",
+      args: {
+        type: "dict",
+        entries: [
+          [
+            "corpID",
+            charData.corporationID || (session ? session.corporationID || session.corpid : 1000044),
+          ],
+          [
+            "allianceID",
+            charData.allianceID || (session ? session.allianceID || session.allianceid : null),
+          ],
+          ["title", charData.title || ""],
+        ],
+      },
+    };
+  }
+
   Handle_GetCorporation(args, session) {
     log.debug("[CorpRegistry] GetCorporation called");
     return buildCorporationKeyVal(session);
   }
 
+  Handle_GetCorporateContacts(args, session) {
+    log.debug("[CorpRegistry] GetCorporateContacts called");
+    return buildDict([]);
+  }
+
   Handle_GetMyApplications(args, session) {
     log.debug("[CorpRegistry] GetMyApplications called");
-    return {
-      type: "object",
-      name: "eve.common.script.sys.rowset.Rowset",
-      args: {
-        type: "dict",
-        entries: [
-          [
-            "header",
-            [
-              "corporationID",
-              "characterID",
-              "applicationText",
-              "applicationDateTime",
-              "status",
-            ],
-          ],
-          ["RowClass", { type: "token", value: "util.Row" }],
-          ["lines", []],
-        ],
-      },
-    };
+    return buildDict([]);
+  }
+
+  Handle_GetMyOldApplications(args, session) {
+    log.debug("[CorpRegistry] GetMyOldApplications called");
+    return buildList([]);
+  }
+
+  Handle_GetApplications(args, session) {
+    log.debug("[CorpRegistry] GetApplications called");
+    return buildDict([]);
+  }
+
+  Handle_GetOldApplications(args, session) {
+    log.debug("[CorpRegistry] GetOldApplications called");
+    return buildList([]);
+  }
+
+  Handle_GetCorpWelcomeMail(args, session) {
+    log.debug("[CorpRegistry] GetCorpWelcomeMail called");
+    return "";
   }
 }
 

@@ -7,15 +7,15 @@ const crypto = require("crypto");
 
 const config = require("../../config");
 const log = require("../../utils/logger");
-
-function getPublicGatewayHandlers() {
-  return require("./publicGatewayLocal");
-}
+const { handleGatewayStream } = require("./publicGatewayLocal");
 
 function shouldEnableLocalInterceptByDefault() {
-  // The proxy may be advertised on a LAN address instead of loopback, but it
-  // still needs to terminate gateway traffic locally for cosmetics/public APIs.
-  return true;
+  try {
+    const redirectUrl = new URL(config.microservicesRedirectUrl);
+    return isLoopbackHost(redirectUrl.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function parseBooleanEnv(value, fallback = false) {
@@ -38,30 +38,22 @@ const ENABLE_LOCAL_INTERCEPT = parseBooleanEnv(
   process.env.EVEJS_PROXY_LOCAL_INTERCEPT,
   shouldEnableLocalInterceptByDefault(),
 );
+const EXPRESS_PROXY_ENABLED = parseBooleanEnv(
+  process.env.EVEJS_EXPRESS_PROXY_ENABLED,
+  true,
+);
 const LOCAL_INTERCEPT_HOSTS = new Set([
   "dev-public-gateway.evetech.net",
   "public-gateway.evetech.net",
 ]);
 
 function shouldInterceptHost(hostname) {
-  const normalized = String(hostname || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\.$/, "");
+  const normalized = String(hostname || "").trim().toLowerCase();
   if (!normalized) {
     return false;
   }
 
-  if (LOCAL_INTERCEPT_HOSTS.has(normalized)) {
-    return true;
-  }
-
-  return (
-    normalized === "public-gateway.evetech.net" ||
-    normalized === "dev-public-gateway.evetech.net" ||
-    normalized.startsWith("public-gateway.") ||
-    normalized.startsWith("dev-public-gateway.")
-  );
+  return LOCAL_INTERCEPT_HOSTS.has(normalized);
 }
 
 function makeResponsePayload(req) {
@@ -295,10 +287,7 @@ function createLocalSecureResponder(httpsPort) {
       console.error("[LOCAL HTTP2 STREAM ERROR]", err.message);
     });
 
-    if (
-      contentType.includes("application/grpc") &&
-      getPublicGatewayHandlers().handleGatewayStream(stream, headers)
-    ) {
+    if (contentType.includes("application/grpc") && handleGatewayStream(stream, headers)) {
       return;
     }
 
@@ -441,7 +430,7 @@ function startServer() {
     if (tryServeInsiderAsset(res, targetUrl)) {
       return;
     }
-
+    
     if (targetUrl && ENABLE_LOCAL_INTERCEPT && shouldInterceptHost(targetUrl.hostname)) {
       console.log(
         `[HTTP PROXY INTERCEPT] ${req.method} ${targetUrl.href} -> LOCAL STUB`,
@@ -476,7 +465,6 @@ function startServer() {
   const redirectUrl = new URL(config.microservicesRedirectUrl);
   const httpPort = Number.parseInt(redirectUrl.port, 10);
   const httpsPort = httpPort + 1;
-  const bindHost = config.microservicesBindHost || "0.0.0.0";
 
   if (ENABLE_LOCAL_INTERCEPT) {
     createLocalSecureResponder(httpsPort);
@@ -533,9 +521,7 @@ function startServer() {
     console.error("[PROXY SERVER ERROR]", err.message);
   });
 
-  proxyServer.listen(httpPort, bindHost, () => {
-    log.debug(`express proxy listener bound to ${bindHost}:${httpPort}`);
-  });
+  proxyServer.listen(httpPort, "127.0.0.1");
 
   log.debug(
     `express proxy mode: ${
@@ -545,7 +531,7 @@ function startServer() {
 }
 
 module.exports = {
-  enabled: true,
+  enabled: EXPRESS_PROXY_ENABLED,
   serviceName: "expressServer",
   exec() {
     startServer();

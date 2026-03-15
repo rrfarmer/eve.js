@@ -10,16 +10,8 @@
 const BaseService = require("../baseService");
 const log = require("../../utils/logger");
 const database = require("../../database");
-const {
-  applyCharacterToSession,
-  getCharacterRecord,
-  syncActiveShipFittingForSession,
-} = require("./characterState");
+const { applyCharacterToSession, getCharacterRecord } = require("./characterState");
 const { restoreSpaceSession } = require("../../space/transitions");
-const {
-  resolveSessionCharacterId,
-  extractCharacterIdFromBindParams,
-} = require("../_shared/characterResolver");
 const {
   ensureCharacterSkills,
   getCharacterSkillPointTotal,
@@ -119,27 +111,6 @@ function summarizeCreationArg(value, depth = 0) {
   return String(value);
 }
 
-function readCharacterIdArg(args, kwargs) {
-  const directValue =
-    args && args.length > 0 ? extractCharacterIdFromBindParams(args[0]) : 0;
-  if (directValue > 0) {
-    return directValue;
-  }
-
-  return extractCharacterIdFromBindParams(kwargs);
-}
-
-function resolveSelectableCharacterId(session, requestedCharId) {
-  if (requestedCharId > 0) {
-    return requestedCharId;
-  }
-
-  return resolveSessionCharacterId(session, {
-    fallbackCharacterId: 0,
-    allowGlobalFallback: false,
-  });
-}
-
 class CharService extends BaseService {
   constructor() {
     super("charUnboundMgr");
@@ -217,7 +188,7 @@ class CharService extends BaseService {
       ["characterSlots", 3],
       ["userName", accountUsername],
       ["creationDate", { type: "long", value: 132000000000000000 }],
-      ["subscriptionEndTime", { type: "long", value: 253370764800000000 }],
+      ["subscriptionEndTime", { type: "long", value: 157469184000000000 }],
       ["maxCharacterSlots", 3],
     ]);
     const userDetails = { type: "list", items: [userDetailsKeyVal] };
@@ -250,6 +221,7 @@ class CharService extends BaseService {
             ["constellationID", character.constellationID || 20000020],
             ["regionID", character.regionID || 10000002],
             ["balance", character.balance ?? 100000.0],
+            ["plexBalance", character.plexBalance ?? 2222],
             ["balanceChange", 0.0],
             ["skillPoints", skillPoints],
             ["shipTypeID", character.shipTypeID || 606],
@@ -295,12 +267,12 @@ class CharService extends BaseService {
    * GetCharacterToSelect — returns detailed info for one character
    */
   Handle_GetCharacterToSelect(args, session, kwargs) {
-    const requestedCharId = readCharacterIdArg(args, kwargs);
-    const charId = resolveSelectableCharacterId(session, requestedCharId);
-    if (requestedCharId !== charId && requestedCharId <= 0 && charId > 0) {
-      log.info(
-        `[CharService] GetCharacterToSelect fallback resolved ${requestedCharId} -> ${charId}`,
-      );
+    let charId = args && args.length > 0 ? args[0] : 0;
+    if (charId === 0 && kwargs && kwargs.entries) {
+      const entry = kwargs.entries.find((candidate) => candidate[0] === "characterID");
+      if (entry) {
+        charId = entry[1];
+      }
     }
     log.info(`[CharService] GetCharacterToSelect(${charId})`);
 
@@ -353,6 +325,7 @@ class CharService extends BaseService {
       ["title", character.title || ""],
       ["balance", character.balance ?? 100000.0],
       ["aurBalance", character.aurBalance ?? 0.0],
+      ["plexBalance", character.plexBalance ?? 2222],
       ["daysLeft", character.daysLeft || 365],
       ["userType", character.userType || 30],
       ["paperDollState", character.paperDollState || 0],
@@ -453,6 +426,7 @@ class CharService extends BaseService {
       description: "Character created via EVE.js",
       balance: 100000.0,
       aurBalance: 0.0,
+      plexBalance: 2222,
       balanceChange: 0.0,
       skillPoints: 50000,
       shipTypeID: 606,
@@ -469,6 +443,36 @@ class CharService extends BaseService {
       unprocessedNotifications: 0,
       shipID: newCharId + 100,
       shortName: "none",
+      employmentHistory: [
+        {
+          corporationID: info.corpID,
+          startDate: now.toString(),
+          deleted: 0,
+        },
+      ],
+      standingData: {
+        char: [],
+        corp: [],
+        npc: [],
+      },
+      characterAttributes: {
+        charisma: 20,
+        intelligence: 20,
+        memory: 20,
+        perception: 20,
+        willpower: 20,
+      },
+      respecInfo: {
+        freeRespecs: 3,
+        lastRespecDate: null,
+        nextTimedRespec: null,
+      },
+      freeSkillPoints: 0,
+      skillHistory: [],
+      boosters: [],
+      implants: [],
+      jumpClones: [],
+      timeLastCloneJump: "0",
       allianceMemberStartDate: 0,
       skillTypeID: null,
       toLevel: null,
@@ -487,9 +491,6 @@ class CharService extends BaseService {
     );
     ensureCharacterSkills(newCharId);
     const createdCharacter = getCharacterRecord(newCharId);
-    if (session) {
-      session.lastCreatedCharacterID = newCharId;
-    }
 
     log.success(
       `[CharService] Created character "${characterName}" with ID ${newCharId} ship=${createdCharacter ? createdCharacter.shipID : "unknown"}`,
@@ -534,12 +535,12 @@ class CharService extends BaseService {
   }
 
   Handle_SelectCharacterID(args, session, kwargs) {
-    const requestedCharId = readCharacterIdArg(args, kwargs);
-    const charId = resolveSelectableCharacterId(session, requestedCharId);
-    if (requestedCharId !== charId && requestedCharId <= 0 && charId > 0) {
-      log.info(
-        `[CharService] SelectCharacterID fallback resolved ${requestedCharId} -> ${charId}`,
-      );
+    let charId = args && args.length > 0 ? args[0] : 0;
+    if (charId === 0 && kwargs && kwargs.entries) {
+      const entry = kwargs.entries.find((candidate) => candidate[0] === "characterID");
+      if (entry) {
+        charId = entry[1];
+      }
     }
     log.info(`[CharService] SelectCharacterID(${charId})`);
 
@@ -550,7 +551,6 @@ class CharService extends BaseService {
     const applyResult = applyCharacterToSession(session, charId, {
       emitNotifications: true,
       logSelection: true,
-      deferDockedShipSessionChange: false,
     });
 
     if (!applyResult.success) {
@@ -559,49 +559,6 @@ class CharService extends BaseService {
       );
     } else if (!session.stationid && !session.stationID) {
       restoreSpaceSession(session);
-    }
-
-    if (applyResult.success) {
-      if (Array.isArray(session._postLoginFittingSyncTimers)) {
-        for (const timer of session._postLoginFittingSyncTimers) {
-          clearTimeout(timer);
-        }
-      }
-      session._postLoginFittingSyncTimers = [];
-
-      const scheduleSync = (delayMs) => {
-        const timer = setTimeout(() => {
-          if (
-            !session ||
-            !session.socket ||
-            session.socket.destroyed ||
-            Number(session.characterID || 0) !== Number(charId || 0)
-          ) {
-            return;
-          }
-
-          const fittingSyncResult = syncActiveShipFittingForSession(session, {
-            emitCfgLocation: false,
-            forceRefresh: true,
-          });
-          if (!fittingSyncResult.success) {
-            log.warn(
-              `[CharService] Fitting sync skipped for char=${charId} delay=${delayMs}ms: ${fittingSyncResult.errorMsg}`,
-            );
-          } else {
-            log.info(
-              `[CharService] Fitting sync completed for char=${charId} delay=${delayMs}ms updates=${fittingSyncResult.syncedCount}`,
-            );
-          }
-        }, delayMs);
-        session._postLoginFittingSyncTimers.push(timer);
-      };
-
-      // Login bind order is not deterministic; push fitting refresh over
-      // multiple ticks so invCache/godma reliably consume OnItemChange.
-      scheduleSync(0);
-      scheduleSync(300);
-      scheduleSync(1200);
     }
 
     return null;
@@ -619,4 +576,3 @@ class CharService extends BaseService {
 }
 
 module.exports = CharService;
-

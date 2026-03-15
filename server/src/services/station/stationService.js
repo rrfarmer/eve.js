@@ -19,6 +19,7 @@ const { buildKeyVal } = require(path.join(
   __dirname,
   "../_shared/serviceHelpers",
 ));
+
 const { listOnlineGuestsInStation } = require(path.join(
   __dirname,
   "./stationPresence",
@@ -31,6 +32,10 @@ class StationService extends BaseService {
 
   // the function below is never called! (not needed)
   Handle_GetStation(args, session) {
+    // log session to see if we can send back the session data instead of static data
+    console.log(`session data from station::GetStation() : ${JSON.stringify(session)}`)
+    console.log(`args data from station::GetStation() : ${JSON.stringify(args)}`)
+
     const stationID = args && args.length > 0 ? args[0] : 60003760;
     const station = getStationRecord(session, stationID);
     log.info(`[StationSvc] GetStation(${stationID})`);
@@ -101,6 +106,24 @@ class StationService extends BaseService {
       type: "list",
       items: guests,
     };
+  }
+
+  Handle_GetAllianceSystems(args, session) {
+    log.debug("[StationSvc] GetAllianceSystems");
+
+    // Decompiled V23.02 starMapSvc.py does:
+    //   allianceSystemCache = sm.RemoteSvc('stationSvc').GetAllianceSystems()
+    //   for x in allianceSystemCache:
+    //       allianceSolarSystems[x.solarSystemID] = x.allianceID
+    //
+    // Returning None crashes the StarMap faction filter path with:
+    //   TypeError: 'NoneType' object is not iterable
+    //
+    // No alliance-held systems is therefore represented safely as an empty
+    // iterable. When populated, each entry will need at least:
+    //   solarSystemID
+    //   allianceID
+    return { type: "list", items: [] };
   }
 
   // TODO: make this work

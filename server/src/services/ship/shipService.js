@@ -52,6 +52,7 @@ const FITTED_SLOT_FLAGS = Object.freeze([
 ]);
 const TURRET_SLOT_FLAGS = Object.freeze([27, 28, 29, 30, 31, 32, 33, 34]);
 
+
 function buildCurrentFileTime() {
   return BigInt(Date.now()) * FILETIME_TICKS_PER_MS + FILETIME_EPOCH_OFFSET;
 }
@@ -60,6 +61,7 @@ class ShipService extends BaseService {
   constructor() {
     super("ship");
     this._shipConfiguration = new Map();
+    this._shipDirtTimestamps = new Map();
   }
 
   _getShipID(session) {
@@ -140,14 +142,28 @@ class ShipService extends BaseService {
   }
 
   _getPendingDirtTimestamp(shipID, consume = false) {
-    return getPendingShipDirtTimestamp(this._extractShipId(shipID), consume);
+    const numericShipID = this._extractShipId(shipID);
+    if (numericShipID <= 0) {
+      return 0n;
+    }
+
+    const dirtTimestamp = this._shipDirtTimestamps.get(numericShipID) || 0n;
+    if (consume && dirtTimestamp > 0n) {
+      this._shipDirtTimestamps.delete(numericShipID);
+    }
+
+    return dirtTimestamp;
   }
 
   _setDirtTimestamp(shipID, rawTimestamp = null) {
-    return setShipDirtTimestamp(
-      this._extractShipId(shipID),
-      this._normalizeFileTime(rawTimestamp) || buildCurrentFileTime(),
-    );
+    const numericShipID = this._extractShipId(shipID);
+    if (numericShipID <= 0) {
+      return null;
+    }
+
+    const dirtTimestamp = this._normalizeFileTime(rawTimestamp) || buildCurrentFileTime();
+    this._shipDirtTimestamps.set(numericShipID, dirtTimestamp);
+    return dirtTimestamp;
   }
 
   _buildActivationResponse(activeShip, session) {
@@ -207,7 +223,7 @@ class ShipService extends BaseService {
     ];
   }
 
-  _buildModuleChargeCache(fittedItems = []) {
+    _buildModuleChargeCache(fittedItems = []) {
     // The HUD asks for charge data for every visible slot. Modules without
     // ammo still need an explicit empty entry so the client does not fall back
     // to treating the module type as charge data.
@@ -217,7 +233,7 @@ class ShipService extends BaseService {
     };
   }
 
-  _buildWeaponBankCache(fittedItems = []) {
+    _buildWeaponBankCache(fittedItems = []) {
     return {
       type: "dict",
       entries: fittedItems
@@ -312,7 +328,7 @@ class ShipService extends BaseService {
     };
   }
 
-  _getFittedItemsForShip(session, shipID = null, slotFlags = FITTED_SLOT_FLAGS) {
+    _getFittedItemsForShip(session, shipID = null, slotFlags = FITTED_SLOT_FLAGS) {
     const resolvedShipID = this._extractShipId(shipID) || this._getShipID(session);
     const charID = session && session.characterID ? session.characterID : 0;
     const seen = new Set();
@@ -338,6 +354,7 @@ class ShipService extends BaseService {
       return (left.itemID || 0) - (right.itemID || 0);
     });
   }
+
 
   _getShipConfiguration(shipID) {
     const numericShipID = this._extractShipId(shipID);
@@ -413,7 +430,7 @@ class ShipService extends BaseService {
       {
         emitNotifications: true,
         logSelection: true,
-        targetPreviousState: capsuleResult.created
+                targetPreviousState: capsuleResult.created
           ? {
               locationID: 0,
               flagID: 0,

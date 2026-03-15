@@ -104,6 +104,7 @@ const DBTYPE = {
  *   { type: 'dict', entries: [[k,v], ...] }  → PyDict
  *   { type: 'wstring', value: '...' }        → PyWStringUTF8
  *   { type: 'long', value: BigInt|number }   → PyLongLong
+ *   { type: 'real', value: number }          → PyReal
  *   { type: 'list', items: [...] }           → PyList
  *   { type: 'object', name: '...', args: {} }→ PyObject (token + dict)
  *   { type: 'substruct', value: ... }        → PySubStruct
@@ -223,6 +224,18 @@ function encodeValue(value, chunks) {
       case "long":
         encodeLong(value.value, chunks);
         return;
+      case "real": {
+        const numeric = Number(value.value);
+        if (!Number.isFinite(numeric) || numeric === 0.0) {
+          chunks.push(Buffer.from([Op.PyZeroReal]));
+        } else {
+          const buf = Buffer.alloc(9);
+          buf[0] = Op.PyReal;
+          buf.writeDoubleLE(numeric, 1);
+          chunks.push(buf);
+        }
+        return;
+      }
       case "list":
         encodeList(value.items, chunks);
         return;

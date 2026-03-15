@@ -2,40 +2,29 @@ const path = require("path");
 const fs = require("fs");
 
 const BaseService = require(path.join(__dirname, "../baseService"));
-const config = require(path.join(__dirname, "../../config"));
 const log = require(path.join(__dirname, "../../utils/logger"));
 const chatHub = require(path.join(__dirname, "../chat/chatHub"));
 const { throwWrappedUserError } = require(path.join(
   __dirname,
   "../../common/machoErrors",
 ));
+const { AVAILABLE_SLASH_COMMANDS, executeChatCommand } = require(path.join(
+  __dirname,
+  "../chat/chatCommands",
+));
+const { flushPendingCommandSessionEffects } = require(path.join(
+  __dirname,
+  "../chat/commandSessionEffects",
+));
 
 const debugLogPath = path.join(__dirname, "../../../logs/slash-debug.log");
 
-function getChatCommands() {
-  return require(path.join(__dirname, "../chat/chatCommands"));
-}
-
-function isSlashDebugTraceEnabled() {
-  return Boolean(config.enableSlashDebugTrace);
-}
-
 function appendSlashDebug(entry) {
-  if (!isSlashDebugTraceEnabled()) {
-    return;
-  }
-
   try {
-    const resolvedEntry =
-      typeof entry === "function" ? entry() : String(entry || "");
-    if (!resolvedEntry) {
-      return;
-    }
-
     fs.mkdirSync(path.dirname(debugLogPath), { recursive: true });
     fs.appendFileSync(
       debugLogPath,
-      `[${new Date().toISOString()}] ${resolvedEntry}\n`,
+      `[${new Date().toISOString()}] ${entry}\n`,
       "utf8",
     );
   } catch (error) {
@@ -44,7 +33,7 @@ function appendSlashDebug(entry) {
 }
 
 function textValue(value, depth = 0) {
-  if (depth > 8) {
+  if (depth > 6) {
     return "";
   }
 
@@ -65,10 +54,13 @@ function textValue(value, depth = 0) {
   }
 
   if (Array.isArray(value)) {
-    const extractedValues = value
-      .map((item) => textValue(item, depth + 1).trim())
-      .filter(Boolean);
-    return extractedValues.sort((left, right) => right.length - left.length)[0] || "";
+    for (const item of value) {
+      const extracted = textValue(item, depth + 1).trim();
+      if (extracted) {
+        return extracted;
+      }
+    }
+    return "";
   }
 
   if (value && typeof value === "object") {
@@ -81,36 +73,14 @@ function textValue(value, depth = 0) {
     }
 
     if (value.type === "dict" && Array.isArray(value.entries)) {
-      const extractedValues = value.entries
-        .map(([, entryValue]) => textValue(entryValue, depth + 1).trim())
-        .filter(Boolean);
-      return extractedValues.sort((left, right) => right.length - left.length)[0] || "";
-    }
-
-    if (value.type === "object" && value.args) {
-      return textValue(value.args, depth + 1);
-    }
-
-    const extractedValues = [];
-    if (value.args) {
-      extractedValues.push(textValue(value.args, depth + 1).trim());
-    }
-    if (value.value !== undefined) {
-      extractedValues.push(textValue(value.value, depth + 1).trim());
-    }
-    for (const [entryKey, entryValue] of Object.entries(value)) {
-      if (
-        entryKey === "type" ||
-        entryKey === "name" ||
-        entryKey === "args" ||
-        entryKey === "value"
-      ) {
-        continue;
+      for (const [, entryValue] of value.entries) {
+        const extracted = textValue(entryValue, depth + 1).trim();
+        if (extracted) {
+          return extracted;
+        }
       }
-      extractedValues.push(textValue(entryValue, depth + 1).trim());
+      return "";
     }
-
-    return extractedValues.filter(Boolean).sort((left, right) => right.length - left.length)[0] || "";
   }
 
   if (value === null || value === undefined) {
@@ -176,7 +146,6 @@ class SlashService extends BaseService {
   }
 
   _throwCommandListError() {
-    const { AVAILABLE_SLASH_COMMANDS } = getChatCommands();
     const quotedCommands = AVAILABLE_SLASH_COMMANDS.map(
       (command) => `'${command}'`,
     ).join(", ");
@@ -185,14 +154,9 @@ class SlashService extends BaseService {
     });
   }
 
-  _buildCommandListMessage() {
-    const { AVAILABLE_SLASH_COMMANDS } = getChatCommands();
-    return `Commands: ${AVAILABLE_SLASH_COMMANDS.map((command) => `/${command}`).join(", ")}`;
-  }
-
   Handle_ReportSlashCommandUsage(args, session, kwargs) {
     const command = extractCommand(args, kwargs);
-    appendSlashDebug(() =>
+    appendSlashDebug(
       `ReportSlashCommandUsage user=${session ? session.userid : "?"} char=${session ? session.characterID : "?"} command=${JSON.stringify(command)} args=${JSON.stringify(summarizeValue(args))} kwargs=${JSON.stringify(summarizeValue(kwargs))}`,
     );
     return null;
@@ -202,16 +166,19 @@ class SlashService extends BaseService {
     const command = extractCommand(args, kwargs).trim();
 
     log.debug(`[SlashService] SlashCmd: ${command}`);
-    appendSlashDebug(() =>
+    appendSlashDebug(
       `SlashCmd user=${session ? session.userid : "?"} char=${session ? session.characterID : "?"} command=${JSON.stringify(command)} args=${JSON.stringify(summarizeValue(args))} kwargs=${JSON.stringify(summarizeValue(kwargs))}`,
     );
 
-    if (command === "/" || !command) {
+    if (command === "/") {
       this._throwCommandListError();
     }
 
     try {
-      const { executeChatCommand } = getChatCommands();
+      if (!command) {
+        this._throwCommandListError();
+      }
+
       const result = executeChatCommand(session, command, chatHub, {
         emitChatFeedback: true,
       });
@@ -224,18 +191,22 @@ class SlashService extends BaseService {
 
       return result.message || null;
     } catch (error) {
-      if (error && error.machoErrorResponse) {
-        throw error;
-      }
-
       const message = `Command failed: ${error.message}`;
       log.err(`[SlashService] ${message}`);
-      appendSlashDebug(() =>
+      appendSlashDebug(
         `SlashCmd error user=${session ? session.userid : "?"} char=${session ? session.characterID : "?"} command=${JSON.stringify(command)} args=${JSON.stringify(summarizeValue(args))} kwargs=${JSON.stringify(summarizeValue(kwargs))} error=${error.stack || error.message}`,
       );
       chatHub.sendSystemMessage(session, message);
       return message;
     }
+  }
+
+  afterCallResponse(methodName, session) {
+    if (methodName !== "SlashCmd") {
+      return;
+    }
+
+    flushPendingCommandSessionEffects(session);
   }
 }
 

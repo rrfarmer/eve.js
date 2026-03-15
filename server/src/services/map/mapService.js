@@ -10,6 +10,10 @@ const path = require("path");
 const fs = require("fs");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const worldData = require(path.join(__dirname, "../../space/worldData"));
+const {
+  buildStationServiceMask,
+} = require(path.join(__dirname, "../_shared/stationStaticData"));
 
 class MapService extends BaseService {
   constructor() {
@@ -59,6 +63,11 @@ class MapService extends BaseService {
   }
 
   Handle_GetStationInfo(args, session) {
+    const stations = [...worldData.ensureLoaded().stations].sort(
+      (left, right) => Number(left.stationID) - Number(right.stationID),
+    );
+    const sharedServiceMask = buildStationServiceMask();
+
     return {
       type: "object",
       name: "eve.common.script.sys.rowset.Rowset",
@@ -69,7 +78,16 @@ class MapService extends BaseService {
             "header",
             {
               type: "list",
-              items: ["charID", "online", "stationID", "solarSystemID"],
+              items: [
+                "stationID",
+                "solarSystemID",
+                "operationID",
+                "stationTypeID",
+                "ownerID",
+                "serviceMask",
+                "constellationID",
+                "regionID",
+              ],
             },
           ],
 
@@ -79,18 +97,44 @@ class MapService extends BaseService {
             "lines",
             {
               type: "list",
-              items: [
-                [
-                  session.characterID, // fix: change session.charid to session.characterID to fix null character
-                  true,
-                  session.stationid,
-                  session.solarsystemid2,
-                ],
-              ],
+              items: stations.map((station) => [
+                Number(station.stationID) || null,
+                Number(station.solarSystemID) || null,
+                Number(station.operationID) || null,
+                Number(station.stationTypeID) || null,
+                Number(station.corporationID || station.ownerID) || null,
+                sharedServiceMask,
+                Number(station.constellationID) || null,
+                Number(station.regionID) || null,
+              ]),
             },
           ],
         ],
       },
+    };
+  }
+
+  Handle_GetStationCount(args, session) {
+    const world = worldData.ensureLoaded();
+    const stationCountBySystemID = new Map();
+
+    for (const system of world.solarSystems) {
+      stationCountBySystemID.set(Number(system.solarSystemID) || 0, 0);
+    }
+
+    for (const station of world.stations) {
+      const solarSystemID = Number(station.solarSystemID) || 0;
+      stationCountBySystemID.set(
+        solarSystemID,
+        (stationCountBySystemID.get(solarSystemID) || 0) + 1,
+      );
+    }
+
+    return {
+      type: "list",
+      items: [...stationCountBySystemID.entries()].sort(
+        (left, right) => left[0] - right[0],
+      ),
     };
   }
 }

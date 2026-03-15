@@ -2,13 +2,10 @@
   "scripts": {
     "setup": "npm ci && npm --prefix server ci",
     "install:certs": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\Install-EvEJSCerts.ps1",
-    "sync:ship-data": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\dev\\Sync-FuzzworkShipData.ps1",
-    "build:ship-data": "node .\\scripts\\dev\\build-ship-data.js --invTypes .\\data\\fuzzwork\\2025-07-07\\raw\\invTypes-nodescription.csv --invGroups .\\data\\fuzzwork\\2025-07-07\\raw\\invGroups.csv --output .\\server\\src\\newDatabase\\data\\shipTypes\\data.json --dump-date 2025-07-07",
-    "build:ship-dogma-data": "node .\\scripts\\dev\\build-ship-dogma-data.js --invTypes .\\data\\fuzzwork\\2025-07-07\\raw\\invTypes-nodescription.csv --invGroups .\\data\\fuzzwork\\2025-07-07\\raw\\invGroups.csv --dgmTypeAttributes .\\data\\fuzzwork\\2025-07-07\\raw\\dgmTypeAttributes.csv --dgmAttributeTypes .\\data\\fuzzwork\\2025-07-07\\raw\\dgmAttributeTypes.csv --output .\\server\\src\\newDatabase\\data\\shipDogmaAttributes\\data.json --dump-date 2025-07-07",
-    "build:ship-cosmetics-data": "node .\\scripts\\dev\\build-ship-cosmetics-data.js --catalog .\\data\\fuzzwork\\2025-07-07\\cosmetics-latest\\skin-catalog.json --output .\\server\\src\\newDatabase\\data\\shipCosmeticsCatalog\\data.json --dump-date 2025-07-07",
-    "build:skill-data": "node .\\scripts\\dev\\build-skill-data.js --invTypes .\\data\\fuzzwork\\2025-07-07\\raw\\invTypes-nodescription.csv --invGroups .\\data\\fuzzwork\\2025-07-07\\raw\\invGroups.csv --output .\\server\\src\\newDatabase\\data\\skillTypes\\data.json --dump-date 2025-07-07",
-    "build:space-data": "node .\\scripts\\dev\\build-space-data.js --invTypes .\\data\\fuzzwork\\2025-07-07\\raw\\invTypes-nodescription.csv --invGroups .\\data\\fuzzwork\\2025-07-07\\raw\\invGroups.csv --mapSolarSystems .\\data\\fuzzwork\\2025-07-07\\raw\\mapSolarSystems.csv --mapDenormalize .\\data\\fuzzwork\\2025-07-07\\raw\\mapDenormalize.csv --staStations .\\data\\fuzzwork\\2025-07-07\\raw\\staStations.csv --staStationTypes .\\data\\fuzzwork\\2025-07-07\\raw\\staStationTypes.csv --mapJumps .\\data\\fuzzwork\\2025-07-07\\raw\\mapJumps.csv --dgmTypeAttributes .\\data\\fuzzwork\\2025-07-07\\raw\\dgmTypeAttributes.csv --databaseRoot .\\server\\src\\newDatabase\\data --dump-date 2025-07-07",
-    "build:reference-data": "npm run build:ship-data && npm run build:ship-dogma-data && npm run build:skill-data && npm run build:space-data",
+    "sync:static-data": "node .\\scripts\\dev\\merge-jsonl-static-data-into-local.js",
+    "sync:cosmetics-data": "node .\\scripts\\dev\\merge-jsonl-cosmetics-into-local.js",
+    "verify:static-data": "node .\\scripts\\dev\\compare-jsonl-local-static-data.js",
+    "sync:reference-data": "npm run sync:static-data && npm run sync:cosmetics-data && npm run verify:static-data",
     "start:server": "npm --prefix server start",
     "zip:source": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\New-SourceZip.ps1"
   },

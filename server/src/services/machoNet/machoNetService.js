@@ -48,6 +48,9 @@ class MachoNetService extends BaseService {
         ["homestation", null],
         ["homeStation", null],
         ["corpRegistry", null],
+        ["allianceRegistry", null],
+        ["corpmgr", null],
+        ["fwCharacterEnlistmentMgr", null],
         ["corpStationMgr", null],
         ["stationSvc", null],
         ["station", "station"],
@@ -64,6 +67,7 @@ class MachoNetService extends BaseService {
         ["onlineStatus", null],
         ["billMgr", null],
         ["corporationSvc", null],
+        ["warsInfoMgr", null],
         ["certificateMgr", null],
         ["tutorialSvc", null],
         ["agentMgr", null],
@@ -121,6 +125,17 @@ class MachoNetService extends BaseService {
     // Convert to Win32 FILETIME (100-nanosecond intervals since 1601-01-01)
     const now = BigInt(Date.now()) * 10000n + 116444736000000000n;
     return { type: "long", value: now };
+  }
+
+  Handle_GetClusterGameStatisticsForClient(args, session) {
+    log.debug("[MachoNet] GetClusterGameStatisticsForClient");
+    // V23.02 mapSvc unpacks:
+    //   sol, sta, statDivisor =
+    //     sm.ProxySvc('machoNet').GetClusterGameStatisticsForClient('EVE', ({}, {}, 0))
+    // and then iterates sol/sta as dict-like objects while dividing by
+    // statDivisor. The safe empty-state contract is therefore:
+    //   ({}, {}, 1)
+    return [{}, {}, 1];
   }
 }
 

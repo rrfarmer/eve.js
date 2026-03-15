@@ -20,6 +20,10 @@ const { getCharacterShips } = require(path.join(
   __dirname,
   "../character/characterState",
 ));
+const { findShipItemById } = require(path.join(
+  __dirname,
+  "../inventory/itemStore",
+));
 const {
   TABLE,
   readStaticRows,
@@ -36,6 +40,12 @@ const { getStaticOwnerRecord } = require(path.join(
   __dirname,
   "../_shared/stationStaticData",
 ));
+const {
+  getAllianceShortNameRecord,
+  getCorporationRecord,
+  getCorporationStationSolarSystems,
+  getOwnerLookupRecord,
+} = require(path.join(__dirname, "../corporation/corporationState"));
 
 /**
  * Extract a plain JS array from a value that might be:
@@ -68,7 +78,31 @@ function buildAveragePriceEntry(price, adjustedPrice = null) {
 
 let staticLocationRowsById = null;
 
-function buildLocationRow(locationID, locationName, position = null) {
+function normalizeSolarSystemID(value, fallback = null) {
+  const numericValue = Number(value);
+  if (Number.isInteger(numericValue) && numericValue > 0) {
+    return numericValue;
+  }
+  return fallback;
+}
+
+function resolveSessionSolarSystemID(session, fallback = null) {
+  return normalizeSolarSystemID(
+    session &&
+      (session.solarSystemID ??
+        session.solarsystemid ??
+        session.solarSystemID2 ??
+        session.solarsystemid2),
+    fallback,
+  );
+}
+
+function buildLocationRow(
+  locationID,
+  locationName,
+  solarSystemID = null,
+  position = null,
+) {
   return [
     locationID,
     locationName,
@@ -85,32 +119,72 @@ function getStaticLocationRowsById() {
   }
 
   const rowsById = new Map();
-  const addLocation = (locationID, locationName, position = null) => {
+  const addLocation = (
+    locationID,
+    locationName,
+    solarSystemID = null,
+    position = null,
+  ) => {
     const numericId = Number(locationID) || 0;
     if (numericId <= 0 || !locationName) {
       return;
     }
     rowsById.set(
       numericId,
-      buildLocationRow(numericId, locationName, position),
+      buildLocationRow(numericId, locationName, solarSystemID, position),
     );
   };
 
   for (const system of readStaticRows(TABLE.SOLAR_SYSTEMS)) {
-    addLocation(system.solarSystemID, system.solarSystemName, system.position);
+    addLocation(
+      system.solarSystemID,
+      system.solarSystemName,
+      system.solarSystemID,
+      system.position,
+    );
   }
   for (const station of readStaticRows(TABLE.STATIONS)) {
-    addLocation(station.stationID, station.stationName, station.position);
+    addLocation(
+      station.stationID,
+      station.stationName,
+      station.solarSystemID,
+      station.position,
+    );
   }
   for (const celestial of readStaticRows(TABLE.CELESTIALS)) {
-    addLocation(celestial.itemID, celestial.itemName, celestial.position);
+    addLocation(
+      celestial.itemID,
+      celestial.itemName,
+      celestial.solarSystemID,
+      celestial.position,
+    );
   }
   for (const stargate of readStaticRows(TABLE.STARGATES)) {
-    addLocation(stargate.itemID, stargate.itemName, stargate.position);
+    addLocation(
+      stargate.itemID,
+      stargate.itemName,
+      stargate.solarSystemID,
+      stargate.position,
+    );
   }
 
   staticLocationRowsById = rowsById;
   return rowsById;
+}
+
+function buildShipItemOwnerRow(itemID) {
+  const shipItem = findShipItemById(itemID);
+  if (!shipItem) {
+    return null;
+  }
+
+  return [
+    Number(shipItem.itemID) || Number(itemID) || 0,
+    shipItem.shipName || shipItem.itemName || `Ship ${itemID}`,
+    Number(shipItem.shipTypeID || shipItem.typeID) || 606,
+    0,
+    null,
+  ];
 }
 
 class ConfigService extends BaseService {
@@ -155,13 +229,21 @@ class ConfigService extends BaseService {
         continue;
       }
 
+      const shipItemOwnerRow = buildShipItemOwnerRow(numericId);
+      if (shipItemOwnerRow) {
+        rows.push(shipItemOwnerRow);
+        continue;
+      }
+
       const staticOwner = getStaticOwnerRecord(id, session);
-      if (staticOwner) {
+      const dynamicOwner = getOwnerLookupRecord(numericId);
+      const ownerRecord = dynamicOwner || staticOwner;
+      if (ownerRecord) {
         rows.push([
-          staticOwner.ownerID,
-          staticOwner.ownerName,
-          staticOwner.typeID,
-          staticOwner.gender,
+          ownerRecord.ownerID,
+          ownerRecord.ownerName,
+          ownerRecord.typeID,
+          ownerRecord.gender,
           null,
         ]);
         continue;
@@ -191,11 +273,12 @@ class ConfigService extends BaseService {
     return [["ownerID", "ownerName", "typeID", "gender", "ownerNameID"], rows];
   }
 
-  /**
-   * GetMultiLocationsEx — fetch location info for a list of location IDs.
-   *
-   * EVEmu returns TupleSet: ([locationID, locationName, x, y, z, locationNameID], [rows])
-   */
+/**
+ * GetMultiLocationsEx — fetch location info for a list of location IDs.
+ *
+ * Live client logs show this RPC still returns the classic 6-column tuple:
+ * [locationID, locationName, x, y, z, locationNameID]
+ */
   Handle_GetMultiLocationsEx(args, session) {
     const rawArg = args && args.length > 0 ? args[0] : [];
     const requestedIds = extractList(rawArg);
@@ -206,23 +289,37 @@ class ConfigService extends BaseService {
     const characterResult = database.read("characters", "/")
     const characters = characterResult.success ? characterResult.data : {}
     const station = getStationRecord(session);
+    const sessionSolarSystemID = resolveSessionSolarSystemID(
+      session,
+      normalizeSolarSystemID(station && station.solarSystemID, null),
+    );
     const locationRowsById = new Map();
     const staticRowsById = getStaticLocationRowsById();
 
     if (station) {
       locationRowsById.set(
         station.stationID,
-        buildLocationRow(station.stationID, station.stationName),
+        buildLocationRow(
+          station.stationID,
+          station.stationName,
+          station.solarSystemID,
+          station.position,
+        ),
       );
       locationRowsById.set(
         station.orbitID,
-        buildLocationRow(station.orbitID, station.stationName),
+        buildLocationRow(
+          station.orbitID,
+          station.orbitName || station.stationName,
+          station.solarSystemID,
+        ),
       );
       locationRowsById.set(
         station.solarSystemID,
         buildLocationRow(
           station.solarSystemID,
           station.solarSystemName || `System ${station.solarSystemID}`,
+          station.solarSystemID,
         ),
       );
       locationRowsById.set(
@@ -230,6 +327,7 @@ class ConfigService extends BaseService {
         buildLocationRow(
           station.constellationID,
           station.constellationName || `Constellation ${station.constellationID}`,
+          null,
         ),
       );
       locationRowsById.set(
@@ -237,6 +335,7 @@ class ConfigService extends BaseService {
         buildLocationRow(
           station.regionID,
           station.regionName || `Region ${station.regionID}`,
+          null,
         ),
       );
     }
@@ -268,15 +367,31 @@ class ConfigService extends BaseService {
       } else if (staticRowsById.has(numericId)) {
         rows.push(staticRowsById.get(numericId));
       } else if (shipNameById.has(numericId)) {
-        rows.push(buildLocationRow(numericId, shipNameById.get(numericId)));
+        rows.push(
+          buildLocationRow(
+            numericId,
+            shipNameById.get(numericId),
+            sessionSolarSystemID,
+          ),
+        );
       } else if (charNameById.has(numericId)) {
-        rows.push(buildLocationRow(numericId, charNameById.get(numericId)));
+        rows.push(
+          buildLocationRow(
+            numericId,
+            charNameById.get(numericId),
+            sessionSolarSystemID,
+          ),
+        );
       } else if (numericId >= 60000000 && numericId < 64000000) {
-        rows.push(buildLocationRow(numericId, `Station ${numericId}`));
+        rows.push(
+          buildLocationRow(numericId, `Station ${numericId}`, sessionSolarSystemID),
+        );
       } else if (numericId >= 30000000 && numericId < 40000000) {
-        rows.push(buildLocationRow(numericId, `System ${numericId}`));
+        rows.push(buildLocationRow(numericId, `System ${numericId}`, numericId));
       } else {
-        rows.push(buildLocationRow(numericId, `Location ${numericId}`));
+        rows.push(
+          buildLocationRow(numericId, `Location ${numericId}`, sessionSolarSystemID),
+        );
       }
     }
 
@@ -296,8 +411,16 @@ class ConfigService extends BaseService {
       `[ConfigService] GetMultiAllianceShortNamesEx: ${JSON.stringify(allianceIDs)}`,
     );
 
-    // No alliances implemented yet
-    return [];
+    const rows = allianceIDs
+      .map((allianceID) => getAllianceShortNameRecord(allianceID))
+      .filter(Boolean)
+      .map((record) => [record.allianceID, record.shortName]);
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    return [["allianceID", "shortName"], rows];
   }
 
   /**
@@ -321,15 +444,18 @@ class ConfigService extends BaseService {
       }
 
       const staticOwner = getStaticOwnerRecord(numericId, session);
+      const dynamicOwner = getOwnerLookupRecord(numericId);
+      const corporationRecord = getCorporationRecord(numericId);
+      const ownerRecord = dynamicOwner || staticOwner;
       rows.push([
         numericId,
-        staticOwner && staticOwner.tickerName ? staticOwner.tickerName : "CORP",
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        ownerRecord && ownerRecord.tickerName ? ownerRecord.tickerName : "CORP",
+        corporationRecord ? corporationRecord.shape1 ?? null : null,
+        corporationRecord ? corporationRecord.shape2 ?? null : null,
+        corporationRecord ? corporationRecord.shape3 ?? null : null,
+        corporationRecord ? corporationRecord.color1 ?? null : null,
+        corporationRecord ? corporationRecord.color2 ?? null : null,
+        corporationRecord ? corporationRecord.color3 ?? null : null,
       ]);
     }
 
@@ -355,6 +481,15 @@ class ConfigService extends BaseService {
   Handle_GetMapObjects(args, session) {
     log.debug("[ConfigService] GetMapObjects");
     return { type: "list", items: [] };
+  }
+
+  Handle_GetStationSolarSystemsByOwner(args, session) {
+    const ownerID = args && args.length > 0 ? Number(args[0]) || 0 : 0;
+    log.debug(`[ConfigService] GetStationSolarSystemsByOwner(${ownerID})`);
+    return {
+      type: "list",
+      items: getCorporationStationSolarSystems(ownerID),
+    };
   }
 
   Handle_GetMultiGraphicsEx(args, session) {
@@ -388,6 +523,5 @@ class ConfigService extends BaseService {
 }
 
 module.exports = ConfigService;
-
 
 

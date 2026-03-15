@@ -50,10 +50,6 @@ const SESSION_CHANGE_ALLOWED_KEYS = new Set([
 ]);
 
 function appendSessionChangeDebug(entry) {
-  if (!config.enableSessionChangeDebugTrace) {
-    return;
-  }
-
   try {
     fs.mkdirSync(path.dirname(sessionChangeDebugPath), { recursive: true });
     fs.appendFileSync(
@@ -191,11 +187,9 @@ class ClientSession {
     const changeEntries = [];
     for (const [key, [oldVal, newVal]] of Object.entries(changes)) {
       if (!SESSION_CHANGE_ALLOWED_KEYS.has(key)) {
-        if (config.enableSessionChangeDebugTrace) {
-          appendSessionChangeDebug(
-            `drop key=${key} old=${JSON.stringify(oldVal, (k, v) => (typeof v === "bigint" ? v.toString() : v))} new=${JSON.stringify(newVal, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
-          );
-        }
+        appendSessionChangeDebug(
+          `drop key=${key} old=${JSON.stringify(oldVal, (k, v) => (typeof v === "bigint" ? v.toString() : v))} new=${JSON.stringify(newVal, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
+        );
         continue;
       }
       changeEntries.push([key, [oldVal, newVal]]);
@@ -207,11 +201,9 @@ class ClientSession {
           : BigInt(options.sessionId || 0)
         : this.sid;
 
-    if (config.enableSessionChangeDebugTrace) {
-      appendSessionChangeDebug(
-        `send sid=${String(sessionID)} keys=${JSON.stringify(changeEntries.map(([key]) => key))} payload=${JSON.stringify(changeEntries, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
-      );
-    }
+    appendSessionChangeDebug(
+      `send sid=${String(sessionID)} keys=${JSON.stringify(changeEntries.map(([key]) => key))} payload=${JSON.stringify(changeEntries, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
+    );
 
     // SessionChangeNotification payload per General.xmlp:
     //   tuple(sessionID: long, tuple(clueless: int, changes: dict), nodesOfInterest: listInt)
@@ -288,7 +280,7 @@ class ClientSession {
     const marshalledPayload = marshalEncode(unpickledPayload);
 
     const responseTuple = [
-      MACHONETMSG_TYPE.NOTIFICATION, // type = 15
+      MACHONETMSG_TYPE.NOTIFICATION,
       sourceAddr,
       destAddr,
       this.userid || null,
@@ -315,6 +307,60 @@ class ClientSession {
   }
 
   /**
+   * Send a MACHONETMSG_TYPE.NOTIFICATION to a specific client-side service.
+   * This is required for notifications like `michelle.OnSlimItemChange`,
+   * where the service must transform raw wire args before scattering them.
+   */
+  sendServiceNotification(serviceName, methodName, payloadTuple = [], kwargs = null) {
+    if (!this.socket || this.socket.destroyed) return;
+
+    const sourceAddr = encodeAddress({
+      type: "node",
+      nodeID: config.proxyNodeId,
+    });
+
+    const destAddr = encodeAddress({
+      // EVE's client-side service notifications target MachoAddress(service=...),
+      // i.e. the wire form our local encoder aliases as type "service".
+      type: "service",
+      service: serviceName || null,
+    });
+
+    const unpickledPayload = kwargs
+      ? [1, methodName, payloadTuple, kwargs]
+      : [1, methodName, payloadTuple];
+    const marshalledPayload = marshalEncode(unpickledPayload);
+
+    const responseTuple = [
+      MACHONETMSG_TYPE.NOTIFICATION,
+      sourceAddr,
+      destAddr,
+      this.userid || null,
+      [[0, marshalledPayload]],
+      { type: "dict", entries: [] },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ];
+
+    const packet = {
+      type: "object",
+      name: "carbon.common.script.net.machoNetPacket.Notification",
+      args: responseTuple,
+    };
+
+    log.debug(
+      `[Session] Sending Service Notification ${serviceName}::${methodName}`,
+    );
+    this.sendPacket(packet);
+  }
+
+  /**
    * Get a summary of this session for logging.
    */
   toString() {
@@ -322,4 +368,4 @@ class ClientSession {
   }
 }
 
-module.exports = ClientSession
+module.exports = ClientSession;

@@ -7,39 +7,33 @@
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
-const {
-  TABLE,
-  readStaticTable,
-} = require(path.join(__dirname, "../_shared/referenceData"));
-const { resolveShipByTypeID } = require(path.join(
-  __dirname,
-  "../chat/shipTypeRegistry",
-));
-const {
-  getCharacterRecord,
-  getActiveShipRecord,
-  findCharacterShip,
-} = require(path.join(__dirname, "../character/characterState"));
+const { TABLE, readStaticTable } = require(
+  path.join(__dirname, "../_shared/referenceData"),
+);
+const { resolveShipByTypeID } = require(
+  path.join(__dirname, "../chat/shipTypeRegistry"),
+);
+const { getCharacterRecord, getActiveShipRecord, findCharacterShip } = require(
+  path.join(__dirname, "../character/characterState"),
+);
 const {
   getShipConditionState,
   findItemById,
   listContainerItems,
   moveInventoryItem,
 } = require(path.join(__dirname, "../inventory/itemStore"));
-const {
-  syncInventoryItemForSession,
-} = require(path.join(__dirname, "../character/characterState"));
-const { resolveModuleType } = require(path.join(
-  __dirname,
-  "../inventory/moduleTypeRegistry",
-));
-const {
-  isModuleOnline,
-  setModuleOnline,
-} = require(path.join(__dirname, "./moduleOnlineState"));
-const {
-  setShipDirtTimestamp,
-} = require(path.join(__dirname, "../ship/shipDirtState"));
+const { syncInventoryItemForSession } = require(
+  path.join(__dirname, "../character/characterState"),
+);
+const { resolveModuleType } = require(
+  path.join(__dirname, "../inventory/moduleTypeRegistry"),
+);
+const { isModuleOnline, setModuleOnline } = require(
+  path.join(__dirname, "./moduleOnlineState"),
+);
+const { setShipDirtTimestamp } = require(
+  path.join(__dirname, "../ship/shipDirtState"),
+);
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 const {
   getCharacterSkills,
@@ -56,6 +50,8 @@ const ATTRIBUTE_PILOT_SECURITY_STATUS = 2610;
 const ATTRIBUTE_ITEM_DAMAGE = 3;
 const ATTRIBUTE_MASS = 4;
 const ATTRIBUTE_CAPACITY = 38;
+const ATTRIBUTE_VOLUME = 161;
+const ATTRIBUTE_RADIUS = 162;
 const ATTRIBUTE_POWER_LOAD = 15;
 const ATTRIBUTE_POWERGRID_USAGE = 30;
 const ATTRIBUTE_MAX_VELOCITY_BONUS = 20;
@@ -85,10 +81,8 @@ const INSTANCE_ROW_DESCRIPTOR_COLUMNS = [
   ["incapacitated", DBTYPE_BOOL],
 ];
 const FITTED_SLOT_FLAGS = Object.freeze([
-  11, 12, 13, 14, 15, 16, 17, 18,
-  19, 20, 21, 22, 23, 24, 25, 26,
-  27, 28, 29, 30, 31, 32, 33, 34,
-  92, 93, 94,
+  11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+  30, 31, 32, 33, 34, 92, 93, 94,
 ]);
 const EFFECT_ID_ONLINE = 16;
 const EFFECT_ID_MODULE_BONUS_MICROWARPDRIVE = 6730;
@@ -111,18 +105,23 @@ class DogmaService extends BaseService {
   }
 
   _getCharID(session) {
-    return (session && (session.characterID || session.charid || session.userid)) || 140000001;
+    return (
+      (session && (session.characterID || session.charid || session.userid)) ||
+      140000001
+    );
   }
 
   _getShipID(session) {
     return (
-      session &&
-      (session.activeShipID || session.shipID || session.shipid)
-    ) || 140000101;
+      (session && (session.activeShipID || session.shipID || session.shipid)) ||
+      140000101
+    );
   }
 
   _getShipTypeID(session) {
-    return session && Number.isInteger(session.shipTypeID) && session.shipTypeID > 0
+    return session &&
+      Number.isInteger(session.shipTypeID) &&
+      session.shipTypeID > 0
       ? session.shipTypeID
       : 606;
   }
@@ -149,7 +148,12 @@ class DogmaService extends BaseService {
 
   _getLocationID(session) {
     return (
-      (session && (session.stationid || session.stationID || session.locationid || session.solarsystemid2 || session.solarsystemid)) ||
+      (session &&
+        (session.stationid ||
+          session.stationID ||
+          session.locationid ||
+          session.solarsystemid2 ||
+          session.solarsystemid)) ||
       60003760
     );
   }
@@ -245,7 +249,9 @@ class DogmaService extends BaseService {
         continue;
       }
 
-      const isFittedFlag = FITTED_SLOT_FLAGS.includes(Number(itemRecord.flagID || 0));
+      const isFittedFlag = FITTED_SLOT_FLAGS.includes(
+        Number(itemRecord.flagID || 0),
+      );
       const isOnActiveShip =
         activeShipID > 0
           ? Number(itemRecord.locationID || 0) === activeShipID
@@ -256,7 +262,9 @@ class DogmaService extends BaseService {
     }
 
     const fittedItemIDs = new Set(
-      this._getFittedItemsForShip(session).map((item) => this._normalizeItemID(item.itemID)),
+      this._getFittedItemsForShip(session).map((item) =>
+        this._normalizeItemID(item.itemID),
+      ),
     );
     for (const candidate of candidates) {
       if (fittedItemIDs.has(candidate)) {
@@ -394,7 +402,11 @@ class DogmaService extends BaseService {
     return ACTIVE_EFFECT_DEFAULT_DURATION;
   }
 
-  _resolveModuleSpeedMultiplier(itemRecord = null, effectID = 0, moduleType = null) {
+  _resolveModuleSpeedMultiplier(
+    itemRecord = null,
+    effectID = 0,
+    moduleType = null,
+  ) {
     const resolvedModuleType =
       moduleType ||
       resolveModuleType(
@@ -437,7 +449,11 @@ class DogmaService extends BaseService {
     return {
       moduleType,
       isMicrowarpdrive: this._isMicrowarpdriveModule(itemRecord, moduleType),
-      durationMs: this._resolveModuleDurationMs(itemRecord, effectID, moduleType),
+      durationMs: this._resolveModuleDurationMs(
+        itemRecord,
+        effectID,
+        moduleType,
+      ),
       speedMultiplier: this._resolveModuleSpeedMultiplier(
         itemRecord,
         effectID,
@@ -558,10 +574,9 @@ class DogmaService extends BaseService {
       effectID,
       options.duration,
     );
-    const repeat =
-      Number.isFinite(Number(options.repeat))
-        ? Number(options.repeat)
-        : ACTIVE_EFFECT_DEFAULT_REPEAT;
+    const repeat = Number.isFinite(Number(options.repeat))
+      ? Number(options.repeat)
+      : ACTIVE_EFFECT_DEFAULT_REPEAT;
     const targetID =
       Number.isFinite(Number(options.targetID)) && Number(options.targetID) > 0
         ? Number(options.targetID)
@@ -617,10 +632,9 @@ class DogmaService extends BaseService {
       effectID,
       options.duration,
     );
-    const repeat =
-      Number.isFinite(Number(options.repeat))
-        ? Number(options.repeat)
-        : ACTIVE_EFFECT_DEFAULT_REPEAT;
+    const repeat = Number.isFinite(Number(options.repeat))
+      ? Number(options.repeat)
+      : ACTIVE_EFFECT_DEFAULT_REPEAT;
     const targetID =
       Number.isFinite(Number(options.targetID)) && Number(options.targetID) > 0
         ? Number(options.targetID)
@@ -828,8 +842,32 @@ class DogmaService extends BaseService {
       args: {
         type: "dict",
         entries: [
-          ["header", ["instanceID", "online", "damage", "charge", "skillPoints", "armorDamage", "shieldCharge", "incapacitated"]],
-          ["line", [itemID, online, damage, charge, skillPoints, armorDamage, shieldCharge, incapacitated]],
+          [
+            "header",
+            [
+              "instanceID",
+              "online",
+              "damage",
+              "charge",
+              "skillPoints",
+              "armorDamage",
+              "shieldCharge",
+              "incapacitated",
+            ],
+          ],
+          [
+            "line",
+            [
+              itemID,
+              online,
+              damage,
+              charge,
+              skillPoints,
+              armorDamage,
+              shieldCharge,
+              incapacitated,
+            ],
+          ],
         ],
       },
     };
@@ -877,18 +915,27 @@ class DogmaService extends BaseService {
   _buildCharacterAttributes(charData = {}) {
     const source = charData.characterAttributes || {};
     const securityStatus = Number(
-      charData.securityStatus ?? charData.securityRating ?? source.securityStatus ?? 0,
+      charData.securityStatus ??
+        charData.securityRating ??
+        source.securityStatus ??
+        0,
     );
     return {
-      [ATTRIBUTE_CHARISMA]: Number(source[ATTRIBUTE_CHARISMA] ?? source.charisma ?? 20),
+      [ATTRIBUTE_CHARISMA]: Number(
+        source[ATTRIBUTE_CHARISMA] ?? source.charisma ?? 20,
+      ),
       [ATTRIBUTE_INTELLIGENCE]: Number(
         source[ATTRIBUTE_INTELLIGENCE] ?? source.intelligence ?? 20,
       ),
-      [ATTRIBUTE_MEMORY]: Number(source[ATTRIBUTE_MEMORY] ?? source.memory ?? 20),
+      [ATTRIBUTE_MEMORY]: Number(
+        source[ATTRIBUTE_MEMORY] ?? source.memory ?? 20,
+      ),
       [ATTRIBUTE_PERCEPTION]: Number(
         source[ATTRIBUTE_PERCEPTION] ?? source.perception ?? 20,
       ),
-      [ATTRIBUTE_WILLPOWER]: Number(source[ATTRIBUTE_WILLPOWER] ?? source.willpower ?? 20),
+      [ATTRIBUTE_WILLPOWER]: Number(
+        source[ATTRIBUTE_WILLPOWER] ?? source.willpower ?? 20,
+      ),
       [ATTRIBUTE_PILOT_SECURITY_STATUS]: Number.isFinite(securityStatus)
         ? securityStatus
         : 0,
@@ -925,11 +972,16 @@ class DogmaService extends BaseService {
         ? payload.shipAttributesByTypeID[String(shipTypeID)] || null
         : null;
     const staticAttributes =
-      staticEntry && staticEntry.attributes && typeof staticEntry.attributes === "object"
+      staticEntry &&
+      staticEntry.attributes &&
+      typeof staticEntry.attributes === "object"
         ? staticEntry.attributes
         : null;
     const shipCondition = getShipConditionState(shipData);
-    const fittedItems = Array.isArray(shipData.fittedItems) ? shipData.fittedItems : [];
+    const shipMetadata =
+      Number.isInteger(shipTypeID) && shipTypeID > 0
+        ? resolveShipByTypeID(shipTypeID)
+        : null;
 
     const attributes = staticAttributes
       ? Object.fromEntries(
@@ -942,24 +994,35 @@ class DogmaService extends BaseService {
         )
       : {};
 
-    const shipMass = Number(shipData.mass);
-    if (!(ATTRIBUTE_MASS in attributes) && Number.isFinite(shipMass)) {
-      attributes[ATTRIBUTE_MASS] = shipMass;
+    const resolvedMass = Number(
+      shipData.mass ?? (shipMetadata && shipMetadata.mass),
+    );
+    if (!(ATTRIBUTE_MASS in attributes) && Number.isFinite(resolvedMass)) {
+      attributes[ATTRIBUTE_MASS] = resolvedMass;
     }
 
-    const shipCapacity = Number(shipData.capacity);
-    if (!(ATTRIBUTE_CAPACITY in attributes) && Number.isFinite(shipCapacity)) {
-      attributes[ATTRIBUTE_CAPACITY] = shipCapacity;
+    const resolvedCapacity = Number(
+      shipData.capacity ?? (shipMetadata && shipMetadata.capacity),
+    );
+    if (
+      !(ATTRIBUTE_CAPACITY in attributes) &&
+      Number.isFinite(resolvedCapacity)
+    ) {
+      attributes[ATTRIBUTE_CAPACITY] = resolvedCapacity;
     }
 
     let cpuLoad = 0;
     let powerLoad = 0;
+    const fittedItems = shipData.fittedItems || [];
     for (const fittedItem of fittedItems) {
       if (!this._isModuleOnline(fittedItem.itemID, fittedItem)) {
         continue;
       }
 
-      const moduleType = resolveModuleType(fittedItem.typeID, fittedItem.itemName);
+      const moduleType = resolveModuleType(
+        fittedItem.typeID,
+        fittedItem.itemName,
+      );
       if (!moduleType) {
         continue;
       }
@@ -976,6 +1039,20 @@ class DogmaService extends BaseService {
     }
     attributes[ATTRIBUTE_CPU_LOAD] = cpuLoad;
     attributes[ATTRIBUTE_POWER_LOAD] = powerLoad;
+
+    const resolvedVolume = Number(
+      shipData.volume ?? (shipMetadata && shipMetadata.volume),
+    );
+    if (!(ATTRIBUTE_VOLUME in attributes) && Number.isFinite(resolvedVolume)) {
+      attributes[ATTRIBUTE_VOLUME] = resolvedVolume;
+    }
+
+    const resolvedRadius = Number(
+      shipData.radius ?? (shipMetadata && shipMetadata.radius),
+    );
+    if (!(ATTRIBUTE_RADIUS in attributes) && Number.isFinite(resolvedRadius)) {
+      attributes[ATTRIBUTE_RADIUS] = resolvedRadius;
+    }
 
     const shieldCapacity = Number(attributes[ATTRIBUTE_SHIELD_CAPACITY]);
     if (
@@ -1003,7 +1080,9 @@ class DogmaService extends BaseService {
       attributes[ATTRIBUTE_ITEM_DAMAGE] = shipCondition.damage;
     }
 
-    attributes[ATTRIBUTE_PILOT_SECURITY_STATUS] = Number.isFinite(securityStatus)
+    attributes[ATTRIBUTE_PILOT_SECURITY_STATUS] = Number.isFinite(
+      securityStatus,
+    )
       ? securityStatus
       : 0;
 
@@ -1033,7 +1112,10 @@ class DogmaService extends BaseService {
       entries.push([ATTRIBUTE_ITEM_DAMAGE, itemDamage]);
     }
 
-    const moduleType = resolveModuleType(itemRecord.typeID, itemRecord.itemName);
+    const moduleType = resolveModuleType(
+      itemRecord.typeID,
+      itemRecord.itemName,
+    );
     if (moduleType) {
       const cpuUsage = Number(moduleType.cpuUsage);
       if (Number.isFinite(cpuUsage) && cpuUsage > 0) {
@@ -1045,7 +1127,8 @@ class DogmaService extends BaseService {
         entries.push([ATTRIBUTE_POWERGRID_USAGE, powerUsage]);
       }
 
-      const activationProfile = this._resolveModuleActivationProfile(itemRecord);
+      const activationProfile =
+        this._resolveModuleActivationProfile(itemRecord);
       if (
         activationProfile.isMicrowarpdrive &&
         Number.isFinite(Number(activationProfile.durationMs)) &&
@@ -1130,7 +1213,7 @@ class DogmaService extends BaseService {
             null,
             null,
             Number(effectID),
-            duration > 0 ? null : (startedAt || this._nowFileTime()),
+            duration > 0 ? null : startedAt || this._nowFileTime(),
             duration,
             repeat,
           ],
@@ -1154,13 +1237,18 @@ class DogmaService extends BaseService {
       itemID: itemRecord.itemID,
       typeID: itemRecord.typeID,
       ownerID: itemRecord.ownerID || charID,
-      locationID: this._coalesce(itemRecord.locationID, this._getLocationID(session)),
+      locationID: this._coalesce(
+        itemRecord.locationID,
+        this._getLocationID(session),
+      ),
       flagID: this._coalesce(itemRecord.flagID, 0),
       groupID: itemRecord.groupID,
       categoryID: itemRecord.categoryID,
       quantity:
         itemRecord.quantity === undefined || itemRecord.quantity === null
-          ? (itemRecord.singleton ? -1 : 1)
+          ? itemRecord.singleton
+            ? -1
+            : 1
           : itemRecord.quantity,
       singleton:
         itemRecord.singleton === undefined || itemRecord.singleton === null
@@ -1195,6 +1283,150 @@ class DogmaService extends BaseService {
     return entries;
   }
 
+  _buildAttributeValueDict(attributes = {}) {
+    return {
+      type: "dict",
+      entries: Object.entries(attributes).map(([attributeID, value]) => [
+        Number(attributeID),
+        value,
+      ]),
+    };
+  }
+
+  _buildShipBaseAttributes(shipData = {}) {
+    const payload = readStaticTable(TABLE.SHIP_DOGMA_ATTRIBUTES);
+    const shipTypeID = Number(shipData.typeID);
+    const staticEntry =
+      Number.isInteger(shipTypeID) &&
+      payload &&
+      payload.shipAttributesByTypeID &&
+      typeof payload.shipAttributesByTypeID === "object"
+        ? payload.shipAttributesByTypeID[String(shipTypeID)] || null
+        : null;
+    const staticAttributes =
+      staticEntry &&
+      staticEntry.attributes &&
+      typeof staticEntry.attributes === "object"
+        ? staticEntry.attributes
+        : null;
+
+    const attributes = staticAttributes
+      ? Object.fromEntries(
+          Object.entries(staticAttributes)
+            .map(([attributeID, value]) => [Number(attributeID), Number(value)])
+            .filter(
+              ([attributeID, value]) =>
+                Number.isInteger(attributeID) && Number.isFinite(value),
+            ),
+        )
+      : {};
+
+    const shipMetadata =
+      Number.isInteger(shipTypeID) && shipTypeID > 0
+        ? resolveShipByTypeID(shipTypeID)
+        : null;
+
+    const resolvedMass = Number(
+      shipData.mass ?? (shipMetadata && shipMetadata.mass),
+    );
+    if (!(ATTRIBUTE_MASS in attributes) && Number.isFinite(resolvedMass)) {
+      attributes[ATTRIBUTE_MASS] = resolvedMass;
+    }
+
+    const resolvedCapacity = Number(
+      shipData.capacity ?? (shipMetadata && shipMetadata.capacity),
+    );
+    if (
+      !(ATTRIBUTE_CAPACITY in attributes) &&
+      Number.isFinite(resolvedCapacity)
+    ) {
+      attributes[ATTRIBUTE_CAPACITY] = resolvedCapacity;
+    }
+
+    const resolvedVolume = Number(
+      shipData.volume ?? (shipMetadata && shipMetadata.volume),
+    );
+    if (!(ATTRIBUTE_VOLUME in attributes) && Number.isFinite(resolvedVolume)) {
+      attributes[ATTRIBUTE_VOLUME] = resolvedVolume;
+    }
+
+    const resolvedRadius = Number(
+      shipData.radius ?? (shipMetadata && shipMetadata.radius),
+    );
+    if (!(ATTRIBUTE_RADIUS in attributes) && Number.isFinite(resolvedRadius)) {
+      attributes[ATTRIBUTE_RADIUS] = resolvedRadius;
+    }
+
+    return attributes;
+  }
+
+  _resolveItemAttributeContext(requestedItemID, session) {
+    const charID = this._getCharID(session);
+    const charData = this._getCharacterRecord(session) || {};
+    const tupleItemID = Array.isArray(requestedItemID)
+      ? requestedItemID[0]
+      : requestedItemID;
+    const numericItemID =
+      Number.parseInt(String(tupleItemID), 10) || this._getShipID(session);
+    const skillRecord =
+      getCharacterSkills(charID).find(
+        (skill) =>
+          skill.itemID === numericItemID ||
+          skill.itemID === Number.parseInt(String(requestedItemID), 10),
+      ) || null;
+
+    if (numericItemID === charID) {
+      const attributes = this._buildCharacterAttributes(charData);
+      return {
+        itemID: charID,
+        typeID: Number(charData.typeID || CHARACTER_TYPE_ID),
+        attributes,
+        baseAttributes: { ...attributes },
+      };
+    }
+
+    if (skillRecord) {
+      return {
+        itemID: skillRecord.itemID,
+        typeID: Number(skillRecord.typeID),
+        attributes: {},
+        baseAttributes: {},
+      };
+    }
+
+    const shipRecord =
+      findCharacterShip(charID, numericItemID) ||
+      this._getActiveShipRecord(session) ||
+      this._getShipMetadata(session);
+    const attributes = this._buildShipAttributes(charData, shipRecord || {});
+    return {
+      itemID:
+        shipRecord && shipRecord.itemID ? shipRecord.itemID : numericItemID,
+      typeID: Number(shipRecord && shipRecord.typeID),
+      attributes,
+      baseAttributes: this._buildShipBaseAttributes(shipRecord || {}),
+    };
+  }
+
+  _formatDebugValue(value, fallback = "[n/a]") {
+    if (value === undefined || value === null) {
+      return fallback;
+    }
+    if (typeof value === "bigint") {
+      return value.toString();
+    }
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        return fallback;
+      }
+      return String(value);
+    }
+    if (typeof value === "boolean") {
+      return value ? "True" : "False";
+    }
+    return String(value);
+  }
+
   _buildEmptyDict() {
     return { type: "dict", entries: [] };
   }
@@ -1216,7 +1448,10 @@ class DogmaService extends BaseService {
     return {
       type: "dict",
       entries: fittedItems
-        .filter((item) => Number(item.flagID || 0) >= 27 && Number(item.flagID || 0) <= 34)
+        .filter(
+          (item) =>
+            Number(item.flagID || 0) >= 27 && Number(item.flagID || 0) <= 34,
+        )
         .map((item) => [item.itemID, null]),
     };
   }
@@ -1275,10 +1510,12 @@ class DogmaService extends BaseService {
       return false;
     }
 
-    return isModuleOnline(
-      numericItemID,
-      FITTED_SLOT_FLAGS.includes(Number(itemRecord.flagID || 0)),
-    ) && FITTED_SLOT_FLAGS.includes(Number(itemRecord.flagID || 0));
+    return (
+      isModuleOnline(
+        numericItemID,
+        FITTED_SLOT_FLAGS.includes(Number(itemRecord.flagID || 0)),
+      ) && FITTED_SLOT_FLAGS.includes(Number(itemRecord.flagID || 0))
+    );
   }
 
   _repairFittedModuleLocation(session, itemRecord) {
@@ -1445,43 +1682,31 @@ class DogmaService extends BaseService {
     return [0, [], [], []];
   }
 
-  _buildShipState(charID, shipID, shipRecord = null, fittedItems = []) {
+  _buildShipState(charID, shipID, shipRecord = null) {
     const shipCondition = getShipConditionState(shipRecord);
-    const entries = [
-      [
-        shipID,
-        this._buildPackedInstanceRow({
-          itemID: shipID,
-          damage: shipCondition.damage,
-          charge: shipCondition.charge,
-          armorDamage: shipCondition.armorDamage,
-          shieldCharge: shipCondition.shieldCharge,
-          incapacitated: shipCondition.incapacitated,
-        }),
-      ],
-      [
-        charID,
-        this._buildPackedInstanceRow({
-          itemID: charID,
-          online: true,
-          skillPoints: getCharacterSkillPointTotal(charID) || 0,
-        }),
-      ],
-    ];
-
-    for (const fittedItem of fittedItems) {
-      entries.push([
-        fittedItem.itemID,
-        this._buildPackedInstanceRow({
-          itemID: fittedItem.itemID,
-          online: this._isModuleOnline(fittedItem.itemID, fittedItem),
-        }),
-      ]);
-    }
-
     return {
       type: "dict",
-      entries,
+      entries: [
+        [
+          shipID,
+          this._buildPackedInstanceRow({
+            itemID: shipID,
+            damage: shipCondition.damage,
+            charge: shipCondition.charge,
+            armorDamage: shipCondition.armorDamage,
+            shieldCharge: shipCondition.shieldCharge,
+            incapacitated: shipCondition.incapacitated,
+          }),
+        ],
+        [
+          charID,
+          this._buildPackedInstanceRow({
+            itemID: charID,
+            online: true,
+            skillPoints: getCharacterSkillPointTotal(charID) || 0,
+          }),
+        ],
+      ],
     };
   }
 
@@ -1492,7 +1717,9 @@ class DogmaService extends BaseService {
 
   Handle_GetCharacterAttributes(args, session) {
     log.debug("[DogmaIM] GetCharacterAttributes");
-    return this._buildCharacterAttributeDict(this._getCharacterRecord(session) || {});
+    return this._buildCharacterAttributeDict(
+      this._getCharacterRecord(session) || {},
+    );
   }
 
   Handle_ShipOnlineModules(args, session) {
@@ -1531,7 +1758,8 @@ class DogmaService extends BaseService {
       `[DogmaIM] SetModuleOffline(itemID=${String(itemID)}) -> ${itemRecord ? "OK" : "NOT_FITTED_OR_NOT_FOUND"}`,
     );
     if (itemRecord) {
-      const activationProfile = this._resolveModuleActivationProfile(itemRecord);
+      const activationProfile =
+        this._resolveModuleActivationProfile(itemRecord);
       const effectID = activationProfile.isMicrowarpdrive
         ? EFFECT_ID_MODULE_BONUS_MICROWARPDRIVE
         : 0;
@@ -1539,12 +1767,7 @@ class DogmaService extends BaseService {
         itemRecord.itemID,
         effectID,
       );
-      this._applyMovementEffect(
-        session,
-        itemRecord,
-        effectID,
-        false,
-      );
+      this._applyMovementEffect(session, itemRecord, effectID, false);
       this._emitGodmaShipEffect(session, itemRecord, effectID, {
         start: false,
         active: false,
@@ -1582,7 +1805,10 @@ class DogmaService extends BaseService {
     );
     if (itemRecord) {
       const effectID = this._resolveActiveEffectID(effectName);
-      const isAlreadyActive = this._isModuleEffectActive(itemRecord.itemID, effectID);
+      const isAlreadyActive = this._isModuleEffectActive(
+        itemRecord.itemID,
+        effectID,
+      );
       if (isAlreadyActive) {
         const previousEffectState = this._getStoredModuleEffectState(
           itemRecord.itemID,
@@ -1689,6 +1915,11 @@ class DogmaService extends BaseService {
     return this.Handle_UnloadAmmo(args, session);
   }
 
+  Handle_ShipOnlineModules(args, session) {
+    log.debug("[DogmaIM] ShipOnlineModules");
+    return { type: "list", items: [] };
+  }
+
   Handle_GetTargets() {
     log.debug("[DogmaIM] GetTargets");
     return { type: "list", items: [] };
@@ -1714,19 +1945,14 @@ class DogmaService extends BaseService {
     const shipMetadata = activeShip || this._getShipMetadata(session);
     const ownerID = charID;
     const locationID = this._getLocationID(session);
-    // Keep char info present for all GetAllInfo paths. Some space HUD refresh
-    // flows request ship-only and then hit module reconciliation, which can
-    // leave dogma-side module caches incomplete when char info is omitted.
-    const getCharInfo = true;
-    // Some client flows request char-only info and then immediately query
-    // module tooltips. Keeping ship info always present avoids missing dogma
-    // cache entries for fitted modules.
-    const getShipInfo = true;
-    const fittedItems = getShipInfo ? this._getFittedItemsForShip(session, activeShip) : [];
+    const getCharInfo = this._toBoolArg(args && args[0], true);
+    const getShipInfo = this._toBoolArg(args && args[1], true);
     const characterLocationID = this._getCharacterItemLocationID(session, {
       allowShipLocation: getShipInfo,
     });
     const locationInfo = this._buildEmptyDict();
+
+    const fittedItems = getShipInfo ? this._getFittedItemsForShip(session, activeShip) : [];
 
     const shipInfoEntry = getShipInfo
       ? this._buildCommonGetInfoEntry({
@@ -1788,12 +2014,7 @@ class DogmaService extends BaseService {
             getShipInfo
               ? {
                   type: "dict",
-                  entries: this._buildShipInfoEntries(
-                    session,
-                    shipID,
-                    shipInfoEntry,
-                    fittedItems,
-                  ),
+                  entries: this._buildShipInfoEntries(session, shipID, shipInfoEntry, fittedItems),
                 }
               : this._buildEmptyDict(),
           ],
@@ -1817,7 +2038,7 @@ class DogmaService extends BaseService {
     const shipMetadata = activeShip || this._getShipMetadata(session);
     const ownerID = shipMetadata.ownerID || this._getCharID(session);
     const locationID = shipMetadata.locationID || this._getLocationID(session);
-    const fittedItems = this._getFittedItemsForShip(session, activeShip);
+    const fittedItems = this._getFittedItemsForShip(session, shipMetadata);
 
     const entry = this._buildCommonGetInfoEntry({
       itemID: shipID,
@@ -1841,16 +2062,13 @@ class DogmaService extends BaseService {
           : shipMetadata.stacksize,
       customInfo: shipMetadata.customInfo || "",
       description: "ship",
-      attributes: this._buildShipAttributeDict(this._getCharacterRecord(session) || {}, {
-        ...shipMetadata,
-        fittedItems,
-      }),
+      attributes: this._buildShipAttributeDict(
+        this._getCharacterRecord(session) || {},
+        { ...shipMetadata, fittedItems },
+      ),
     });
 
-    return {
-      type: "dict",
-      entries: this._buildShipInfoEntries(session, shipID, entry, fittedItems),
-    };
+    return { type: "dict", entries: this._buildShipInfoEntries(session, shipID, entry, fittedItems) };
   }
 
   Handle_CharGetInfo(args, session) {
@@ -1862,16 +2080,20 @@ class DogmaService extends BaseService {
   }
 
   Handle_ItemGetInfo(args, session) {
-    const requestedItemID = args && args.length > 0 ? args[0] : this._getShipID(session);
+    const requestedItemID =
+      args && args.length > 0 ? args[0] : this._getShipID(session);
     log.debug(`[DogmaIM] ItemGetInfo(itemID=${requestedItemID})`);
 
     const charID = this._getCharID(session);
     const charData = this._getCharacterRecord(session) || {};
     const skillRecord =
       getCharacterSkills(charID).find(
-        (skill) => skill.itemID === requestedItemID || skill.itemID === Number.parseInt(String(requestedItemID), 10),
+        (skill) =>
+          skill.itemID === requestedItemID ||
+          skill.itemID === Number.parseInt(String(requestedItemID), 10),
       ) || null;
-    const numericItemID = Number.parseInt(String(requestedItemID), 10) || this._getShipID(session);
+    const numericItemID =
+      Number.parseInt(String(requestedItemID), 10) || this._getShipID(session);
     const shipRecord = findCharacterShip(charID, numericItemID);
     const itemRecord = findItemById(numericItemID);
     const isCharacter = numericItemID === charID;
@@ -1896,13 +2118,18 @@ class DogmaService extends BaseService {
         itemID: itemRecord.itemID,
         typeID: itemRecord.typeID,
         ownerID: itemRecord.ownerID || charID,
-        locationID: this._coalesce(itemRecord.locationID, this._getLocationID(session)),
+        locationID: this._coalesce(
+          itemRecord.locationID,
+          this._getLocationID(session),
+        ),
         flagID: this._coalesce(itemRecord.flagID, 0),
         groupID: itemRecord.groupID,
         categoryID: itemRecord.categoryID,
         quantity:
           itemRecord.quantity === undefined || itemRecord.quantity === null
-            ? (itemRecord.singleton ? -1 : 1)
+            ? itemRecord.singleton
+              ? -1
+              : 1
             : itemRecord.quantity,
         singleton:
           itemRecord.singleton === undefined || itemRecord.singleton === null
@@ -1926,7 +2153,10 @@ class DogmaService extends BaseService {
         : this._getShipID(session);
     const ownerID = charID;
     const locationID = this._getLocationID(session);
-    const shipMetadata = shipRecord || this._getActiveShipRecord(session) || this._getShipMetadata(session);
+    const shipMetadata =
+      shipRecord ||
+      this._getActiveShipRecord(session) ||
+      this._getShipMetadata(session);
     const characterLocationID = this._getCharacterItemLocationID(session);
     const fittedItems = isCharacter
       ? []
@@ -1934,38 +2164,32 @@ class DogmaService extends BaseService {
 
     return this._buildCommonGetInfoEntry({
       itemID,
-      typeID: isCharacter ? (charData.typeID || 1373) : shipMetadata.typeID,
+      typeID: isCharacter ? charData.typeID || 1373 : shipMetadata.typeID,
       ownerID,
       locationID: isCharacter
         ? characterLocationID
         : this._coalesce(shipMetadata.locationID, locationID),
-      flagID: isCharacter
-        ? FLAG_PILOT
-        : this._coalesce(shipMetadata.flagID, 4),
+      flagID: isCharacter ? FLAG_PILOT : this._coalesce(shipMetadata.flagID, 4),
       groupID: isCharacter ? 1 : shipMetadata.groupID,
       categoryID: isCharacter ? 3 : shipMetadata.categoryID,
       quantity: isCharacter
         ? -1
-        : (
-            shipMetadata.quantity === undefined || shipMetadata.quantity === null
-              ? -1
-              : shipMetadata.quantity
-          ),
+        : shipMetadata.quantity === undefined || shipMetadata.quantity === null
+          ? -1
+          : shipMetadata.quantity,
       singleton: isCharacter
         ? 1
-        : (
-            shipMetadata.singleton === undefined || shipMetadata.singleton === null
-              ? 1
-              : shipMetadata.singleton
-          ),
+        : shipMetadata.singleton === undefined ||
+            shipMetadata.singleton === null
+          ? 1
+          : shipMetadata.singleton,
       stacksize: isCharacter
         ? 1
-        : (
-            shipMetadata.stacksize === undefined || shipMetadata.stacksize === null
-              ? 1
-              : shipMetadata.stacksize
-          ),
-      customInfo: isCharacter ? "" : (shipMetadata.customInfo || ""),
+        : shipMetadata.stacksize === undefined ||
+            shipMetadata.stacksize === null
+          ? 1
+          : shipMetadata.stacksize,
+      customInfo: isCharacter ? "" : shipMetadata.customInfo || "",
       description: "item",
       attributes: isCharacter
         ? this._buildCharacterAttributeDict(charData)
@@ -1976,13 +2200,63 @@ class DogmaService extends BaseService {
     });
   }
 
+  Handle_QueryAllAttributesForItem(args, session) {
+    const requestedItemID =
+      args && args.length > 0 ? args[0] : this._getShipID(session);
+    log.debug(`[DogmaIM] QueryAllAttributesForItem(itemID=${requestedItemID})`);
+    const context = this._resolveItemAttributeContext(requestedItemID, session);
+    return this._buildAttributeValueDict(context.attributes);
+  }
+
+  Handle_QueryAttributeValue(args, session) {
+    const requestedItemID =
+      args && args.length > 0 ? args[0] : this._getShipID(session);
+    const attributeID = args && args.length > 1 ? Number(args[1]) : null;
+    log.debug(
+      `[DogmaIM] QueryAttributeValue(itemID=${requestedItemID}, attributeID=${attributeID})`,
+    );
+    if (!Number.isInteger(attributeID)) {
+      return null;
+    }
+    const context = this._resolveItemAttributeContext(requestedItemID, session);
+    return Object.prototype.hasOwnProperty.call(context.attributes, attributeID)
+      ? context.attributes[attributeID]
+      : null;
+  }
+
+  Handle_FullyDescribeAttribute(args, session) {
+    const requestedItemID =
+      args && args.length > 0 ? args[0] : this._getShipID(session);
+    const attributeID = args && args.length > 1 ? Number(args[1]) : null;
+    const reason = args && args.length > 2 ? args[2] : "";
+    log.debug(
+      `[DogmaIM] FullyDescribeAttribute(itemID=${requestedItemID}, attributeID=${attributeID})`,
+    );
+
+    const context = this._resolveItemAttributeContext(requestedItemID, session);
+    const serverValue = Number.isInteger(attributeID)
+      ? context.attributes[attributeID]
+      : undefined;
+    const baseValue = Number.isInteger(attributeID)
+      ? context.baseAttributes[attributeID]
+      : undefined;
+
+    return {
+      type: "list",
+      items: [
+        `Item ID:${this._formatDebugValue(context.itemID)}`,
+        `Reason:${this._formatDebugValue(reason, "")}`,
+        `Server value:${this._formatDebugValue(serverValue)}`,
+        `Base value:${this._formatDebugValue(baseValue)}`,
+        "Attribute modification graph:",
+        "  No server-side modifier graph is implemented in EvEJS yet.",
+      ],
+    };
+  }
+
   Handle_GetLocationInfo(args, session) {
     log.debug("[DogmaIM] GetLocationInfo");
-    return [
-      (session && session.userid) || 1,
-      this._getLocationID(session),
-      0,
-    ];
+    return [(session && session.userid) || 1, this._getLocationID(session), 0];
   }
 
   Handle_MachoResolveObject(args, session, kwargs) {
@@ -2006,7 +2280,10 @@ class DogmaService extends BaseService {
     const oid = [idString, now];
 
     if (session) {
-      if (!session._boundObjectIDs || typeof session._boundObjectIDs !== "object") {
+      if (
+        !session._boundObjectIDs ||
+        typeof session._boundObjectIDs !== "object"
+      ) {
         session._boundObjectIDs = {};
       }
       session._boundObjectIDs.dogmaIM = idString;

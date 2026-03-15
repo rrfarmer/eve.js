@@ -11,9 +11,16 @@ const { findShipItemById } = require(path.join(
 const {
   getAppliedSkinRecord,
   getAppliedSkinRecordsForOwner,
-  getAllLicensedSkinRecords,
-  getEffectiveLicenseRecord,
 } = require(path.join(__dirname, "../../services/ship/shipCosmeticsState"));
+const {
+  getCharacterRecord,
+  DEFAULT_PLEX_BALANCE,
+} = require(path.join(__dirname, "../../services/character/characterState"));
+const sessionRegistry = require(path.join(
+  __dirname,
+  "../../services/chat/sessionRegistry",
+));
+const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 
 const GATEWAY_INSTANCE_UUID = Buffer.from(
   crypto.randomUUID().replace(/-/g, ""),
@@ -322,50 +329,6 @@ const PROTO_ROOT = protobuf.Root.fromJSON({
                             sequential: { type: "uint64", id: 1 },
                           },
                         },
-                        license: {
-                          nested: {
-                            Owned: {
-                              fields: {
-                                identifier: {
-                                  type: "eve_public.cosmetic.ship.skin.firstparty.Identifier",
-                                  id: 1,
-                                },
-                              },
-                            },
-                            api: {
-                              nested: {
-                                GetOwnedRequest: {
-                                  fields: {},
-                                },
-                                GetOwnedResponse: {
-                                  fields: {
-                                    licenses: {
-                                      rule: "repeated",
-                                      type: "eve_public.cosmetic.ship.skin.firstparty.license.Owned",
-                                      id: 1,
-                                    },
-                                  },
-                                },
-                                GetRequest: {
-                                  fields: {
-                                    skin: {
-                                      type: "eve_public.cosmetic.ship.skin.firstparty.Identifier",
-                                      id: 1,
-                                    },
-                                  },
-                                },
-                                GetResponse: {
-                                  fields: {
-                                    license: {
-                                      type: "eve_public.cosmetic.ship.skin.firstparty.license.Owned",
-                                      id: 1,
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
                       },
                     },
                     thirdparty: {
@@ -375,62 +338,70 @@ const PROTO_ROOT = protobuf.Root.fromJSON({
                             hex: { type: "string", id: 1 },
                           },
                         },
-                        component: {
-                          nested: {
-                            Identifier: {
-                              fields: {
-                                hex: { type: "string", id: 1 },
-                              },
-                            },
-                          },
-                        },
                       },
                     },
                   },
                 },
               },
             },
-            market: {
+          },
+        },
+        plex: {
+          nested: {
+            Currency: {
+              fields: {
+                total_in_cents: { type: "uint64", id: 1 },
+              },
+            },
+            vault: {
               nested: {
-                skin: {
+                transaction: {
                   nested: {
-                    listing: {
-                      nested: {
-                        Owned: {
-                          fields: {
-                            identifier: {
-                              type: "eve_public.cosmetic.ship.skin.firstparty.Identifier",
-                              id: 1,
-                            },
-                          },
+                    Identifier: {
+                      fields: {
+                        sequential: { type: "int64", id: 1 },
+                      },
+                    },
+                    Attributes: {
+                      fields: {
+                        timestamp: {
+                          type: "google.protobuf.Timestamp",
+                          id: 1,
                         },
-                        api: {
-                          nested: {
-                            GetAllOwnedRequest: {
-                              fields: {},
-                            },
-                            GetAllOwnedResponse: {
-                              fields: {
-                                listings: {
-                                  rule: "repeated",
-                                  type: "eve_public.cosmetic.market.skin.listing.Owned",
-                                  id: 1,
-                                },
-                              },
-                            },
-                            GetAllRequest: {
-                              fields: {},
-                            },
-                            GetAllResponse: {
-                              fields: {
-                                listings: {
-                                  rule: "repeated",
-                                  type: "eve_public.cosmetic.market.skin.listing.Owned",
-                                  id: 1,
-                                },
-                              },
-                            },
-                          },
+                        amount_transferred: {
+                          type: "eve_public.plex.Currency",
+                          id: 2,
+                        },
+                        resulting_balance: {
+                          type: "eve_public.plex.Currency",
+                          id: 3,
+                        },
+                      },
+                    },
+                  },
+                },
+                api: {
+                  nested: {
+                    BalanceRequest: {
+                      fields: {},
+                    },
+                    BalanceResponse: {
+                      fields: {
+                        balance: {
+                          type: "eve_public.plex.Currency",
+                          id: 1,
+                        },
+                      },
+                    },
+                    BalanceChangedNotice: {
+                      fields: {
+                        identifier: {
+                          type: "eve_public.plex.vault.transaction.Identifier",
+                          id: 1,
+                        },
+                        attributes: {
+                          type: "eve_public.plex.vault.transaction.Attributes",
+                          id: 2,
                         },
                       },
                     },
@@ -468,24 +439,19 @@ const UserLicenseGetRequest = PROTO_ROOT.lookupType(
 const UserLicenseGetResponse = PROTO_ROOT.lookupType(
   "eve_public.user.license.api.GetResponse",
 );
-const FirstPartySkinLicenseGetOwnedResponse = PROTO_ROOT.lookupType(
-  "eve_public.cosmetic.ship.skin.firstparty.license.api.GetOwnedResponse",
+const PlexVaultBalanceResponse = PROTO_ROOT.lookupType(
+  "eve_public.plex.vault.api.BalanceResponse",
 );
-const FirstPartySkinLicenseGetRequest = PROTO_ROOT.lookupType(
-  "eve_public.cosmetic.ship.skin.firstparty.license.api.GetRequest",
-);
-const FirstPartySkinLicenseGetResponse = PROTO_ROOT.lookupType(
-  "eve_public.cosmetic.ship.skin.firstparty.license.api.GetResponse",
-);
-const MarketSkinListingGetAllOwnedResponse = PROTO_ROOT.lookupType(
-  "eve_public.cosmetic.market.skin.listing.api.GetAllOwnedResponse",
-);
-const MarketSkinListingGetAllResponse = PROTO_ROOT.lookupType(
-  "eve_public.cosmetic.market.skin.listing.api.GetAllResponse",
+const PlexVaultBalanceChangedNotice = PROTO_ROOT.lookupType(
+  "eve_public.plex.vault.api.BalanceChangedNotice",
 );
 
 const OMEGA_USER_LICENSE_TYPE = "eve_clonestate_omega";
 const OMEGA_LICENSE_EXPIRY_SECONDS = 4102444800; // 2100-01-01T00:00:00Z
+// V23.02 client PLEX UI is currently rendering half the expected balance when
+// the gateway currency payload is encoded at 100 cents per PLEX. Serving 200
+// cents here yields the correct displayed whole-plex amount for this build.
+const PLEX_GATEWAY_CENTS_PER_PLEX = 200;
 
 function timestampNow() {
   const now = Date.now();
@@ -636,6 +602,30 @@ function getActiveCharacterID(requestEnvelope) {
     : 0;
 }
 
+function getSessionCharacterID(session) {
+  return normalizeProtoNumber(
+    session &&
+      (session.characterID ||
+        session.charID ||
+        session.charid ||
+        session.characterId),
+  );
+}
+
+function findLiveSessionByCharacterID(characterID) {
+  const numericCharacterID = normalizeProtoNumber(characterID);
+  if (!numericCharacterID) {
+    return null;
+  }
+
+  return (
+    sessionRegistry
+      .getSessions()
+      .find((session) => getSessionCharacterID(session) === numericCharacterID) ||
+    null
+  );
+}
+
 function buildShipStateObject(shipID, activeCharacterID) {
   const numericShipID = normalizeProtoNumber(shipID);
   if (!numericShipID) {
@@ -681,6 +671,95 @@ function buildShipStateObject(shipID, activeCharacterID) {
   return state;
 }
 
+function buildOwnerShipStates(activeCharacterID) {
+  return getAppliedSkinRecordsForOwner(activeCharacterID)
+    .map((record) => buildShipStateObject(record.shipID, activeCharacterID))
+    .filter(Boolean);
+}
+
+function buildVisibleShipStatesForSession(session, activeCharacterID = 0) {
+  const scene = spaceRuntime.getSceneForSession(session);
+  if (!scene) {
+    return [];
+  }
+
+  const seenShipIDs = new Set();
+  const states = [];
+  for (const entity of scene.getVisibleDynamicEntitiesForSession(session)) {
+    if (!entity || entity.kind !== "ship") {
+      continue;
+    }
+
+    const numericShipID = normalizeProtoNumber(entity.itemID);
+    if (!numericShipID || seenShipIDs.has(numericShipID)) {
+      continue;
+    }
+
+    seenShipIDs.add(numericShipID);
+    const state = buildShipStateObject(numericShipID, activeCharacterID);
+    if (state) {
+      states.push(state);
+    }
+  }
+
+  states.sort((left, right) => {
+    const leftShipID = normalizeProtoNumber(
+      left && left.ship ? left.ship.sequential : 0,
+    );
+    const rightShipID = normalizeProtoNumber(
+      right && right.ship ? right.ship.sequential : 0,
+    );
+    return leftShipID - rightShipID;
+  });
+  return states;
+}
+
+function buildBubbleShipStatesForCharacter(activeCharacterID) {
+  const liveSession = findLiveSessionByCharacterID(activeCharacterID);
+  if (!liveSession) {
+    return buildOwnerShipStates(activeCharacterID);
+  }
+
+  return buildVisibleShipStatesForSession(liveSession, activeCharacterID);
+}
+
+function getObserverCharacterIDsForShip(shipID) {
+  const numericShipID = normalizeProtoNumber(shipID);
+  if (!numericShipID) {
+    return [];
+  }
+
+  const now = Date.now();
+  const seenCharacterIDs = new Set();
+  const observerCharacterIDs = [];
+  for (const session of sessionRegistry.getSessions()) {
+    const characterID = getSessionCharacterID(session);
+    if (!characterID || seenCharacterIDs.has(characterID)) {
+      continue;
+    }
+
+    const scene = spaceRuntime.getSceneForSession(session);
+    if (!scene) {
+      continue;
+    }
+
+    const entity = scene.getEntityByID(numericShipID);
+    if (!entity || entity.kind !== "ship") {
+      continue;
+    }
+
+    if (!scene.canSessionSeeDynamicEntity(session, entity, now)) {
+      continue;
+    }
+
+    seenCharacterIDs.add(characterID);
+    observerCharacterIDs.push(characterID);
+  }
+
+  observerCharacterIDs.sort((left, right) => left - right);
+  return observerCharacterIDs;
+}
+
 function buildShipStateResponsePayload(requestEnvelope) {
   const decoded = ShipStateGetRequest.decode(
     bufferFromBytes(requestEnvelope.payload && requestEnvelope.payload.value),
@@ -702,9 +781,7 @@ function buildShipStateResponsePayload(requestEnvelope) {
 
 function buildShipStatesInBubblePayload(requestEnvelope) {
   const activeCharacterID = getActiveCharacterID(requestEnvelope);
-  const states = getAppliedSkinRecordsForOwner(activeCharacterID)
-    .map((record) => buildShipStateObject(record.shipID, activeCharacterID))
-    .filter(Boolean);
+  const states = buildBubbleShipStatesForCharacter(activeCharacterID);
 
   return Buffer.from(
     ShipStateGetAllInBubbleResponse.encode(
@@ -774,80 +851,82 @@ function buildUserLicenseResponsePayload(requestEnvelope) {
   };
 }
 
-function buildOwnedFirstPartyLicenseObjects(activeCharacterID) {
-  return getAllLicensedSkinRecords(activeCharacterID).map((record) => ({
-    identifier: {
-      sequential: normalizeProtoNumber(record && record.skinID ? record.skinID : 0),
+function buildPlexBalanceResponsePayload(requestEnvelope) {
+  const activeCharacterID = getActiveCharacterID(requestEnvelope);
+  const charData = getCharacterRecord(activeCharacterID) || {};
+  const plexBalance = Math.max(
+    0,
+    Math.trunc(Number(charData.plexBalance ?? DEFAULT_PLEX_BALANCE) || 0),
+  );
+  const totalInCents = plexBalance * PLEX_GATEWAY_CENTS_PER_PLEX;
+  log.info(
+    `[PublicGatewayLocal] PlexBalance.Get character=${activeCharacterID || 0} ` +
+      `plex=${plexBalance} totalInCents=${totalInCents}`,
+  );
+
+  return Buffer.from(
+    PlexVaultBalanceResponse.encode(
+      PlexVaultBalanceResponse.create({
+        balance: {
+          total_in_cents: totalInCents,
+        },
+      }),
+    ).finish(),
+  );
+}
+
+function publishPlexBalanceChangedNotice(
+  activeCharacterID,
+  resultingBalance,
+  amountTransferred,
+) {
+  const numericCharacterID = normalizeProtoNumber(activeCharacterID);
+  if (!numericCharacterID) {
+    return false;
+  }
+
+  const resultingBalanceInCents = Math.max(
+    0,
+    Math.trunc(
+      Number(resultingBalance || 0) * PLEX_GATEWAY_CENTS_PER_PLEX,
+    ),
+  );
+  const amountTransferredInCents = Math.trunc(
+    Number(amountTransferred || 0) * PLEX_GATEWAY_CENTS_PER_PLEX,
+  );
+  const noticePayload = Buffer.from(
+    PlexVaultBalanceChangedNotice.encode(
+      PlexVaultBalanceChangedNotice.create({
+        identifier: {
+          sequential: Date.now(),
+        },
+        attributes: {
+          timestamp: timestampNow(),
+          amount_transferred: {
+            total_in_cents: amountTransferredInCents,
+          },
+          resulting_balance: {
+            total_in_cents: resultingBalanceInCents,
+          },
+        },
+      }),
+    ).finish(),
+  );
+  const noticeEnvelope = encodeNoticeEnvelope(
+    "eve_public.plex.vault.api.BalanceChangedNotice",
+    noticePayload,
+    {
+      character: numericCharacterID,
     },
-  }));
-}
-
-function buildFirstPartySkinGetOwnedPayload(requestEnvelope) {
-  const activeCharacterID = getActiveCharacterID(requestEnvelope);
-  return Buffer.from(
-    FirstPartySkinLicenseGetOwnedResponse.encode(
-      FirstPartySkinLicenseGetOwnedResponse.create({
-        licenses: buildOwnedFirstPartyLicenseObjects(activeCharacterID),
-      }),
-    ).finish(),
   );
-}
 
-function buildFirstPartySkinGetPayload(requestEnvelope) {
-  const decoded = FirstPartySkinLicenseGetRequest.decode(
-    bufferFromBytes(requestEnvelope.payload && requestEnvelope.payload.value),
+  log.info(
+    `[PublicGatewayLocal] Notices.Publish eve_public.plex.vault.api.BalanceChangedNotice ` +
+      `targetCharacterID=${numericCharacterID} balance=${resultingBalanceInCents} ` +
+      `delta=${amountTransferredInCents} streams=${ACTIVE_NOTICE_STREAMS.size}`,
   );
-  const activeCharacterID = getActiveCharacterID(requestEnvelope);
-  const skinID = normalizeProtoNumber(
-    decoded && decoded.skin && decoded.skin.sequential ? decoded.skin.sequential : 0,
-  );
-  const record = getEffectiveLicenseRecord(activeCharacterID, skinID, {
-    allowCatalogFallback: true,
-  });
-
-  return Buffer.from(
-    FirstPartySkinLicenseGetResponse.encode(
-      FirstPartySkinLicenseGetResponse.create({
-        license: record
-          ? {
-              identifier: {
-                sequential: normalizeProtoNumber(record.skinID),
-              },
-            }
-          : null,
-      }),
-    ).finish(),
-  );
-}
-
-function buildOwnedMarketListingObjects(activeCharacterID) {
-  return getAllLicensedSkinRecords(activeCharacterID).map((record) => ({
-    identifier: {
-      sequential: normalizeProtoNumber(record && record.skinID ? record.skinID : 0),
-    },
-  }));
-}
-
-function buildMarketSkinListingGetAllOwnedPayload(requestEnvelope) {
-  const activeCharacterID = getActiveCharacterID(requestEnvelope);
-  return Buffer.from(
-    MarketSkinListingGetAllOwnedResponse.encode(
-      MarketSkinListingGetAllOwnedResponse.create({
-        listings: buildOwnedMarketListingObjects(activeCharacterID),
-      }),
-    ).finish(),
-  );
-}
-
-function buildMarketSkinListingGetAllPayload(requestEnvelope) {
-  const activeCharacterID = getActiveCharacterID(requestEnvelope);
-  return Buffer.from(
-    MarketSkinListingGetAllResponse.encode(
-      MarketSkinListingGetAllResponse.create({
-        listings: buildOwnedMarketListingObjects(activeCharacterID),
-      }),
-    ).finish(),
-  );
+  broadcastNoticeEnvelope(noticeEnvelope);
+  return true;
 }
 
 function encodeNoticeEnvelope(noticeTypeName, noticePayloadBuffer, targetGroup) {
@@ -892,10 +971,14 @@ function publishShipStateSetNotice(shipID, activeCharacterID = 0) {
     return false;
   }
 
-  const targetCharacterID =
+  const fallbackTargetCharacterID =
     normalizeProtoNumber(state.character && state.character.sequential) ||
     normalizeProtoNumber(activeCharacterID);
-  if (!targetCharacterID) {
+  const targetCharacterIDs = getObserverCharacterIDsForShip(shipID);
+  if (targetCharacterIDs.length === 0 && fallbackTargetCharacterID) {
+    targetCharacterIDs.push(fallbackTargetCharacterID);
+  }
+  if (targetCharacterIDs.length === 0) {
     log.warn(
       `[PublicGatewayLocal] Skipped SetNotice for shipID=${shipID}; target character unavailable`,
     );
@@ -909,13 +992,16 @@ function publishShipStateSetNotice(shipID, activeCharacterID = 0) {
       }),
     ).finish(),
   );
-  const noticeEnvelope = encodeNoticeEnvelope(
-    "eve_public.cosmetic.ship.api.SetNotice",
-    noticePayload,
-    {
-      character: targetCharacterID,
-    },
-  );
+  for (const targetCharacterID of targetCharacterIDs) {
+    const noticeEnvelope = encodeNoticeEnvelope(
+      "eve_public.cosmetic.ship.api.SetNotice",
+      noticePayload,
+      {
+        character: targetCharacterID,
+      },
+    );
+    broadcastNoticeEnvelope(noticeEnvelope);
+  }
 
   log.info(
     `[PublicGatewayLocal] Notices.Publish eve_public.cosmetic.ship.api.SetNotice shipID=${normalizeProtoNumber(
@@ -927,9 +1013,8 @@ function publishShipStateSetNotice(shipID, activeCharacterID = 0) {
         state.skin.firstparty.identifier
         ? state.skin.firstparty.identifier.sequential
         : 0,
-    )} targetCharacterID=${targetCharacterID} streams=${ACTIVE_NOTICE_STREAMS.size}`,
+    )} targets=${targetCharacterIDs.join(",") || "none"} streams=${ACTIVE_NOTICE_STREAMS.size}`,
   );
-  broadcastNoticeEnvelope(noticeEnvelope);
   return true;
 }
 
@@ -939,9 +1024,7 @@ function publishShipStateSetAllInBubbleNotice(activeCharacterID) {
     return false;
   }
 
-  const states = getAppliedSkinRecordsForOwner(numericCharacterID)
-    .map((record) => buildShipStateObject(record.shipID, numericCharacterID))
-    .filter(Boolean);
+  const states = buildBubbleShipStatesForCharacter(numericCharacterID);
   const noticePayload = Buffer.from(
     ShipStateSetAllInBubbleNotice.encode(
       ShipStateSetAllInBubbleNotice.create({
@@ -1041,8 +1124,29 @@ function getEmptySuccessResponseType(requestTypeName) {
   }
 
   if (
+    requestTypeName.startsWith("eve_public.pirate.corruption.api.") &&
+    requestTypeName.endsWith("GetStageThresholdsRequest")
+  ) {
+    return getDefaultResponseTypeName(requestTypeName);
+  }
+
+  if (
+    requestTypeName.startsWith("eve_public.pirate.suppression.api.") &&
+    requestTypeName.endsWith("GetStageThresholdsRequest")
+  ) {
+    return getDefaultResponseTypeName(requestTypeName);
+  }
+
+  if (
     requestTypeName.startsWith("eve_public.plex.vault.api.") &&
     requestTypeName.endsWith("BalanceRequest")
+  ) {
+    return getDefaultResponseTypeName(requestTypeName);
+  }
+
+  if (
+    requestTypeName.startsWith("eve_public.sovereignty.skyhook.api.") &&
+    requestTypeName.endsWith("GetTheftVulnerableSkyhooksInSolarSystemRequest")
   ) {
     return getDefaultResponseTypeName(requestTypeName);
   }
@@ -1179,53 +1283,12 @@ function buildGatewayResponseForRequest(frameBuffer) {
     );
   }
 
-  if (
-    !result &&
-    requestTypeName === "eve_public.cosmetic.ship.skin.firstparty.license.api.GetOwnedRequest"
-  ) {
+  if (!result && requestTypeName === "eve_public.plex.vault.api.BalanceRequest") {
     result = {
       statusCode: 200,
       statusMessage: "",
-      responseTypeName:
-        "eve_public.cosmetic.ship.skin.firstparty.license.api.GetOwnedResponse",
-      responsePayloadBuffer: buildFirstPartySkinGetOwnedPayload(requestEnvelope),
-    };
-  }
-
-  if (
-    !result &&
-    requestTypeName === "eve_public.cosmetic.ship.skin.firstparty.license.api.GetRequest"
-  ) {
-    result = {
-      statusCode: 200,
-      statusMessage: "",
-      responseTypeName:
-        "eve_public.cosmetic.ship.skin.firstparty.license.api.GetResponse",
-      responsePayloadBuffer: buildFirstPartySkinGetPayload(requestEnvelope),
-    };
-  }
-
-  if (
-    !result &&
-    requestTypeName === "eve_public.cosmetic.market.skin.listing.api.GetAllOwnedRequest"
-  ) {
-    result = {
-      statusCode: 200,
-      statusMessage: "",
-      responseTypeName: "eve_public.cosmetic.market.skin.listing.api.GetAllOwnedResponse",
-      responsePayloadBuffer: buildMarketSkinListingGetAllOwnedPayload(requestEnvelope),
-    };
-  }
-
-  if (
-    !result &&
-    requestTypeName === "eve_public.cosmetic.market.skin.listing.api.GetAllRequest"
-  ) {
-    result = {
-      statusCode: 200,
-      statusMessage: "",
-      responseTypeName: "eve_public.cosmetic.market.skin.listing.api.GetAllResponse",
-      responsePayloadBuffer: buildMarketSkinListingGetAllPayload(requestEnvelope),
+      responseTypeName: "eve_public.plex.vault.api.BalanceResponse",
+      responsePayloadBuffer: buildPlexBalanceResponsePayload(requestEnvelope),
     };
   }
 
@@ -1389,6 +1452,12 @@ module.exports = {
   buildGatewayResponseForRequest,
   createGrpcFrame,
   handleGatewayStream,
+  publishPlexBalanceChangedNotice,
   publishShipStateSetAllInBubbleNotice,
   publishShipStateSetNotice,
+};
+module.exports._testing = {
+  buildBubbleShipStatesForCharacter,
+  findLiveSessionByCharacterID,
+  getObserverCharacterIDsForShip,
 };

@@ -18,6 +18,19 @@ function readScopedRecord(tableName, ownerId) {
   return result.data;
 }
 
+function readCharacters() {
+  const result = database.read(CHARACTERS_TABLE, "/");
+  if (!result.success || !result.data || typeof result.data !== "object") {
+    return {};
+  }
+
+  return result.data;
+}
+
+function writeCharacters(data) {
+  return Boolean(database.write(CHARACTERS_TABLE, "/", data).success);
+}
+
 function ensureScopedFittings(tableName, ownerId, options = {}) {
   const numericOwnerId = Number(ownerId) || 0;
   if (numericOwnerId <= 0) {
@@ -111,7 +124,11 @@ function saveScopedFitting(tableName, ownerId, fitting, options = {}) {
     },
   };
 
-  const writeResult = writeScopedRecord(tableName, scopeResult.ownerID, nextRecord);
+  const writeResult = writeScopedRecord(
+    tableName,
+    scopeResult.ownerID,
+    nextRecord,
+  );
   if (!writeResult.success) {
     return {
       success: false,
@@ -162,7 +179,11 @@ function saveManyScopedFittings(tableName, ownerId, fittings, options = {}) {
     ...scopeResult.record,
     savedFittings: nextFittings,
   };
-  const writeResult = writeScopedRecord(tableName, scopeResult.ownerID, nextRecord);
+  const writeResult = writeScopedRecord(
+    tableName,
+    scopeResult.ownerID,
+    nextRecord,
+  );
   if (!writeResult.success) {
     return {
       success: false,
@@ -202,7 +223,11 @@ function deleteScopedFitting(tableName, ownerId, fittingID, options = {}) {
     savedFittings: nextFittings,
   };
 
-  const writeResult = writeScopedRecord(tableName, scopeResult.ownerID, nextRecord);
+  const writeResult = writeScopedRecord(
+    tableName,
+    scopeResult.ownerID,
+    nextRecord,
+  );
   if (!writeResult.success) {
     return {
       success: false,
@@ -252,7 +277,11 @@ function updateScopedFittingMetadata(
     },
   };
 
-  const writeResult = writeScopedRecord(tableName, scopeResult.ownerID, nextRecord);
+  const writeResult = writeScopedRecord(
+    tableName,
+    scopeResult.ownerID,
+    nextRecord,
+  );
   if (!writeResult.success) {
     return {
       success: false,

@@ -1,7 +1,6 @@
 const path = require("path");
 
 const log = require("../../utils/logger");
-const database = require("../../database");
 const {
   TABLE,
   readStaticRows,
@@ -18,13 +17,6 @@ const FALLBACK_SHIPS = [
 ];
 
 let cachedRegistry = null;
-let cachedRegistryRevision = 0;
-
-function getShipTypesRevision() {
-  return typeof database.getTableRevision === "function"
-    ? database.getTableRevision(TABLE.SHIP_TYPES)
-    : 0;
-}
 
 function normalizeShipName(value) {
   return String(value || "")
@@ -47,6 +39,10 @@ function normalizeEntry(entry) {
     name: String(entry.name || "").trim(),
     groupID: Number(entry.groupID),
     categoryID: Number(entry.categoryID || SHIP_CATEGORY_ID),
+    mass: Number.isFinite(Number(entry.mass)) ? Number(entry.mass) : null,
+    volume: Number.isFinite(Number(entry.volume)) ? Number(entry.volume) : null,
+    capacity: Number.isFinite(Number(entry.capacity)) ? Number(entry.capacity) : null,
+    radius: Number.isFinite(Number(entry.radius)) ? Number(entry.radius) : null,
   };
 }
 
@@ -107,20 +103,17 @@ function loadDbRegistry() {
 }
 
 function loadRegistry() {
-  const currentRevision = getShipTypesRevision();
-  if (cachedRegistry && cachedRegistryRevision === currentRevision) {
+  if (cachedRegistry) {
     return cachedRegistry;
   }
 
   const dbRegistry = loadDbRegistry();
   if (dbRegistry) {
     cachedRegistry = dbRegistry;
-    cachedRegistryRevision = currentRevision;
     return cachedRegistry;
   }
 
   cachedRegistry = buildFallbackRegistry();
-  cachedRegistryRevision = currentRevision;
   return cachedRegistry;
 }
 
@@ -196,4 +189,3 @@ module.exports = {
   resolveShipByName,
   resolveShipByTypeID,
 };
-

@@ -25,24 +25,24 @@ function emit(colorize, prefix, args, minimumLevel) {
   console.log(header, ...rest);
 }
 
-function info(...args) {
-  emit(pc.blue, "[LOG]:", args, 2);
+function info(c) {
+  console.log(pc.blue(`[LOG]: ${c}`));
 }
 
-function debug(...args) {
-  emit(pc.cyan, "[DBG]:", args, 2);
+function debug(c) {
+  console.log(pc.cyan(`[DBG]: ${c}`));
 }
 
-function warn(...args) {
-  emit(pc.yellow, "[WRN]:", args, 1);
+function warn(c) {
+  console.log(pc.yellow(`[WRN]: ${c}`));
 }
 
-function err(...args) {
-  emit(pc.red, "[ERR]:", args, 1);
+function err(c) {
+  console.log(pc.red(`[ERR]: ${c}`));
 }
 
-function success(...args) {
-  emit(pc.green, "[SUC]:", args, 2);
+function success(c) {
+  console.log(pc.green(`[SUC]: ${c}`));
 }
 
 function logAsciiLogo() {

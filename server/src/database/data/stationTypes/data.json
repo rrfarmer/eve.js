@@ -1,0 +1,1071 @@
+{
+  "source": {
+    "provider": "EVE Static Data JSONL",
+    "generatedAt": "2026-03-13T18:23:53.245Z",
+    "jsonlSync": {
+      "updatedStationTypeIDs": [
+        54,
+        56,
+        57,
+        1529,
+        1530,
+        1531,
+        1926,
+        1927,
+        1928,
+        1929,
+        1930,
+        1931,
+        1932,
+        2496,
+        2497,
+        2498,
+        2499,
+        2500,
+        2501,
+        2502,
+        3865,
+        3866,
+        3867,
+        3868,
+        3869,
+        3870,
+        3871,
+        3872,
+        4023,
+        4024,
+        9868,
+        10795,
+        29323,
+        29387,
+        29388,
+        29389,
+        34325,
+        34326,
+        52678,
+        59956,
+        71361,
+        74397,
+        78334
+      ],
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+      "syncedAt": "2026-03-13T18:23:53.245Z",
+      "buildNumber": 3253748,
+      "releaseDate": "2026-03-12T11:21:31Z"
+    },
+    "authority": "eve-online-static-data-3253748-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+    "buildNumber": 3253748,
+    "releaseDate": "2026-03-12T11:21:31Z",
+    "localExtensions": {
+      "preservedFields": [
+        "dockEntry",
+        "dockOrientation"
+      ],
+      "note": "These fields are preserved from local station geometry data because the JSONL SDE does not include dock transforms."
+    }
+  },
+  "count": 43,
+  "stationTypes": [
+    {
+      "stationTypeID": 54,
+      "typeName": "Caldari Logistics Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 237,
+      "radius": 15351,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 36,
+        "y": 6854.262,
+        "z": -7948.467
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    {
+      "stationTypeID": 56,
+      "typeName": "Gallente Military Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2307,
+      "radius": 23836,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": -5000,
+        "z": 4800
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 57,
+      "typeName": "Gallente Station Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2306,
+      "radius": 27072,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": 6143.529,
+        "z": -3100.007
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0.107,
+        "z": 0.994
+      }
+    },
+    {
+      "stationTypeID": 1529,
+      "typeName": "Caldari Administrative Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1019,
+      "radius": 45734,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -170,
+        "y": 3217,
+        "z": -12112.154
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    {
+      "stationTypeID": 1530,
+      "typeName": "Caldari Research Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1018,
+      "radius": 26782,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 11384.429,
+        "y": 7499.128,
+        "z": -270.252
+      },
+      "dockOrientation": {
+        "x": 0.981,
+        "y": 0.193,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1531,
+      "typeName": "Caldari Trading Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1017,
+      "radius": 33413,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 2447.215,
+        "y": -3841,
+        "z": -2988
+      },
+      "dockOrientation": {
+        "x": 0.951,
+        "y": 0.309,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1926,
+      "typeName": "Amarr Station Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1068,
+      "radius": 42489,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": 11158.471,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1927,
+      "typeName": "Amarr Station Military",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1069,
+      "radius": 48492,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": -21987.525,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1928,
+      "typeName": "Amarr Industrial Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1070,
+      "radius": 24276,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": -21316.451,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1929,
+      "typeName": "Amarr Standard Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1071,
+      "radius": 20081,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 199.788,
+        "y": -12936.939,
+        "z": 51.994
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1930,
+      "typeName": "Amarr Mining Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1072,
+      "radius": 22283,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -10709,
+        "y": -9721,
+        "z": -2069
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1931,
+      "typeName": "Amarr Research Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1073,
+      "radius": 29162,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -13,
+        "y": -5689.268,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 1932,
+      "typeName": "Amarr Trade Post",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1074,
+      "radius": 13887,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -1749.89,
+        "y": -9967.829,
+        "z": 27
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 2496,
+      "typeName": "Minmatar Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1132,
+      "radius": 33811,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -2909,
+        "y": -1437.88,
+        "z": 20657
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      }
+    },
+    {
+      "stationTypeID": 2497,
+      "typeName": "Minmatar Industrial Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1133,
+      "radius": 27681,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 6299,
+        "y": 2654.044,
+        "z": -11165.654
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0.006,
+        "z": -1
+      }
+    },
+    {
+      "stationTypeID": 2498,
+      "typeName": "Minmatar Military Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1134,
+      "radius": 36902,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 30416.307,
+        "y": -1172,
+        "z": 3099.963
+      },
+      "dockOrientation": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 2499,
+      "typeName": "Minmatar Mining Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1135,
+      "radius": 30592,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 11903.649,
+        "y": 8452.423,
+        "z": -9744.415
+      },
+      "dockOrientation": {
+        "x": 1,
+        "y": 0.006,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 2500,
+      "typeName": "Minmatar Research Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1136,
+      "radius": 33481,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 1390.302,
+        "y": 27,
+        "z": 28047.037
+      },
+      "dockOrientation": {
+        "x": 0.031,
+        "y": 0.006,
+        "z": 0.999
+      }
+    },
+    {
+      "stationTypeID": 2501,
+      "typeName": "Minmatar Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1137,
+      "radius": 19714,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 17,
+        "y": 3115,
+        "z": 18255.197
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      }
+    },
+    {
+      "stationTypeID": 2502,
+      "typeName": "Minmatar Trade Post",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 1138,
+      "radius": 15733,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 17,
+        "y": 10096,
+        "z": 12607.206
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      }
+    },
+    {
+      "stationTypeID": 3865,
+      "typeName": "Gallente Research Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2308,
+      "radius": 45151,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -1004.371,
+        "y": 4872.749,
+        "z": 5903.599
+      },
+      "dockOrientation": {
+        "x": 0.35,
+        "y": 0,
+        "z": 0.937
+      }
+    },
+    {
+      "stationTypeID": 3866,
+      "typeName": "Gallente Trading Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 1253,
+      "radius": 24871,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 9264.685,
+        "y": 884,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 3867,
+      "typeName": "Gallente Industrial Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 1254,
+      "radius": 29746,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 7933.668,
+        "y": 208.236,
+        "z": -18212.35
+      },
+      "dockOrientation": {
+        "x": 0.281,
+        "y": -0.008,
+        "z": -0.96
+      }
+    },
+    {
+      "stationTypeID": 3868,
+      "typeName": "Gallente Administrative Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 1255,
+      "radius": 17876,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 9956.192,
+        "y": 1058.911,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 1,
+        "y": 0.02,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 3869,
+      "typeName": "Gallente Logistics Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 1256,
+      "radius": 37560,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 10679.884,
+        "y": 1006.773,
+        "z": 14350.235
+      },
+      "dockOrientation": {
+        "x": 0.999,
+        "y": 0.034,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 3870,
+      "typeName": "Gallente Mining Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 1257,
+      "radius": 28083,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 9788.605,
+        "y": 938,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 1,
+        "y": -0.012,
+        "z": 0.021
+      }
+    },
+    {
+      "stationTypeID": 3871,
+      "typeName": "Caldari Station Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1267,
+      "radius": 24657,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 123.395,
+        "y": -4043.974,
+        "z": 17010.324
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -0.24,
+        "z": 0.971
+      }
+    },
+    {
+      "stationTypeID": 3872,
+      "typeName": "Caldari Military Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1251,
+      "radius": 47854,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -28557.871,
+        "y": -1158.933,
+        "z": 2436.082
+      },
+      "dockOrientation": {
+        "x": -1,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 4023,
+      "typeName": "Caldari Mining Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1251,
+      "radius": 47854,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -27844.549,
+        "y": -1354.307,
+        "z": 2399
+      },
+      "dockOrientation": {
+        "x": -1,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 4024,
+      "typeName": "Caldari Food Processing Plant Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1309,
+      "radius": 55741,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -33431.207,
+        "y": -2574,
+        "z": 2477
+      },
+      "dockOrientation": {
+        "x": -1,
+        "y": 0,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 9868,
+      "typeName": "Concord Starbase",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 3395,
+      "radius": 60432,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -3152.709,
+        "y": -39840.254,
+        "z": -8244.798
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    {
+      "stationTypeID": 10795,
+      "typeName": "Jovian Construct",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 16,
+      "graphicID": 2008,
+      "radius": 47270,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -1203,
+        "y": -18300,
+        "z": 5400
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -4616,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 29323,
+      "typeName": "Ishukone Corporation Headquarters",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 1019,
+      "radius": 52868,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -170,
+        "y": 3217,
+        "z": -12112.154
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    {
+      "stationTypeID": 29387,
+      "typeName": "Repaired Amarr Station Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1068,
+      "radius": 42489,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": 11158.471,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 29388,
+      "typeName": "Repaired Amarr Military Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1069,
+      "radius": 48532,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 0,
+        "y": -21946.959,
+        "z": 0
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 29389,
+      "typeName": "Repaired Amarr Trading Post",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1074,
+      "radius": 13887,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -1749.89,
+        "y": -9967.829,
+        "z": 27
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": -1,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 34325,
+      "typeName": "Sisters of EVE Logistics Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 20967,
+      "radius": 37560,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 10679.884,
+        "y": 1006.773,
+        "z": 14350.235
+      },
+      "dockOrientation": {
+        "x": 0.999,
+        "y": 0.034,
+        "z": 0
+      }
+    },
+    {
+      "stationTypeID": 34326,
+      "typeName": "Sisters of EVE Industrial Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 20968,
+      "radius": 29746,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 7933.668,
+        "y": 208.236,
+        "z": -18212.35
+      },
+      "dockOrientation": {
+        "x": 0.281,
+        "y": -0.008,
+        "z": -0.96
+      }
+    },
+    {
+      "stationTypeID": 52678,
+      "typeName": "Jita Trade Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 24488,
+      "radius": 100000,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": -170,
+        "y": 3217,
+        "z": -12112.154
+      },
+      "dockOrientation": {
+        "x": 0,
+        "y": 0,
+        "z": -1
+      }
+    },
+    {
+      "stationTypeID": 59956,
+      "typeName": "Association for Interdisciplinary Research Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 25047,
+      "radius": 17876,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": null,
+      "dockOrientation": null
+    },
+    {
+      "stationTypeID": 71361,
+      "typeName": "Paragon Fulfilment Center",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 25623,
+      "radius": 20000,
+      "basePrice": null,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": null,
+      "dockOrientation": null
+    },
+    {
+      "stationTypeID": 74397,
+      "typeName": "Minmatar Trade Post (Damaged)",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 25677,
+      "radius": 15733,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": null,
+      "dockOrientation": null
+    },
+    {
+      "stationTypeID": 78334,
+      "typeName": "Ancient Jovian Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 16,
+      "graphicID": 26281,
+      "radius": 100000,
+      "basePrice": null,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": null,
+      "dockOrientation": null
+    }
+  ]
+}

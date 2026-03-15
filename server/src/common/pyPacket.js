@@ -33,7 +33,9 @@ function decodePacket(decoded) {
     (tup.type === "objectex1" || tup.type === "objectex2")
   ) {
     const header = Array.isArray(tup.header) ? tup.header : [];
-    const headerTuple = header.find((entry) => Array.isArray(entry) && entry.length >= 6);
+    const headerTuple = header.find(
+      (entry) => Array.isArray(entry) && entry.length >= 6,
+    );
     if (headerTuple) {
       tup = headerTuple;
     } else if (Array.isArray(tup.list) && tup.list.length >= 6) {

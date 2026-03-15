@@ -10,13 +10,13 @@
     "corporationID": 1000044,
     "allianceID": 0,
     "factionID": null,
-    "stationID": 60003760,
+    "stationID": null,
     "solarSystemID": 30000142,
     "constellationID": 20000020,
     "regionID": 10000002,
     "createDateTime": "134169406354840000",
     "startDateTime": "134169406354840000",
-    "logoffDate": "134177927173630000",
+    "logoffDate": "134169406354840000",
     "deletePrepareDateTime": null,
     "lockTypeID": null,
     "securityRating": 0,
@@ -25,7 +25,7 @@
     "balance": 1033123535,
     "aurBalance": 0,
     "balanceChange": 532523535,
-    "skillPoints": 126720000,
+    "skillPoints": 129280000,
     "shipTypeID": 11567,
     "shipName": "Avatar",
     "bounty": 0,
@@ -124,6 +124,85 @@
     "securityStatus": 0,
     "homeStationID": 60003760,
     "cloneStationID": 60003760,
+    "plexBalance": 2222,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000044,
+        "startDate": "134169406354840000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000001,
+          "toID": 1000044,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000001,
+          "toID": 500001,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000044,
+          "toID": 500001,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000001,
+          "toID": 1000044,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000044,
+          "toID": 140000001,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000001,
+          "toID": 500001,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500001,
+          "toID": 140000001,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000044,
+          "toID": 500001,
+          "standing": 2
+        },
+        {
+          "fromID": 500001,
+          "toID": 1000044,
+          "standing": 2
+        }
+      ]
+    },
     "online": false
   },
   "140000002": {
@@ -143,7 +222,7 @@
     "regionID": 10000002,
     "createDateTime": "134175473697950000",
     "startDateTime": "134175473697950000",
-    "logoffDate": "134176630865890000",
+    "logoffDate": "134175473697950000",
     "deletePrepareDateTime": null,
     "lockTypeID": null,
     "securityRating": 0,
@@ -152,9 +231,9 @@
     "balance": 123878867707855,
     "aurBalance": 0,
     "balanceChange": 123143253543243,
-    "skillPoints": 126720000,
-    "shipTypeID": 606,
-    "shipName": "Velator",
+    "skillPoints": 129280000,
+    "shipTypeID": 2006,
+    "shipName": "Omen",
     "bounty": 0,
     "skillQueueEndTime": 0,
     "daysLeft": 365,
@@ -165,7 +244,7 @@
     "unreadMailCount": 0,
     "upcomingEventCount": 0,
     "unprocessedNotifications": 0,
-    "shipID": 140000102,
+    "shipID": 140000147,
     "shortName": "none",
     "allianceMemberStartDate": 0,
     "skillTypeID": null,
@@ -334,6 +413,86 @@
     "securityStatus": 0,
     "homeStationID": 60003760,
     "cloneStationID": 60003760,
+    "savedFittings": {},
+    "plexBalance": 2222,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000044,
+        "startDate": "134175473697950000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000002,
+          "toID": 1000044,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000002,
+          "toID": 500001,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000044,
+          "toID": 500001,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000002,
+          "toID": 1000044,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000044,
+          "toID": 140000002,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000002,
+          "toID": 500001,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500001,
+          "toID": 140000002,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000044,
+          "toID": 500001,
+          "standing": 2
+        },
+        {
+          "fromID": 500001,
+          "toID": 1000044,
+          "standing": 2
+        }
+      ]
+    },
     "online": false
   },
   "140000003": {
@@ -344,66 +503,8 @@
     "ancestryID": 2,
     "raceID": 1,
     "typeID": 1373,
-    "corporationID": 1000006,
-    "allianceID": 0,
-    "factionID": null,
-    "stationID": 60000361,
-    "homeStationID": 60003760,
-    "cloneStationID": 60003760,
-    "solarSystemID": 30000142,
-    "constellationID": 20000020,
-    "regionID": 10000002,
-    "createDateTime": "134176457321580000",
-    "startDateTime": "134176457321580000",
-    "logoffDate": "134178226073030000",
-    "deletePrepareDateTime": null,
-    "lockTypeID": null,
-    "securityRating": 0,
-    "title": "",
-    "description": "Character created via EVE.js",
-    "balance": 100000,
-    "aurBalance": 0,
-    "balanceChange": 0,
-    "skillPoints": 126720000,
-    "shipTypeID": 11400,
-    "shipName": "Jaguar",
-    "bounty": 0,
-    "skillQueueEndTime": 0,
-    "daysLeft": 365,
-    "userType": 30,
-    "paperDollState": 0,
-    "petitionMessage": "",
-    "worldSpaceID": 0,
-    "unreadMailCount": 0,
-    "upcomingEventCount": 0,
-    "unprocessedNotifications": 0,
-    "shipID": 140000150,
-    "shortName": "none",
-    "allianceMemberStartDate": 0,
-    "skillTypeID": null,
-    "toLevel": null,
-    "trainingStartTime": null,
-    "trainingEndTime": null,
-    "queueEndTime": null,
-    "finishSP": null,
-    "trainedSP": null,
-    "finishedSkills": [],
-    "empireID": 500004,
-    "schoolID": 1000006,
-    "securityStatus": 0,
-    "online": false,
-    "savedFittings": {}
-  },
-  "140000004": {
-    "accountId": 1,
-    "characterName": "Lucious Locks",
-    "gender": 1,
-    "bloodlineID": 2,
-    "ancestryID": 3,
-    "raceID": 1,
-    "typeID": 1374,
-    "corporationID": 1000006,
-    "allianceID": 0,
+    "corporationID": 98000000,
+    "allianceID": 99000000,
     "factionID": null,
     "stationID": null,
     "homeStationID": 60003760,
@@ -411,20 +512,20 @@
     "solarSystemID": 30000142,
     "constellationID": 20000020,
     "regionID": 10000002,
-    "createDateTime": "134176690152070000",
-    "startDateTime": "134176690152070000",
-    "logoffDate": "134178057661940000",
+    "createDateTime": "134176457321580000",
+    "startDateTime": "134179185425210000",
+    "logoffDate": "134176457321580000",
     "deletePrepareDateTime": null,
     "lockTypeID": null,
     "securityRating": 0,
     "title": "",
     "description": "Character created via EVE.js",
-    "balance": 100000,
+    "balance": 100555,
     "aurBalance": 0,
-    "balanceChange": 0,
-    "skillPoints": 126720000,
-    "shipTypeID": 11400,
-    "shipName": "Jaguar",
+    "balanceChange": 555,
+    "skillPoints": 129280000,
+    "shipTypeID": 32305,
+    "shipName": "Armageddon Navy Issue",
     "bounty": 0,
     "skillQueueEndTime": 0,
     "daysLeft": 365,
@@ -435,9 +536,9 @@
     "unreadMailCount": 0,
     "upcomingEventCount": 0,
     "unprocessedNotifications": 0,
-    "shipID": 140000143,
+    "shipID": 140000146,
     "shortName": "none",
-    "allianceMemberStartDate": 0,
+    "allianceMemberStartDate": "134179207536370000",
     "skillTypeID": null,
     "toLevel": null,
     "trainingStartTime": null,
@@ -449,30 +550,130 @@
     "empireID": 500004,
     "schoolID": 1000006,
     "securityStatus": 0,
-    "online": false,
-    "savedFittings": {}
+    "savedFittings": {},
+    "walletJournal": [
+      {
+        "transactionID": 1773427163860658,
+        "transactionDate": "134179007638600000",
+        "referenceID": 140000003,
+        "entryTypeID": 1,
+        "ownerID1": 140000003,
+        "ownerID2": 140000003,
+        "accountKey": 1000,
+        "amount": 555,
+        "balance": 100555,
+        "description": "Admin /addisk by johnnnnn",
+        "currency": 1,
+        "sortValue": 1
+      }
+    ],
+    "plexBalance": 68988,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000006,
+        "startDate": "134176457321580000",
+        "deleted": 0
+      },
+      {
+        "corporationID": 98000000,
+        "startDate": "134179185425210000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000003,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000003,
+          "toID": 500004,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000003,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000006,
+          "toID": 140000003,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000003,
+          "toID": 500004,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500004,
+          "toID": 140000003,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        },
+        {
+          "fromID": 500004,
+          "toID": 1000006,
+          "standing": 2
+        }
+      ]
+    },
+    "online": false
   },
-  "140000005": {
+  "140000004": {
     "accountId": 2,
-    "characterName": "Mrs. Ladie",
-    "gender": 2,
+    "characterName": "nojohn",
+    "gender": 1,
     "bloodlineID": 1,
-    "ancestryID": 0,
+    "ancestryID": 1,
     "raceID": 1,
     "typeID": 1373,
     "corporationID": 1000006,
     "schoolID": 11,
     "allianceID": 0,
     "factionID": null,
-    "stationID": 60002953,
+    "stationID": 60003760,
     "homeStationID": 60003760,
     "cloneStationID": 60003760,
     "solarSystemID": 30000142,
     "constellationID": 20000020,
     "regionID": 10000002,
-    "createDateTime": "134177421994480000",
-    "startDateTime": "134177421994480000",
-    "logoffDate": "134177421994480000",
+    "createDateTime": "134177312163190000",
+    "startDateTime": "134177312163190000",
+    "logoffDate": "134177312163190000",
     "deletePrepareDateTime": null,
     "lockTypeID": null,
     "securityRating": 0,
@@ -481,9 +682,9 @@
     "balance": 100000,
     "aurBalance": 0,
     "balanceChange": 0,
-    "skillPoints": 126720000,
-    "shipTypeID": 28352,
-    "shipName": "Rorqual",
+    "skillPoints": 129280000,
+    "shipTypeID": 606,
+    "shipName": "Velator",
     "bounty": 0,
     "skillQueueEndTime": 0,
     "daysLeft": 365,
@@ -494,7 +695,7 @@
     "unreadMailCount": 0,
     "upcomingEventCount": 0,
     "unprocessedNotifications": 0,
-    "shipID": 140000108,
+    "shipID": 140000105,
     "shortName": "none",
     "allianceMemberStartDate": 0,
     "skillTypeID": null,
@@ -507,29 +708,108 @@
     "finishedSkills": [],
     "empireID": 500004,
     "securityStatus": 0,
+    "plexBalance": 2222,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000006,
+        "startDate": "134177312163190000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000004,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000004,
+          "toID": 500004,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000004,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000006,
+          "toID": 140000004,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000004,
+          "toID": 500004,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500004,
+          "toID": 140000004,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        },
+        {
+          "fromID": 500004,
+          "toID": 1000006,
+          "standing": 2
+        }
+      ]
+    },
     "online": false
   },
-  "140000006": {
-    "accountId": 3,
-    "characterName": "Jingleberry Dingleberry",
+  "140000005": {
+    "accountId": 2,
+    "characterName": "johnfive",
     "gender": 1,
-    "bloodlineID": 4,
+    "bloodlineID": 1,
     "ancestryID": 1,
     "raceID": 1,
-    "typeID": 1376,
-    "corporationID": 1000009,
+    "typeID": 1373,
+    "corporationID": 1000006,
     "schoolID": 11,
     "allianceID": 0,
     "factionID": null,
-    "stationID": 60003760,
+    "stationID": 60000364,
     "homeStationID": 60003760,
     "cloneStationID": 60003760,
     "solarSystemID": 30000142,
     "constellationID": 20000020,
     "regionID": 10000002,
-    "createDateTime": "134177568683330000",
-    "startDateTime": "134177568683330000",
-    "logoffDate": "134177568683330000",
+    "createDateTime": "134177318780470000",
+    "startDateTime": "134177318780470000",
+    "logoffDate": "134177318780470000",
     "deletePrepareDateTime": null,
     "lockTypeID": null,
     "securityRating": 0,
@@ -538,9 +818,9 @@
     "balance": 100000,
     "aurBalance": 0,
     "balanceChange": 0,
-    "skillPoints": 126720000,
-    "shipTypeID": 44996,
-    "shipName": "Marshal",
+    "skillPoints": 129280000,
+    "shipTypeID": 77284,
+    "shipName": "Karura",
     "bounty": 0,
     "skillQueueEndTime": 0,
     "daysLeft": 365,
@@ -551,7 +831,7 @@
     "unreadMailCount": 0,
     "upcomingEventCount": 0,
     "unprocessedNotifications": 0,
-    "shipID": 140000133,
+    "shipID": 140000148,
     "shortName": "none",
     "allianceMemberStartDate": 0,
     "skillTypeID": null,
@@ -562,14 +842,92 @@
     "finishSP": null,
     "trainedSP": null,
     "finishedSkills": [],
-    "empireID": 500003,
+    "empireID": 500004,
     "securityStatus": 0,
-    "online": false,
-    "savedFittings": {}
+    "plexBalance": 2222,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000006,
+        "startDate": "134177318780470000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000005,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000005,
+          "toID": 500004,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000005,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000006,
+          "toID": 140000005,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000005,
+          "toID": 500004,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500004,
+          "toID": 140000005,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        },
+        {
+          "fromID": 500004,
+          "toID": 1000006,
+          "standing": 2
+        }
+      ]
+    },
+    "online": true
   },
-  "140000007": {
-    "accountId": 99,
-    "characterName": "testnewchar",
+  "140000006": {
+    "accountId": 3,
+    "characterName": "johnseven",
     "gender": 1,
     "bloodlineID": 1,
     "ancestryID": 1,
@@ -585,9 +943,9 @@
     "solarSystemID": 30000142,
     "constellationID": 20000020,
     "regionID": 10000002,
-    "createDateTime": "134177575023160000",
-    "startDateTime": "134177575023160000",
-    "logoffDate": "134177575023160000",
+    "createDateTime": "134177320810480000",
+    "startDateTime": "134177320810480000",
+    "logoffDate": "134177320810480000",
     "deletePrepareDateTime": null,
     "lockTypeID": null,
     "securityRating": 0,
@@ -596,7 +954,143 @@
     "balance": 100000,
     "aurBalance": 0,
     "balanceChange": 0,
-    "skillPoints": 126720000,
+    "skillPoints": 129280000,
+    "shipTypeID": 606,
+    "shipName": "Velator",
+    "bounty": 0,
+    "skillQueueEndTime": 0,
+    "daysLeft": 365,
+    "userType": 30,
+    "paperDollState": 0,
+    "petitionMessage": "",
+    "worldSpaceID": 0,
+    "unreadMailCount": 0,
+    "upcomingEventCount": 0,
+    "unprocessedNotifications": 0,
+    "shipID": 140000130,
+    "shortName": "none",
+    "allianceMemberStartDate": 0,
+    "skillTypeID": null,
+    "toLevel": null,
+    "trainingStartTime": null,
+    "trainingEndTime": null,
+    "queueEndTime": null,
+    "finishSP": null,
+    "trainedSP": null,
+    "finishedSkills": [],
+    "empireID": 500004,
+    "securityStatus": 0,
+    "plexBalance": 2222,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000006,
+        "startDate": "134177320810480000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000006,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000006,
+          "toID": 500004,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000006,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000006,
+          "toID": 140000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000006,
+          "toID": 500004,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500004,
+          "toID": 140000006,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        },
+        {
+          "fromID": 500004,
+          "toID": 1000006,
+          "standing": 2
+        }
+      ]
+    },
+    "online": false
+  },
+  "140000007": {
+    "accountId": 3,
+    "characterName": "johneleven",
+    "gender": 1,
+    "bloodlineID": 1,
+    "ancestryID": 1,
+    "raceID": 1,
+    "typeID": 1373,
+    "corporationID": 1000006,
+    "schoolID": 11,
+    "allianceID": 0,
+    "factionID": null,
+    "stationID": 60003760,
+    "homeStationID": 60003760,
+    "cloneStationID": 60003760,
+    "solarSystemID": 30000142,
+    "constellationID": 20000020,
+    "regionID": 10000002,
+    "createDateTime": "134177326430320000",
+    "startDateTime": "134177326430320000",
+    "logoffDate": "134177326430320000",
+    "deletePrepareDateTime": null,
+    "lockTypeID": null,
+    "securityRating": 0,
+    "title": "",
+    "description": "Character created via EVE.js",
+    "balance": 100000,
+    "aurBalance": 0,
+    "balanceChange": 0,
+    "skillPoints": 129280000,
     "shipTypeID": 606,
     "shipName": "Velator",
     "bounty": 0,
@@ -622,6 +1116,85 @@
     "finishedSkills": [],
     "empireID": 500004,
     "securityStatus": 0,
+    "plexBalance": 2222,
+    "characterAttributes": {
+      "charisma": 20,
+      "intelligence": 20,
+      "memory": 20,
+      "perception": 20,
+      "willpower": 20
+    },
+    "respecInfo": {
+      "freeRespecs": 3,
+      "lastRespecDate": null,
+      "nextTimedRespec": null
+    },
+    "freeSkillPoints": 0,
+    "skillHistory": [],
+    "boosters": [],
+    "implants": [],
+    "jumpClones": [],
+    "timeLastCloneJump": "0",
+    "employmentHistory": [
+      {
+        "corporationID": 1000006,
+        "startDate": "134177326430320000",
+        "deleted": 0
+      }
+    ],
+    "standingData": {
+      "char": [
+        {
+          "fromID": 140000007,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000007,
+          "toID": 500004,
+          "standing": 0.75
+        }
+      ],
+      "corp": [
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        }
+      ],
+      "npc": [
+        {
+          "fromID": 140000007,
+          "toID": 1000006,
+          "standing": 1.25
+        },
+        {
+          "fromID": 1000006,
+          "toID": 140000007,
+          "standing": 1.25
+        },
+        {
+          "fromID": 140000007,
+          "toID": 500004,
+          "standing": 0.75
+        },
+        {
+          "fromID": 500004,
+          "toID": 140000007,
+          "standing": 0.75
+        },
+        {
+          "fromID": 1000006,
+          "toID": 500004,
+          "standing": 2
+        },
+        {
+          "fromID": 500004,
+          "toID": 1000006,
+          "standing": 2
+        }
+      ]
+    },
     "online": false
   }
 }

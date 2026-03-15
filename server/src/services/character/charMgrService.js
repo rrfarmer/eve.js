@@ -70,6 +70,65 @@ function buildHomeStationPayload(station, homeStationInfo = {}) {
   ]);
 }
 
+function buildCloneEntries(entries = [], valueBuilder) {
+  return buildDict(
+    entries.map((entry, index) => [
+      Number(entry.cloneID || entry.itemID || index + 1),
+      valueBuilder(entry, index),
+    ]),
+  );
+}
+
+function buildPublicInfoEntries(charId, charData, session) {
+  const factionID = charData.factionID ?? null;
+  const empireID = charData.empireID ?? factionID;
+  const corporationID =
+    charData.corporationID || (session ? session.corporationID : 1000009);
+  const allianceID = charData.allianceID || (session ? session.allianceID : null);
+  const stationID =
+    charData.stationID ??
+    (session ? (session.stationID ?? session.stationid ?? null) : null);
+  const solarSystemID =
+    charData.solarSystemID || (session ? session.solarsystemid2 : 30000142);
+  const createDateTime = buildFiletimeLong(charData.createDateTime);
+  const startDateTime = buildFiletimeLong(
+    charData.startDateTime || charData.createDateTime,
+  );
+  const securityStatus = Number(
+    charData.securityStatus ?? charData.securityRating ?? 0,
+  );
+
+  return [
+    ["characterID", charId],
+    [
+      "characterName",
+      charData.characterName || (session ? session.characterName : "Unknown"),
+    ],
+    ["typeID", charData.typeID || 1373],
+    ["raceID", charData.raceID || 1],
+    ["bloodlineID", charData.bloodlineID || 1],
+    ["ancestryID", charData.ancestryID || 1],
+    ["corporationID", corporationID],
+    ["allianceID", allianceID],
+    ["factionID", factionID],
+    ["empireID", empireID],
+    ["schoolID", charData.schoolID ?? charData.corporationID ?? null],
+    ["gender", charData.gender || 1],
+    ["createDateTime", createDateTime],
+    ["startDateTime", startDateTime],
+    ["description", charData.description || ""],
+    ["securityRating", securityStatus],
+    ["securityStatus", securityStatus],
+    ["bounty", Number(charData.bounty || 0)],
+    ["title", charData.title || ""],
+    ["shortName", charData.shortName || "none"],
+    ["stationID", stationID],
+    ["solarSystemID", solarSystemID],
+    ["militiaFactionID", charData.militiaFactionID ?? null],
+    ["medal1GraphicID", charData.medal1GraphicID ?? null],
+  ];
+}
+
 class CharMgrService extends BaseService {
   constructor() {
     super("charMgr");
@@ -78,45 +137,16 @@ class CharMgrService extends BaseService {
   Handle_GetPublicInfo(args, session) {
     const { charId, charData } = resolveCharacterInfo(args, session);
     log.info(`[CharMgr] GetPublicInfo(${charId})`);
-    const factionID = charData.factionID ?? null;
-    const empireID = charData.empireID ?? factionID;
-
-    return buildKeyVal([
-      ["characterID", charId],
-      [
-        "characterName",
-        charData.characterName || (session ? session.characterName : "Unknown"),
-      ],
-      ["typeID", charData.typeID || 1373],
-      ["raceID", charData.raceID || 1],
-      ["bloodlineID", charData.bloodlineID || 1],
-      ["ancestryID", charData.ancestryID || 1],
-      [
-        "corporationID",
-        charData.corporationID || (session ? session.corporationID : 1000009),
-      ],
-      ["allianceID", charData.allianceID || (session ? session.allianceID : null)],
-      ["factionID", factionID],
-      ["empireID", empireID],
-      ["schoolID", charData.schoolID ?? charData.corporationID ?? null],
-      ["gender", charData.gender || 1],
-      ["createDateTime", buildFiletimeLong(charData.createDateTime)],
-      ["description", charData.description || ""],
-      ["securityRating", Number(charData.securityStatus ?? charData.securityRating ?? 0)],
-      ["securityStatus", Number(charData.securityStatus ?? charData.securityRating ?? 0)],
-      ["bounty", Number(charData.bounty || 0)],
-      ["title", charData.title || ""],
-      [
-        "stationID",
-        charData.stationID ?? (session ? (session.stationID ?? session.stationid ?? null) : null),
-      ],
-      ["solarSystemID", charData.solarSystemID || (session ? session.solarsystemid2 : 30000142)],
-    ]);
+    return buildKeyVal(buildPublicInfoEntries(charId, charData, session));
   }
 
   Handle_GetPublicInfo3(args, session) {
-    log.debug("[CharMgr] GetPublicInfo3");
-    return this.Handle_GetPublicInfo(args, session);
+    const { charId, charData } = resolveCharacterInfo(args, session);
+    log.debug(`[CharMgr] GetPublicInfo3(${charId})`);
+    return {
+      type: "list",
+      items: [buildKeyVal(buildPublicInfoEntries(charId, charData, session))],
+    };
   }
 
   Handle_GetTopBounties() {
@@ -168,9 +198,28 @@ class CharMgrService extends BaseService {
         "cloneStationID",
         Number(homeStationInfo.cloneStationID || station.stationID) || station.stationID,
       ],
-      ["clones", buildDict([])],
-      ["implants", buildDict([])],
-      ["timeLastJump", buildFiletimeLong(0n)],
+      [
+        "clones",
+        buildCloneEntries(charData.jumpClones || [], (entry) =>
+          buildKeyVal([
+            ["cloneID", Number(entry.cloneID || 0)],
+            ["name", entry.name || station.stationName],
+            ["stationID", Number(entry.stationID || station.stationID)],
+            ["solarSystemID", Number(entry.solarSystemID || station.solarSystemID)],
+          ]),
+        ),
+      ],
+      [
+        "implants",
+        buildCloneEntries(charData.implants || [], (entry) =>
+          buildKeyVal([
+            ["typeID", Number(entry.typeID || 0)],
+            ["name", entry.name || ""],
+            ["slot", Number(entry.slot || 0)],
+          ]),
+        ),
+      ],
+      ["timeLastJump", buildFiletimeLong(charData.timeLastCloneJump || 0n)],
     ]);
   }
 
@@ -179,6 +228,32 @@ class CharMgrService extends BaseService {
     const { charData } = resolveCharacterInfo(args, session);
     const { station, homeStationInfo } = resolveHomeStationRecord(charData, session);
     return buildHomeStationPayload(station, homeStationInfo);
+  }
+
+  Handle_GetHomeStationRow(args, session) {
+    log.debug("[CharMgr] GetHomeStationRow");
+
+    // V23.02 mapView.py calls:
+    //   homeStationRow = sm.GetService('charactersheet').GetHomeStationRow()
+    // and then reads:
+    //   homeStationRow.stationID
+    //   homeStationRow.solarSystemID
+    //   homeStationRow.stationTypeID
+    //
+    // Returning None crashes StarMap with:
+    //   AttributeError: 'NoneType' object has no attribute 'stationID'
+    //
+    // The existing home-station KeyVal payload already exposes those fields,
+    // so reuse it for the row-style call.
+    return this.Handle_GetHomeStation(args, session);
+  }
+
+  Handle_getHomeStationRow(args, session) {
+    return this.Handle_GetHomeStationRow(args, session);
+  }
+
+  Handle_get_home_station_row(args, session) {
+    return this.Handle_GetHomeStationRow(args, session);
   }
 
   Handle_LogStartOfCharacterCreation() {

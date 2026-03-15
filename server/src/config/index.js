@@ -6,7 +6,6 @@
  */
 
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 let nextBoundId = 1;
@@ -19,7 +18,7 @@ const defaults = {
   // dev mode does the following
   //  - auto creates users when they log in (and user is not in database)
   //  - authenticates you even when password is incorrect
-  devMode: false,
+  devMode: true,
 
   // the launcher writes the detected client path here
   clientPath: "",
@@ -35,18 +34,7 @@ const defaults = {
   projectVersion: "V23.02@ccp",
 
   // 2: log everything; 1: log errors (default); 0: log nothing;
-  logLevel: 1,
-
-  // heavyweight file traces (packet/inventory/space). Keep disabled for
-  // multiplayer performance unless actively debugging.
-  enableSlashDebugTrace: false,
-  enableSpaceUndockDebugTrace: false,
-  enableSessionChangeDebugTrace: false,
-  enableInventoryDebugTrace: false,
-  enableSpaceMovementDebugTrace: false,
-  enableSpaceDestinyDebugTrace: false,
-  enableSpaceWarpDebugTrace: false,
-  enableXmppTranscriptTrace: false,
+  logLevel: 2,
 
   // #### WARNING #### \\
   // it is recommended not to edit the config values
@@ -62,11 +50,8 @@ const defaults = {
 
   // where microservices will be sent instead of official CCP servers.
   microservicesRedirectUrl: "http://localhost:26002/",
-  microservicesBindHost: "0.0.0.0",
-  publicHost: "",
 
   // chat server
-  xmppServerHost: "",
   xmppServerPort: 5222,
 
   // modern eve_public user-license stubs
@@ -125,78 +110,6 @@ function withDefinedEntries(values) {
   );
 }
 
-function normalizeHost(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) {
-    return "";
-  }
-
-  if (normalized.startsWith("::ffff:")) {
-    return normalized.slice("::ffff:".length);
-  }
-
-  if (normalized === "::1") {
-    return "127.0.0.1";
-  }
-
-  return normalized;
-}
-
-function isUsableHost(host) {
-  const normalized = normalizeHost(host);
-  return Boolean(normalized) && normalized !== "0.0.0.0" && normalized !== "::";
-}
-
-function isLoopbackHost(host) {
-  const normalized = normalizeHost(host).toLowerCase();
-  return (
-    normalized === "127.0.0.1" ||
-    normalized === "localhost" ||
-    normalized === "::1"
-  );
-}
-
-function detectPublicHost(preferredHost = "") {
-  const preferred = normalizeHost(preferredHost);
-  if (isUsableHost(preferred)) {
-    return preferred;
-  }
-
-  const interfaces = os.networkInterfaces();
-  for (const addresses of Object.values(interfaces)) {
-    if (!Array.isArray(addresses)) {
-      continue;
-    }
-
-    const candidate = addresses.find(
-      (entry) => entry && entry.family === "IPv4" && !entry.internal,
-    );
-    if (candidate && isUsableHost(candidate.address)) {
-      return normalizeHost(candidate.address);
-    }
-  }
-
-  return "127.0.0.1";
-}
-
-function rewriteLoopbackUrlHost(rawUrl, replacementHost) {
-  if (!rawUrl) {
-    return rawUrl;
-  }
-
-  try {
-    const parsed = new URL(rawUrl);
-    if (!isLoopbackHost(parsed.hostname) || !isUsableHost(replacementHost)) {
-      return rawUrl;
-    }
-
-    parsed.hostname = replacementHost;
-    return parsed.toString();
-  } catch {
-    return rawUrl;
-  }
-}
-
 const fileConfig = {
   ...readJsonConfig(sharedConfigPath),
   ...readJsonConfig(localConfigPath),
@@ -207,22 +120,10 @@ const envConfig = withDefinedEntries({
   clientPath: process.env.EVEJS_CLIENT_PATH || undefined,
   autoLaunch: parseBoolean(process.env.EVEJS_AUTO_LAUNCH),
   logLevel: parseNumber(process.env.EVEJS_LOG_LEVEL),
-  enableSlashDebugTrace: parseBoolean(process.env.EVEJS_TRACE_SLASH),
-  enableSpaceUndockDebugTrace: parseBoolean(process.env.EVEJS_TRACE_SPACE_UNDOCK),
-  enableSessionChangeDebugTrace: parseBoolean(process.env.EVEJS_TRACE_SESSION_CHANGE),
-  enableInventoryDebugTrace: parseBoolean(process.env.EVEJS_TRACE_INVENTORY),
-  enableSpaceMovementDebugTrace: parseBoolean(process.env.EVEJS_TRACE_SPACE_MOVEMENT),
-  enableSpaceDestinyDebugTrace: parseBoolean(process.env.EVEJS_TRACE_SPACE_DESTINY),
-  enableSpaceWarpDebugTrace: parseBoolean(process.env.EVEJS_TRACE_SPACE_WARP),
-  enableXmppTranscriptTrace: parseBoolean(process.env.EVEJS_TRACE_XMPP),
   serverPort: parseNumber(process.env.EVEJS_SERVER_PORT),
   imageServerUrl: process.env.EVEJS_IMAGE_SERVER_URL || undefined,
   microservicesRedirectUrl:
     process.env.EVEJS_MICROSERVICES_REDIRECT_URL || undefined,
-  microservicesBindHost:
-    process.env.EVEJS_MICROSERVICES_BIND_HOST || undefined,
-  publicHost: process.env.EVEJS_PUBLIC_HOST || undefined,
-  xmppServerHost: process.env.EVEJS_XMPP_SERVER_HOST || undefined,
   xmppServerPort: parseNumber(process.env.EVEJS_XMPP_SERVER_PORT),
   omegaLicenseEnabled: parseBoolean(process.env.EVEJS_OMEGA_LICENSE),
   hotReloadEnabled: parseBoolean(process.env.EVEJS_HOT_RELOAD),
@@ -242,24 +143,6 @@ if (config.reloadOnFileChange === undefined || config.reloadOnFileChange === nul
   config.reloadOnFileChange = config.hotReloadWatch;
 }
 config.hotReloadWatch = config.reloadOnFileChange !== false;
-
-const legacyChatHost = normalizeHost(fileConfig.chatServerHost || process.env.EVEJS_CHAT_SERVER_HOST);
-const resolvedPublicHost = detectPublicHost(
-  config.publicHost || config.xmppServerHost || legacyChatHost,
-);
-config.publicHost = resolvedPublicHost;
-config.microservicesBindHost = normalizeHost(config.microservicesBindHost) || "0.0.0.0";
-config.microservicesRedirectUrl = rewriteLoopbackUrlHost(
-  config.microservicesRedirectUrl,
-  resolvedPublicHost,
-);
-config.imageServerUrl = rewriteLoopbackUrlHost(
-  config.imageServerUrl,
-  resolvedPublicHost,
-);
-if (!isUsableHost(config.xmppServerHost) && isUsableHost(legacyChatHost)) {
-  config.xmppServerHost = legacyChatHost;
-}
 
 config.getNextBoundId = function getNextBoundId() {
   return nextBoundId++;

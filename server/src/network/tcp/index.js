@@ -15,11 +15,12 @@ const sessionRegistry = require(path.join(
   __dirname,
   "../../services/chat/sessionRegistry",
 ));
-const { performCharacterLogoff } = require(path.join(
-  __dirname,
-  "../../services/user/logoffCharacter",
-));
+const chatHub = require(path.join(__dirname, "../../services/chat/chatHub"));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
+const { logStartupDataSummary } = require(path.join(
+  __dirname,
+  "../../utils/startupDataSummary",
+));
 const { MACHONETMSG_TYPE } = require(
   path.join(__dirname, "../../common/packetTypes"),
 );
@@ -34,23 +35,14 @@ const { encodeAddress } = require(
 module.exports = function (serviceManager) {
   const dispatcher = new PacketDispatcher(serviceManager);
 
+  spaceRuntime.preloadStartupSolarSystems({ broadcast: false });
+
   function logDebug(t) {
     if (config.logLevel > 1) log.debug(t);
   }
 
   function logInfo(t) {
     if (config.logLevel > 0) log.info(t);
-  }
-
-  function cleanupClientSession(clientSession) {
-    if (!clientSession || clientSession._disconnectCleaned) {
-      return;
-    }
-
-    clientSession._disconnectCleaned = true;
-    performCharacterLogoff(clientSession, "tcp");
-    spaceRuntime.detachSession(clientSession, { broadcast: true });
-    sessionRegistry.unregister(clientSession);
   }
 
   const server = net
@@ -188,23 +180,36 @@ module.exports = function (serviceManager) {
       });
 
       socket.on("close", () => {
-        cleanupClientSession(clientSession);
+        if (clientSession) {
+          spaceRuntime.detachSession(clientSession, { broadcast: true });
+          chatHub.unregisterSession(clientSession);
+          sessionRegistry.unregister(clientSession);
+        }
         logInfo(
           `connection closed: ${socket.remoteAddress}:${socket.remotePort}`,
         );
       });
 
       socket.on("error", (err) => {
-        cleanupClientSession(clientSession);
+        if (clientSession) {
+          spaceRuntime.detachSession(clientSession, { broadcast: true });
+          chatHub.unregisterSession(clientSession);
+          sessionRegistry.unregister(clientSession);
+        }
         log.err(`[TCP] socket error: ${err.message}`);
       });
     })
     .listen(config.serverPort, "0.0.0.0", () => {
       log.success(`eve.js is running!`);
       log.success(`(port: ${config.serverPort})`);
+      try {
+        logStartupDataSummary();
+      } catch (error) {
+        log.warn(
+          `[Startup] Failed to print data summary: ${error.message}`,
+        );
+      }
     });
-
-  return server;
 };
 
 /**

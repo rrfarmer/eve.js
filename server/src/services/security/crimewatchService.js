@@ -115,6 +115,24 @@ class CrimewatchService extends BaseService {
 
     return normalizedStatus;
   }
+
+  Handle_GetCharacterSecurityStatus(args, session) {
+    const charID =
+      (args && args.length > 0 ? Number(args[0]) || 0 : 0) ||
+      (session && (session.characterID || session.charid || session.userid)) ||
+      0;
+    const charData = charID ? getCharacterRecord(charID) || {} : {};
+    const securityStatus = Number(
+      charData.securityStatus ?? charData.securityRating ?? 0,
+    );
+    const normalizedStatus = Number.isFinite(securityStatus) ? securityStatus : 0;
+
+    log.debug(
+      `[CrimewatchService] GetCharacterSecurityStatus(charID=${charID}) -> ${normalizedStatus}`,
+    );
+
+    return normalizedStatus;
+  }
 }
 
 module.exports = CrimewatchService;

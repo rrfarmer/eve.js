@@ -1,10 +1,20 @@
 {
   "source": {
-    "provider": "Fuzzwork",
-    "dumpDate": "2025-07-07",
-    "generatedAt": "2026-03-10T15:48:41.956Z"
+    "provider": "EVE Static Data JSONL",
+    "generatedAt": "2026-03-13T18:23:53.245Z",
+    "jsonlSync": {
+      "updatedSolarSystemIDs": [],
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+      "syncedAt": "2026-03-13T18:23:53.245Z",
+      "buildNumber": 3253748,
+      "releaseDate": "2026-03-12T11:21:31Z"
+    },
+    "authority": "eve-online-static-data-3253748-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+    "buildNumber": 3253748,
+    "releaseDate": "2026-03-12T11:21:31Z"
   },
-  "count": 8437,
+  "count": 8490,
   "solarSystems": [
     {
       "regionID": 10000001,
@@ -86917,6 +86927,854 @@
       "radius": 3112788232450,
       "sunTypeID": 3796,
       "securityClass": "None"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010001,
+      "solarSystemID": 30100032,
+      "solarSystemName": "Manifest",
+      "position": {
+        "x": -183940979265000000,
+        "y": -651630537303000,
+        "z": 50885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 4379762229248,
+      "sunTypeID": 45046,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010002,
+      "solarSystemID": 30100033,
+      "solarSystemName": "Gallant",
+      "position": {
+        "x": -183940979265000000,
+        "y": -651630537303000,
+        "z": 52885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 540396748800,
+      "sunTypeID": 3798,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010002,
+      "solarSystemID": 30100034,
+      "solarSystemName": "Fortitude",
+      "position": {
+        "x": -185440979265000000,
+        "y": -651630537303000,
+        "z": 52385960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 2536624619520,
+      "sunTypeID": 45031,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010003,
+      "solarSystemID": 30100035,
+      "solarSystemName": "Forte",
+      "position": {
+        "x": -181940979265000000,
+        "y": -651630537303000,
+        "z": 50885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1607884210176,
+      "sunTypeID": 45030,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010004,
+      "solarSystemID": 30100036,
+      "solarSystemName": "Triumph",
+      "position": {
+        "x": -183940979265000000,
+        "y": -651630537303000,
+        "z": 48885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1931097407488,
+      "sunTypeID": 45040,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010005,
+      "solarSystemID": 30100037,
+      "solarSystemName": "Decorum",
+      "position": {
+        "x": -185940979265000000,
+        "y": -651630537303000,
+        "z": 50885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 528972939264,
+      "sunTypeID": 45037,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010002,
+      "solarSystemID": 30100038,
+      "solarSystemName": "Lustre",
+      "position": {
+        "x": -184940979265000000,
+        "y": -651630537303000,
+        "z": 52135960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 2326323527680,
+      "sunTypeID": 3799,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010003,
+      "solarSystemID": 30100039,
+      "solarSystemName": "Celerity",
+      "position": {
+        "x": -182440979265000000,
+        "y": -651630537303000,
+        "z": 52385960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1198637973504,
+      "sunTypeID": 3802,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010003,
+      "solarSystemID": 30100040,
+      "solarSystemName": "Ratiocinate",
+      "position": {
+        "x": -182690979265000000,
+        "y": -651630537303000,
+        "z": 51885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1553347379200,
+      "sunTypeID": 7,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010004,
+      "solarSystemID": 30100041,
+      "solarSystemName": "Rigor",
+      "position": {
+        "x": -182440979265000000,
+        "y": -651630537303000,
+        "z": 49385960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1442163589120,
+      "sunTypeID": 45039,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010004,
+      "solarSystemID": 30100042,
+      "solarSystemName": "Lenity",
+      "position": {
+        "x": -182940979265000000,
+        "y": -651630537303000,
+        "z": 49635960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 3110821429248,
+      "sunTypeID": 45035,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010005,
+      "solarSystemID": 30100043,
+      "solarSystemName": "Steadfast",
+      "position": {
+        "x": -185440979265000000,
+        "y": -651630537303000,
+        "z": 49385960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 2238215618560,
+      "sunTypeID": 45036,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010005,
+      "solarSystemID": 30100044,
+      "solarSystemName": "Couth",
+      "position": {
+        "x": -185190979265000000,
+        "y": -651630537303000,
+        "z": 49885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 2560498073600,
+      "sunTypeID": 45033,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010002,
+      "solarSystemID": 30100045,
+      "solarSystemName": "Mettle",
+      "position": {
+        "x": -183940979265000000,
+        "y": -651630537303000,
+        "z": 54300173761900000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1344464355328,
+      "sunTypeID": 3799,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010002,
+      "solarSystemID": 30100046,
+      "solarSystemName": "Venerate",
+      "position": {
+        "x": -184940979265000000,
+        "y": -651630537303000,
+        "z": 53885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1804367167488,
+      "sunTypeID": 45041,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010002,
+      "solarSystemID": 30100047,
+      "solarSystemName": "Repute",
+      "position": {
+        "x": -182940979265000000,
+        "y": -651630537303000,
+        "z": 53885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1619952533504,
+      "sunTypeID": 7,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010003,
+      "solarSystemID": 30100048,
+      "solarSystemName": "Adroit",
+      "position": {
+        "x": -180526765703000000,
+        "y": -651630537303000,
+        "z": 50885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1938213175296,
+      "sunTypeID": 8,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010003,
+      "solarSystemID": 30100049,
+      "solarSystemName": "Sagacity",
+      "position": {
+        "x": -180940979265000000,
+        "y": -651630537303000,
+        "z": 51885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 2099863748608,
+      "sunTypeID": 45040,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010003,
+      "solarSystemID": 30100050,
+      "solarSystemName": "Erudite",
+      "position": {
+        "x": -180940979265000000,
+        "y": -651630537303000,
+        "z": 49885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 2524472672256,
+      "sunTypeID": 3800,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010004,
+      "solarSystemID": 30100051,
+      "solarSystemName": "Solemn",
+      "position": {
+        "x": -183940979265000000,
+        "y": -651630537303000,
+        "z": 47471746637100000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1609911894016,
+      "sunTypeID": 45037,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010004,
+      "solarSystemID": 30100052,
+      "solarSystemName": "Tenacity",
+      "position": {
+        "x": -184940979265000000,
+        "y": -651630537303000,
+        "z": 47885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 5003022434304,
+      "sunTypeID": 3797,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010004,
+      "solarSystemID": 30100053,
+      "solarSystemName": "Valiance",
+      "position": {
+        "x": -182940979265000000,
+        "y": -651630537303000,
+        "z": 47885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 1129830285312,
+      "sunTypeID": 45030,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010005,
+      "solarSystemID": 30100054,
+      "solarSystemName": "Chivalric",
+      "position": {
+        "x": -186940979265000000,
+        "y": -651630537303000,
+        "z": 51885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 5865289023488,
+      "sunTypeID": 3803,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010005,
+      "solarSystemID": 30100055,
+      "solarSystemName": "Equity",
+      "position": {
+        "x": -187355192828000000,
+        "y": -651630537303000,
+        "z": 50885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 4266753523712,
+      "sunTypeID": 3798,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010005,
+      "solarSystemID": 30100056,
+      "solarSystemName": "Abstention",
+      "position": {
+        "x": -186940979265000000,
+        "y": -651630537303000,
+        "z": 49885960199500000
+      },
+      "security": 1,
+      "factionID": 500006,
+      "radius": 779774656512,
+      "sunTypeID": 45047,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100057,
+      "solarSystemName": "Tiberis",
+      "position": {
+        "x": -187940979265000000,
+        "y": -651630537303000,
+        "z": 54885960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 971320524800,
+      "sunTypeID": 3802,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100058,
+      "solarSystemName": "Rotonos",
+      "position": {
+        "x": -187940979265000000,
+        "y": -651630537303000,
+        "z": 55885960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 4239140847616,
+      "sunTypeID": 3797,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100059,
+      "solarSystemName": "Ligare",
+      "position": {
+        "x": -188940979265000000,
+        "y": -651630537303000,
+        "z": 54885960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 2344240545792,
+      "sunTypeID": 8,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100060,
+      "solarSystemName": "Axiosere",
+      "position": {
+        "x": -188940979265000000,
+        "y": -651630537303000,
+        "z": 55885960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 2258981093376,
+      "sunTypeID": 7,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100061,
+      "solarSystemName": "Waison",
+      "position": {
+        "x": -188440979265000000,
+        "y": -651630537303000,
+        "z": 56885960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 3088158556160,
+      "sunTypeID": 45031,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100062,
+      "solarSystemName": "Maso",
+      "position": {
+        "x": -189940979265000000,
+        "y": -651630537303000,
+        "z": 55385960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 1930397614080,
+      "sunTypeID": 3799,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010006,
+      "solarSystemID": 30100063,
+      "solarSystemName": "Mondaekus",
+      "position": {
+        "x": -189940979265000000,
+        "y": -651630537303000,
+        "z": 56885960199500000
+      },
+      "security": 1,
+      "factionID": 500004,
+      "radius": 2214402457600,
+      "sunTypeID": 45046,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100064,
+      "solarSystemName": "Kita-Aino",
+      "position": {
+        "x": -179940979265000000,
+        "y": -651630537303000,
+        "z": 54885960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 4799061295104,
+      "sunTypeID": 3797,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100065,
+      "solarSystemName": "Aldoras",
+      "position": {
+        "x": -179940979265000000,
+        "y": -651630537303000,
+        "z": 55885960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 2225932075008,
+      "sunTypeID": 3800,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100066,
+      "solarSystemName": "Pamirasu",
+      "position": {
+        "x": -178940979265000000,
+        "y": -651630537303000,
+        "z": 54885960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 9576615247872,
+      "sunTypeID": 8,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100067,
+      "solarSystemName": "Hotak",
+      "position": {
+        "x": -178940979265000000,
+        "y": -651630537303000,
+        "z": 55885960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 3717529600000,
+      "sunTypeID": 45038,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100068,
+      "solarSystemName": "Dyka-hau",
+      "position": {
+        "x": -179440979265000000,
+        "y": -651630537303000,
+        "z": 56885960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 2779959787520,
+      "sunTypeID": 3803,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100069,
+      "solarSystemName": "Urtasvaar",
+      "position": {
+        "x": -177940979265000000,
+        "y": -651630537303000,
+        "z": 55385960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 1517977600000,
+      "sunTypeID": 3800,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010007,
+      "solarSystemID": 30100070,
+      "solarSystemName": "Tatrys",
+      "position": {
+        "x": -177940979265000000,
+        "y": -651630537303000,
+        "z": 56885960199500000
+      },
+      "security": 1,
+      "factionID": 500001,
+      "radius": 2903291723776,
+      "sunTypeID": 3798,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100071,
+      "solarSystemName": "Vatna",
+      "position": {
+        "x": -179940979265000000,
+        "y": -651630537303000,
+        "z": 46885960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 3509857026048,
+      "sunTypeID": 45032,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100072,
+      "solarSystemName": "Tungna",
+      "position": {
+        "x": -178940979265000000,
+        "y": -651630537303000,
+        "z": 46885960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 1970163023872,
+      "sunTypeID": 6,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100073,
+      "solarSystemName": "Dranga",
+      "position": {
+        "x": -179940979265000000,
+        "y": -651630537303000,
+        "z": 45885960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 1195863834624,
+      "sunTypeID": 45038,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100074,
+      "solarSystemName": "Tindfjalla",
+      "position": {
+        "x": -178940979265000000,
+        "y": -651630537303000,
+        "z": 45885960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 1678671347712,
+      "sunTypeID": 45041,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100075,
+      "solarSystemName": "Lang",
+      "position": {
+        "x": -177940979265000000,
+        "y": -651630537303000,
+        "z": 46385960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 2212038180864,
+      "sunTypeID": 45042,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100076,
+      "solarSystemName": "Hofs",
+      "position": {
+        "x": -179440979265000000,
+        "y": -651630537303000,
+        "z": 44885960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 2262415966208,
+      "sunTypeID": 45040,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010008,
+      "solarSystemID": 30100077,
+      "solarSystemName": "Dettisolin",
+      "position": {
+        "x": -177940979265000000,
+        "y": -651630537303000,
+        "z": 44885960199500000
+      },
+      "security": 1,
+      "factionID": 500002,
+      "radius": 1382352814080,
+      "sunTypeID": 3796,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100078,
+      "solarSystemName": "Adaz",
+      "position": {
+        "x": -187940979265000000,
+        "y": -651630537303000,
+        "z": 46885960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 1634465742848,
+      "sunTypeID": 45037,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100079,
+      "solarSystemName": "Mazor",
+      "position": {
+        "x": -188940979265000000,
+        "y": -651630537303000,
+        "z": 46885960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 3600291463168,
+      "sunTypeID": 3803,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100080,
+      "solarSystemName": "Kanta",
+      "position": {
+        "x": -187940979265000000,
+        "y": -651630537303000,
+        "z": 45885960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 6570650894336,
+      "sunTypeID": 3802,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100081,
+      "solarSystemName": "Taikud",
+      "position": {
+        "x": -188940979265000000,
+        "y": -651630537303000,
+        "z": 45885960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 1313183760384,
+      "sunTypeID": 45031,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100082,
+      "solarSystemName": "Vaejra",
+      "position": {
+        "x": -189940979265000000,
+        "y": -651630537303000,
+        "z": 46385960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 2398762303488,
+      "sunTypeID": 45038,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100083,
+      "solarSystemName": "Sakizra",
+      "position": {
+        "x": -188440979265000000,
+        "y": -651630537303000,
+        "z": 44885960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 2125714161664,
+      "sunTypeID": 45047,
+      "securityClass": "A"
+    },
+    {
+      "regionID": 10001004,
+      "constellationID": 20010009,
+      "solarSystemID": 30100084,
+      "solarSystemName": "Ichorah",
+      "position": {
+        "x": -189940979265000000,
+        "y": -651630537303000,
+        "z": 44885960199500000
+      },
+      "security": 1,
+      "factionID": 500003,
+      "radius": 652748587008,
+      "sunTypeID": 45041,
+      "securityClass": "A"
     },
     {
       "regionID": 11000033,

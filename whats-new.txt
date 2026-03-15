@@ -1,11 +1,19 @@
-server optimization
-    ^ quicker undocks, TR, fitting
-update server code without client disconnecting!
-    ^ you can also use /reload in-game
-made it so when you leave ship, you end up in a pod. and when you reboard, your pod is basically deleted from the database (to prevent polution)
-small chat delay after running slash commands (to prevent response being sent before slash msg)
-new commands: /load /fit /reload
-    ^ /fit doesnt really work, its just /load
-(50% working) fitting service
-docking now works properly after you automatically aproach station
-    ^ before, if you pressed dock while too far away, it would auto-approach you but not auto dock you.
+overview for players
+starmaps with stats as good as we can (with the exge cases/bugs ironed out rather than just UI cisual)
+stargates with CCP orientation (very cool how gates face each ofher)
+/solar will now reliably teleport you, spent a bit of time on this, no frozen ship or incisible ship, no teleporting into planets
+cosmetics! now we have overciew basics and small bubble(ballpark? cant remember ehoch one is solar and whoch ine is for objects)
+^other players see your update, onlogin and undock cosmetic applied
+basic corp/alliance, npc corps (not npc alliance) /createcorp /createalliance (puts corp in alliance) and /joinalliance to join a pre made
+/effect and as many as we can do, you often need to be near a station as we use that as a targetID for superweapon effevts etc
+/dock docks you at home
+all data modernised to latest
+bugs with data loading and subtle foxes that cause issues later but client accepted (onspecialfxnhas a bug where if you gave it arguments, the shape would become wrong but the xlient would accept it)
+PLEX! plex service.. /addplex? /setplex
+Stargates! by default.. we loas Jita and New caldari, use /loadsys to watch stargates acticate in your system in front of your eyes
+we warp to and undock (not thoroughly tested other than jita) but we dont warp into anything, better warp in and undock points, tons of geometry fixes
+station orientation worked on, but special cases such as jita 4-4 i think we have to manually rotate (orientation isnt public, most stations are fine, just specials that are not?
+show info for characters work
+known issue: 2 players will desync slightly  if together but not priority, warping is
+moon loading better
+WARP COMING SOON!!

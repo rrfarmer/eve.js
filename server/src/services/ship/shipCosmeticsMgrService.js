@@ -13,8 +13,6 @@ const {
   getAllLicensedSkinRecords,
   getLicensedSkinRecordsForType,
   getEffectiveLicenseRecord,
-  getAppliedSkinRecord,
-  getSkinCatalogEntry,
   giveSkin,
   removeSkin,
   expireSkin,
@@ -22,7 +20,6 @@ const {
 } = require(path.join(__dirname, "./shipCosmeticsState"));
 const {
   publishShipStateSetNotice,
-  publishShipStateSetAllInBubbleNotice,
 } = require(path.join(__dirname, "../../_secondary/express/publicGatewayLocal"));
 
 function buildLicensedSkinKeyVal(record) {
@@ -47,53 +44,17 @@ function getKwargValue(kwargs, key) {
   return match ? match[1] : null;
 }
 
-function normalizeShipIdList(rawValue) {
-  if (Array.isArray(rawValue)) {
-    return rawValue
-      .map((entry) => Number(entry || 0) || 0)
-      .filter((entry) => entry > 0);
-  }
-
-  if (rawValue && rawValue.type === "list" && Array.isArray(rawValue.items)) {
-    return rawValue.items
-      .map((entry) => Number(entry || 0) || 0)
-      .filter((entry) => entry > 0);
-  }
-
-  const shipID = Number(rawValue || 0) || 0;
-  return shipID > 0 ? [shipID] : [];
-}
-
-function buildEnabledCosmeticsEntry(shipID) {
-  const appliedRecord = getAppliedSkinRecord(shipID);
-  const skinEntry =
-    appliedRecord && appliedRecord.skinID
-      ? getSkinCatalogEntry(appliedRecord.skinID)
-      : null;
-
-  return buildKeyVal([
-    ["shipID", shipID || null],
-    ["skinID", Number(appliedRecord && appliedRecord.skinID ? appliedRecord.skinID : 0) || null],
-    ["skinMaterialID", Number(skinEntry && skinEntry.skinMaterialID ? skinEntry.skinMaterialID : 0) || null],
-    ["materialID", Number(skinEntry && skinEntry.skinMaterialID ? skinEntry.skinMaterialID : 0) || null],
-    ["licenseTypeID", Number(skinEntry ? skinEntry.licenseTypeIDs && skinEntry.licenseTypeIDs[0] : 0) || null],
-  ]);
-}
-
 class ShipCosmeticsMgrService extends BaseService {
   constructor() {
     super("shipCosmeticsMgr");
   }
 
   Handle_GetEnabledCosmetics(args, session, kwargs) {
-    const requestedShipIDs = normalizeShipIdList(args && args.length > 0 ? args[0] : 0);
-    log.debug(
-      `[ShipCosmeticsMgr] GetEnabledCosmetics(shipIDs=${requestedShipIDs.join(",") || "none"})`,
-    );
-
+    const shipID = args && args.length > 0 ? args[0] : null;
+    log.debug(`[ShipCosmeticsMgr] GetEnabledCosmetics(shipID=${shipID})`);
     return {
       type: "dict",
-      entries: requestedShipIDs.map((shipID) => [shipID, buildEnabledCosmeticsEntry(shipID)]),
+      entries: [],
     };
   }
 
@@ -126,9 +87,7 @@ class ShipCosmeticsMgrService extends BaseService {
   Handle_GetFirstPartySkinData(args) {
     const licenseeID = Number(args && args.length > 0 ? args[0] : 0) || 0;
     const skinID = Number(args && args.length > 1 ? args[1] : 0) || 0;
-    const record = getEffectiveLicenseRecord(licenseeID, skinID, {
-      allowCatalogFallback: true,
-    });
+    const record = getEffectiveLicenseRecord(licenseeID, skinID);
     log.debug(
       `[ShipCosmeticsMgr] GetFirstPartySkinData(licenseeID=${licenseeID}, skinID=${skinID}) -> ${record ? "hit" : "miss"}`,
     );
@@ -155,11 +114,6 @@ class ShipCosmeticsMgrService extends BaseService {
     if (result.success) {
       publishShipStateSetNotice(
         shipID,
-        activeCharacterID ||
-          Number(result.data && result.data.ownerID ? result.data.ownerID : 0) ||
-          0,
-      );
-      publishShipStateSetAllInBubbleNotice(
         activeCharacterID ||
           Number(result.data && result.data.ownerID ? result.data.ownerID : 0) ||
           0,

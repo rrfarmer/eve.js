@@ -1,0 +1,285 @@
+{
+  "source": {
+    "provider": "EVE Static Data JSONL",
+    "generatedAt": "2026-03-14T00:00:00.000Z",
+    "jsonlSync": {
+      "updatedStargateTypeIDs": [
+        16,
+        17,
+        3873,
+        3874,
+        3875,
+        3876,
+        3877,
+        12292,
+        29624,
+        29625,
+        29626,
+        29627,
+        29629,
+        29632,
+        29633,
+        29634,
+        29635,
+        56317,
+        57760,
+        77918,
+        77921,
+        78264,
+        78265,
+        78266
+      ],
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+      "syncedAt": "2026-03-14T00:00:00.000Z",
+      "buildNumber": 3253748,
+      "releaseDate": "2026-03-12T11:21:31Z"
+    },
+    "authority": "eve-online-static-data-3253748-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+    "buildNumber": 3253748,
+    "releaseDate": "2026-03-12T11:21:31Z"
+  },
+  "count": 24,
+  "stargateTypes": [
+    {
+      "typeID": 16,
+      "typeName": "Stargate (Caldari System)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 235,
+      "published": false
+    },
+    {
+      "typeID": 17,
+      "typeName": "Stargate (Amarr Constellation)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 4,
+      "graphicID": 236,
+      "published": false
+    },
+    {
+      "typeID": 3873,
+      "typeName": "Stargate (Caldari Border)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 3456,
+      "published": false
+    },
+    {
+      "typeID": 3874,
+      "typeName": "Stargate (Gallente Constellation)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 1259,
+      "published": false
+    },
+    {
+      "typeID": 3875,
+      "typeName": "Stargate (Gallente System)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 1260,
+      "published": false
+    },
+    {
+      "typeID": 3876,
+      "typeName": "Stargate (Gallente Border)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 3461,
+      "published": false
+    },
+    {
+      "typeID": 3877,
+      "typeName": "Stargate (Minmatar Constellation)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 2,
+      "graphicID": 1263,
+      "published": false
+    },
+    {
+      "typeID": 12292,
+      "typeName": "Smuggler route stargate",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": null,
+      "graphicID": 3465,
+      "published": false
+    },
+    {
+      "typeID": 29624,
+      "typeName": "Stargate (Amarr System)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 4,
+      "graphicID": 3458,
+      "published": false
+    },
+    {
+      "typeID": 29625,
+      "typeName": "Stargate (Amarr Border)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 4,
+      "graphicID": 3460,
+      "published": false
+    },
+    {
+      "typeID": 29626,
+      "typeName": "Stargate (Amarr Region)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 4,
+      "graphicID": 3457,
+      "published": false
+    },
+    {
+      "typeID": 29627,
+      "typeName": "Stargate (Caldari Constellation)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 1258,
+      "published": false
+    },
+    {
+      "typeID": 29629,
+      "typeName": "Stargate (Caldari Region)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 3459,
+      "published": false
+    },
+    {
+      "typeID": 29632,
+      "typeName": "Stargate (Gallente Region)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 1261,
+      "published": false
+    },
+    {
+      "typeID": 29633,
+      "typeName": "Stargate (Minmatar System)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 2,
+      "graphicID": 3463,
+      "published": false
+    },
+    {
+      "typeID": 29634,
+      "typeName": "Stargate (Minmatar Border)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 2,
+      "graphicID": 3464,
+      "published": false
+    },
+    {
+      "typeID": 29635,
+      "typeName": "Stargate (Minmatar Region)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 2,
+      "graphicID": 3462,
+      "published": false
+    },
+    {
+      "typeID": 56317,
+      "typeName": "Pochven Conduit Gate (Interstellar)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 135,
+      "graphicID": 24656,
+      "published": false
+    },
+    {
+      "typeID": 57760,
+      "typeName": "Stargate (Old Man Star to Villore)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 24967,
+      "published": false
+    },
+    {
+      "typeID": 77918,
+      "typeName": "Stargate (Jovian Turnur)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 16,
+      "graphicID": 26212,
+      "published": false
+    },
+    {
+      "typeID": 77921,
+      "typeName": "Stargate (Jovian Zarzakh)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 16,
+      "graphicID": 26197,
+      "published": false
+    },
+    {
+      "typeID": 78264,
+      "typeName": "Stargate (Jovian Alsavoinon)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 16,
+      "graphicID": 26213,
+      "published": false
+    },
+    {
+      "typeID": 78265,
+      "typeName": "Stargate (Jovian H-PA29)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 16,
+      "graphicID": 26214,
+      "published": false
+    },
+    {
+      "typeID": 78266,
+      "typeName": "Stargate (Jovian G-0Q86)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 16,
+      "graphicID": 26215,
+      "published": false
+    }
+  ]
+}

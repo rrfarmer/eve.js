@@ -12,13 +12,6 @@ const RUNTIME_TABLE = "shipCosmetics";
 const HUNDRED_NS_PER_MS = 10000n;
 const FILETIME_EPOCH_OFFSET = 116444736000000000n;
 let cachedCatalog = null;
-let cachedCatalogRevision = 0;
-
-function getCatalogRevision() {
-  return typeof database.getTableRevision === "function"
-    ? database.getTableRevision(CATALOG_TABLE)
-    : 0;
-}
 
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
@@ -93,8 +86,7 @@ function futureFileTimeString(days = 0) {
 }
 
 function readCatalog() {
-  const catalogRevision = getCatalogRevision();
-  if (cachedCatalog && cachedCatalogRevision === catalogRevision) {
+  if (cachedCatalog) {
     return cachedCatalog;
   }
 
@@ -119,7 +111,6 @@ function readCatalog() {
         ? root.licenseTypesByTypeID
         : {},
   };
-  cachedCatalogRevision = catalogRevision;
 
   return cachedCatalog;
 }
@@ -131,6 +122,32 @@ function getSkinCatalogEntry(skinID, catalog = readCatalog()) {
   }
 
   return catalog.skinsBySkinID[String(numericSkinID)] || null;
+}
+
+function getSkinMaterialSetIDForSkin(skinID, catalog = readCatalog()) {
+  const skinEntry = getSkinCatalogEntry(skinID, catalog);
+  if (!skinEntry) {
+    return null;
+  }
+
+  const directMaterialSetID =
+    Number(
+      (skinEntry.material && skinEntry.material.materialSetID) ||
+        skinEntry.materialSetID ||
+        0,
+    ) || null;
+  if (directMaterialSetID) {
+    return directMaterialSetID;
+  }
+
+  const skinMaterialID = Number(skinEntry.skinMaterialID || 0) || 0;
+  if (!skinMaterialID) {
+    return null;
+  }
+
+  const materialEntry =
+    catalog.materialsByMaterialID[String(skinMaterialID)] || null;
+  return Number(materialEntry && materialEntry.materialSetID) || null;
 }
 
 function getShipTypeCatalogEntry(typeID, catalog = readCatalog()) {
@@ -394,6 +411,15 @@ function getAppliedSkinRecord(shipID) {
   return record ? cloneValue(record) : null;
 }
 
+function getAppliedSkinMaterialSetID(shipID) {
+  const appliedRecord = getAppliedSkinRecord(shipID);
+  if (!appliedRecord) {
+    return null;
+  }
+
+  return getSkinMaterialSetIDForSkin(appliedRecord.skinID);
+}
+
 function getAppliedSkinRecordsForOwner(ownerID) {
   const numericOwnerID = Number(ownerID || 0) || 0;
   if (!numericOwnerID) {
@@ -411,6 +437,7 @@ function getAppliedSkinRecordsForOwner(ownerID) {
 module.exports = {
   readCatalog,
   getSkinCatalogEntry,
+  getSkinMaterialSetIDForSkin,
   getShipTypeCatalogEntry,
   getAllLicensedSkinRecords,
   getLicensedSkinRecordsForType,
@@ -420,6 +447,6 @@ module.exports = {
   expireSkin,
   applySkinToShip,
   getAppliedSkinRecord,
+  getAppliedSkinMaterialSetID,
   getAppliedSkinRecordsForOwner,
 };
-

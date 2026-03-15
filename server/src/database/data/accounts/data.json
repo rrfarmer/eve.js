@@ -3,17 +3,35 @@
     "passwordhash": "e62bd2570e99a1dc63ecab114926b07f9e0a8573",
     "id": 1,
     "role": "6935543428298309632",
-    "banned": false
+    "banned": false,
+    "multiCharacterTrainingSlots": {
+      "2": "157469184000000000",
+      "3": "157469184000000000"
+    }
   },
   "test2": {
     "passwordhash": "7adcc6ff762268403a8678945b8dd1aeb0f8c718",
     "id": 2,
     "role": "6935543428298309632",
-    "banned": false
+    "banned": false,
+    "multiCharacterTrainingSlots": {
+      "2": "157469184000000000",
+      "3": "157469184000000000"
+    }
   },
-  "test123": {
-    "passwordhash": "bf4ed208915dcbc7623e39e219ae6746bc311912",
+  "test3": {
+    "passwordhash": "8737b7756bc649c9fc8ce887d745600fbb830a6a",
     "id": 3,
+    "role": "6935543428298309632",
+    "banned": false,
+    "multiCharacterTrainingSlots": {
+      "2": "157469184000000000",
+      "3": "157469184000000000"
+    }
+  },
+  "test2test": {
+    "passwordhash": "477214555164219c1a3a80bce7663eaadf70aa67",
+    "id": 4,
     "role": "6935543428298309632",
     "banned": false
   }

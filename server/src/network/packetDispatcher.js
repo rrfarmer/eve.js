@@ -26,10 +26,6 @@ const slashDebugPath = path.join(__dirname, "../../logs/slash-debug.log");
 const spaceDebugPath = path.join(__dirname, "../../logs/space-undock-debug.log");
 
 function appendSlashDebug(entry) {
-  if (!config.enableSlashDebugTrace) {
-    return;
-  }
-
   try {
     fs.mkdirSync(path.dirname(slashDebugPath), { recursive: true });
     fs.appendFileSync(
@@ -43,10 +39,6 @@ function appendSlashDebug(entry) {
 }
 
 function appendSpaceDebug(entry) {
-  if (!config.enableSpaceUndockDebugTrace) {
-    return;
-  }
-
   try {
     fs.mkdirSync(path.dirname(spaceDebugPath), { recursive: true });
     fs.appendFileSync(
@@ -98,19 +90,6 @@ function summarizeValue(value, depth = 0) {
 class PacketDispatcher {
   constructor(serviceManager) {
     this.serviceManager = serviceManager;
-  }
-
-  _isExpectedWrappedUserFlow(serviceName, call, err, resolvedServiceName = null) {
-    if (!isMachoWrappedException(err)) {
-      return false;
-    }
-
-    const normalizedServiceName = String(
-      resolvedServiceName || serviceName || "",
-    ).toLowerCase();
-    const normalizedMethod = String((call && call.method) || "").toLowerCase();
-
-    return normalizedServiceName === "beyonce" && normalizedMethod === "cmddock";
   }
 
   /**
@@ -192,19 +171,18 @@ class PacketDispatcher {
     const traceSpaceCall =
       call.method === "Undock" ||
       resolvedServiceName === "beyonce" ||
-      resolvedServiceName === "dogmaIM" ||
       (resolvedServiceName === "ship" && call.method === "MachoBindObject") ||
       lowerMethodName.includes("homestation") ||
       lowerMethodName.includes("home_station") ||
       lowerResolvedServiceName.includes("home_station") ||
       lowerResolvedServiceName.includes("homestation") ||
       lowerResolvedServiceName.includes("homestation");
-    if (traceSpaceCall && config.enableSpaceUndockDebugTrace) {
+    if (traceSpaceCall) {
       appendSpaceDebug(
         `CallReq service=${resolvedServiceName || serviceName || "?"} rawService=${serviceName || "?"} method=${call.method} callID=${callID} currentBound=${session && session.currentBoundObjectID ? session.currentBoundObjectID : "null"} args=${JSON.stringify(summarizeValue(call.args))} kwargs=${JSON.stringify(summarizeValue(call.kwargs))}`,
       );
     }
-    if (serviceName === "slash" && config.enableSlashDebugTrace) {
+    if (serviceName === "slash") {
       appendSlashDebug(
         `CallReq method=${call.method} callID=${callID} args=${JSON.stringify(summarizeValue(call.args))} kwargs=${JSON.stringify(summarizeValue(call.kwargs))} raw=${JSON.stringify(summarizeValue(call.raw))}`,
       );
@@ -233,7 +211,7 @@ class PacketDispatcher {
           // Scan results for bound object OIDs and register them
           // so future calls to those OIDs route back to this service.
           this._scanAndRegisterOIDs(result, service);
-          if (traceSpaceCall && config.enableSpaceUndockDebugTrace) {
+          if (traceSpaceCall) {
             appendSpaceDebug(
               `CallRsp service=${service.name} method=${call.method} callID=${callID} result=${JSON.stringify(summarizeValue(result))}`,
             );
@@ -255,29 +233,10 @@ class PacketDispatcher {
           }
           return true;
         } catch (err) {
-          const suppressWrappedSlashPreflightLog =
-            isMachoWrappedException(err) &&
-            serviceName === "slash" &&
-            call.method === "SlashCmd";
-          const suppressExpectedWrappedUserFlowLog =
-            this._isExpectedWrappedUserFlow(
-              serviceName,
-              call,
-              err,
-              service && service.name,
-            );
-          if (!suppressWrappedSlashPreflightLog) {
-            if (suppressExpectedWrappedUserFlowLog) {
-              log.debug(
-                `[CallReq] Expected wrapped flow in ${serviceName}::${call.method}: ${err.message}`,
-              );
-            } else {
-              log.err(
-                `[CallReq] Error in ${serviceName}::${call.method}: ${err.message}`,
-              );
-            }
-          }
-          if (traceSpaceCall && config.enableSpaceUndockDebugTrace) {
+          log.err(
+            `[CallReq] Error in ${serviceName}::${call.method}: ${err.message}`,
+          );
+          if (traceSpaceCall) {
             appendSpaceDebug(
               `CallErr service=${service.name} method=${call.method} callID=${callID} error=${err && err.stack ? err.stack : err.message}`,
             );
@@ -452,11 +411,9 @@ class PacketDispatcher {
       args: responseTuple,
     };
 
-    if (Number(config.logLevel || 0) > 1) {
-      log.debug(
-        `[CallRsp] Sending response for callID=${callID} payload=${JSON.stringify(responseObj, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
-      );
-    }
+    log.debug(
+      `[CallRsp] Sending response for callID=${callID} payload=${JSON.stringify(responseObj, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
+    );
     session.sendPacket(responseObj);
   }
 

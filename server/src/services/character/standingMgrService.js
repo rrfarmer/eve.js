@@ -1,14 +1,16 @@
 const BaseService = require("../baseService");
 const log = require("../../utils/logger");
+const { getCharacterRecord } = require("./characterState");
 
 // Standings use a real Rowset so the client can call both .Index() and .Filter().
 // The Rowset with [fromID, toID, standing] columns handles both methods correctly.
 // EVE's client uses IndexedRowset mapped to fromID. If a key is missing, it throws KeyError!
 // We must populate it with None and common session IDs so standingsvc doesn't crash on dictionary access.
-function emptyStandingsRowset(session) {
+function buildStandingsRowset(session, rows = []) {
   const charId = session ? session.characterID : 140000001;
-  const corpId = session ? session.corpid : 1000044;
-  const allianceId = session && session.allianceid ? session.allianceid : null;
+  const charRecord = getCharacterRecord(charId) || {};
+  const corpId = session ? session.corpid : charRecord.corporationID || 0;
+  const allianceId = session && session.allianceid ? session.allianceid : charRecord.allianceID || null;
   const factionId = session && session.factionid ? session.factionid : null;
   const warFactionId =
     session && session.warfactionid ? session.warfactionid : null;
@@ -40,16 +42,31 @@ function emptyStandingsRowset(session) {
     items: ["fromID", "toID", "standing"],
   };
 
-  const rows = [];
+  const rowMap = new Map();
   for (const fromID of uniqueIds) {
     for (const toID of uniqueIds) {
       if (fromID !== toID) {
-        rows.push({
+        rowMap.set(`${String(fromID)}::${String(toID)}`, {
           type: "list",
           items: [fromID, toID, 0.0],
         });
       }
     }
+  }
+
+  for (const entry of rows) {
+    if (!entry || entry.fromID === entry.toID) {
+      continue;
+    }
+
+    rowMap.set(`${String(entry.fromID)}::${String(entry.toID)}`, {
+      type: "list",
+      items: [
+        entry.fromID,
+        entry.toID,
+        Number(entry.standing) || 0.0,
+      ],
+    });
   }
 
   return {
@@ -60,10 +77,20 @@ function emptyStandingsRowset(session) {
       entries: [
         ["header", rowDescriptor],
         ["RowClass", { type: "token", value: "util.Row" }],
-        ["lines", { type: "list", items: rows }],
+        ["lines", { type: "list", items: [...rowMap.values()] }],
       ],
     },
   };
+}
+
+function getStandingData(session, key) {
+  const charId = session ? session.characterID : 0;
+  const charData = getCharacterRecord(charId) || {};
+  const source =
+    charData.standingData && typeof charData.standingData === "object"
+      ? charData.standingData
+      : {};
+  return Array.isArray(source[key]) ? source[key] : [];
 }
 
 class StandingMgrService extends BaseService {
@@ -73,17 +100,17 @@ class StandingMgrService extends BaseService {
 
   Handle_GetNPCNPCStandings(args, session) {
     log.debug("[StandingMgr] GetNPCNPCStandings called");
-    return emptyStandingsRowset(session);
+    return buildStandingsRowset(session, getStandingData(session, "npc"));
   }
 
   Handle_GetCharStandings(args, session) {
     log.debug("[StandingMgr] GetCharStandings called");
-    return emptyStandingsRowset(session);
+    return buildStandingsRowset(session, getStandingData(session, "char"));
   }
 
   Handle_GetCorpStandings(args, session) {
     log.debug("[StandingMgr] GetCorpStandings called");
-    return emptyStandingsRowset(session);
+    return buildStandingsRowset(session, getStandingData(session, "corp"));
   }
 }
 

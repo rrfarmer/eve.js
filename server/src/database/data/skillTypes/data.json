@@ -1,10 +1,20 @@
 {
   "source": {
-    "provider": "Fuzzwork",
-    "dumpDate": "2025-07-07",
-    "generatedAt": "2026-03-10T02:40:43.358Z"
+    "provider": "EVE Static Data JSONL",
+    "generatedAt": "2026-03-13T18:23:53.245Z",
+    "jsonlSync": {
+      "updatedTypeIDs": [],
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+      "syncedAt": "2026-03-13T18:23:53.245Z",
+      "buildNumber": 3253748,
+      "releaseDate": "2026-03-12T11:21:31Z"
+    },
+    "authority": "eve-online-static-data-3253748-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3253748-jsonl",
+    "buildNumber": 3253748,
+    "releaseDate": "2026-03-12T11:21:31Z"
   },
-  "count": 495,
+  "count": 505,
   "skills": [
     {
       "typeID": 60381,
@@ -47,6 +57,20 @@
       "iconID": 33,
       "soundID": null,
       "graphicID": 0
+    },
+    {
+      "typeID": 89689,
+      "groupID": 1210,
+      "categoryID": 16,
+      "groupName": "Armor",
+      "name": "Advanced Armor Layering",
+      "published": true,
+      "raceID": null,
+      "basePrice": 15000000,
+      "marketGroupID": 1745,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
     },
     {
       "typeID": 16597,
@@ -2415,6 +2439,20 @@
       "graphicID": 0
     },
     {
+      "typeID": 90040,
+      "groupID": 1218,
+      "categoryID": 16,
+      "groupName": "Resource Processing",
+      "name": "Erratic Ore Processing",
+      "published": true,
+      "raceID": null,
+      "basePrice": 1250000,
+      "marketGroupID": 1323,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
+    },
+    {
       "typeID": 3453,
       "groupID": 275,
       "categoryID": 16,
@@ -2469,6 +2507,48 @@
       "iconID": 33,
       "soundID": null,
       "graphicID": 0
+    },
+    {
+      "typeID": 89611,
+      "groupID": 258,
+      "categoryID": 16,
+      "groupName": "Fleet Support",
+      "name": "Expedition Command",
+      "published": true,
+      "raceID": null,
+      "basePrice": 100000,
+      "marketGroupID": 370,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
+    },
+    {
+      "typeID": 89609,
+      "groupID": 257,
+      "categoryID": 16,
+      "groupName": "Spaceship Command",
+      "name": "Expedition Command Ships",
+      "published": true,
+      "raceID": 8,
+      "basePrice": 55000000,
+      "marketGroupID": 377,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
+    },
+    {
+      "typeID": 89610,
+      "groupID": 258,
+      "categoryID": 16,
+      "groupName": "Fleet Support",
+      "name": "Expedition Command Specialist",
+      "published": true,
+      "raceID": null,
+      "basePrice": 500000,
+      "marketGroupID": 370,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
     },
     {
       "typeID": 33856,
@@ -2623,6 +2703,20 @@
       "iconID": 33,
       "soundID": null,
       "graphicID": 0
+    },
+    {
+      "typeID": 91017,
+      "groupID": 278,
+      "categoryID": 16,
+      "groupName": "Social",
+      "name": "Freelancing",
+      "published": true,
+      "raceID": null,
+      "basePrice": 1000000,
+      "marketGroupID": 376,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
     },
     {
       "typeID": 19760,
@@ -4375,6 +4469,20 @@
       "graphicID": 0
     },
     {
+      "typeID": 89241,
+      "groupID": 257,
+      "categoryID": 16,
+      "groupName": "Spaceship Command",
+      "name": "Mining Destroyer",
+      "published": true,
+      "raceID": null,
+      "basePrice": 100000,
+      "marketGroupID": 377,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
+    },
+    {
       "typeID": 22552,
       "groupID": 258,
       "categoryID": 16,
@@ -4417,6 +4525,20 @@
       "graphicID": 0
     },
     {
+      "typeID": 90728,
+      "groupID": 1218,
+      "categoryID": 16,
+      "groupName": "Resource Processing",
+      "name": "Mining Exploitation",
+      "published": true,
+      "raceID": null,
+      "basePrice": 20000000,
+      "marketGroupID": 1323,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
+    },
+    {
       "typeID": 22536,
       "groupID": 258,
       "categoryID": 16,
@@ -4443,6 +4565,20 @@
       "iconID": 33,
       "soundID": null,
       "graphicID": 0
+    },
+    {
+      "typeID": 90727,
+      "groupID": 1218,
+      "categoryID": 16,
+      "groupName": "Resource Processing",
+      "name": "Mining Precision",
+      "published": true,
+      "raceID": null,
+      "basePrice": 100000,
+      "marketGroupID": 1323,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
     },
     {
       "typeID": 22578,
@@ -6627,6 +6763,20 @@
       "iconID": 33,
       "soundID": null,
       "graphicID": 0
+    },
+    {
+      "typeID": 90398,
+      "groupID": 1218,
+      "categoryID": 16,
+      "groupName": "Resource Processing",
+      "name": "Unrefined Minerals Processing",
+      "published": true,
+      "raceID": null,
+      "basePrice": 3000000,
+      "marketGroupID": 1323,
+      "iconID": 33,
+      "soundID": null,
+      "graphicID": null
     },
     {
       "typeID": 55025,

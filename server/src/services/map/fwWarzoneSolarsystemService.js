@@ -6,6 +6,25 @@ class FwWarzoneSolarsystemService extends BaseService {
     super("fwWarzoneSolarsystem");
   }
 
+  Handle_GetAllWarzonesOccupationStates(args, session) {
+    log.debug("[fwWarzoneSvc] GetAllWarzonesOccupationStates called");
+
+    // Decompiled V23.02 fwWarzoneSvc.py does:
+    //   occupationStatesBySolarsystemByWarzone =
+    //       sm.RemoteSvc('fwWarzoneSolarsystem').GetAllWarzonesOccupationStates()
+    //   for occupationStatesBySolarsystem in
+    //       occupationStatesBySolarsystemByWarzone.itervalues():
+    //
+    // The no-warzone-data case therefore needs to be an empty dict, not None
+    // or an empty list.
+    return { type: "dict", entries: [] };
+  }
+
+  Handle_GetAllWarzonesOccupationStatesUncached(args, session) {
+    log.debug("[fwWarzoneSvc] GetAllWarzonesOccupationStatesUncached called");
+    return { type: "dict", entries: [] };
+  }
+
   Handle_GetLocalOccupationState(args, session) {
     log.debug("[fwWarzoneSvc] GetLocalOccupationState called");
     const solarSystemID =

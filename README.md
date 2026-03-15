@@ -17,8 +17,17 @@ npm --prefix server ci
 4. Run `scripts\windows\InstallCerts.bat` once.
 5. Start the server with `scripts\windows\StartServerOnly.bat`.
 6. Start the client with either:
+   - `scripts\windows\StartClientOnly.bat`
    - `scripts\windows\RunClientProxy.bat`
    - `scripts\windows\RunClientProxyAndDebug.bat`
+
+If you want the local proxy in a separate terminal, use:
+
+```bat
+scripts\windows\StartServerNoProxy.bat
+scripts\windows\StartClientProxyOnly.bat
+scripts\windows\StartClientOnly.bat
+```
 
 The full launcher guide is in [scripts/README.md](scripts/README.md).
 

@@ -67,6 +67,19 @@ function buildVector(source = null, fallback = { x: 0, y: 0, z: 0 }) {
   };
 }
 
+function buildMarshalReal(value, fallback = 0) {
+  return { type: "real", value: toFiniteNumber(value, fallback) };
+}
+
+function buildMarshalRealVector(source = null, fallback = { x: 0, y: 0, z: 0 }) {
+  const vector = buildVector(source, fallback);
+  return {
+    x: buildMarshalReal(vector.x, fallback.x),
+    y: buildMarshalReal(vector.y, fallback.y),
+    z: buildMarshalReal(vector.z, fallback.z),
+  };
+}
+
 function normalizeVector(source = null, fallback = { x: 1, y: 0, z: 0 }) {
   const vector = buildVector(source, fallback);
   const length = Math.sqrt(
@@ -205,10 +218,15 @@ function getShipDirection(entity) {
   return { x: 1, y: 0, z: 0 };
 }
 
-function doubleToInt64Bits(value) {
-  const buffer = Buffer.allocUnsafe(8);
-  buffer.writeDoubleLE(toFiniteNumber(value, 0), 0);
-  return buffer.readBigInt64LE(0);
+function getShipWarpFactor(entity) {
+  const warpState = entity && entity.warpState;
+  return toInt32(
+    (warpState && warpState.warpSpeed) ||
+      (toFiniteNumber(entity && entity.warpSpeedAU, 0) > 0
+        ? Math.round(entity.warpSpeedAU * 10)
+        : 30),
+    30,
+  );
 }
 
 function encodeShipBall(entity) {
@@ -252,33 +270,17 @@ function encodeShipBall(entity) {
       break;
     case BALL_MODE.WARP: {
       const targetPoint = getShipTargetPoint(entity);
-      const warpState = entity.warpState || {};
+      const warpState = entity && entity.warpState;
       pushDouble(chunks, targetPoint.x);
       pushDouble(chunks, targetPoint.y);
       pushDouble(chunks, targetPoint.z);
-      pushInt32(chunks, toInt32(warpState.effectStamp, 0));
-      pushBigInt64(
-        chunks,
-        doubleToInt64Bits(
-          toFiniteNumber(warpState.followRangeMarker, -1),
-        ),
-      );
-      pushBigInt64(
-        chunks,
-        doubleToInt64Bits(
-          toFiniteNumber(warpState.followID, 15000),
-        ),
-      );
-      pushInt32(
-        chunks,
-        toInt32(
-          warpState.warpSpeed ||
-            (toFiniteNumber(entity.warpSpeedAU, 0) > 0
-              ? Math.round(entity.warpSpeedAU * 10)
-              : 30),
-          30,
-        ),
-      );
+      // Raw mode-3 state in the bootstrap/state buffers follows the later
+      // DLL-backed SetState decode we mapped for V23.02:
+      // goto + effectStamp + totalDistance + stopDistance + warpFactor.
+      pushInt32(chunks, toInt32(warpState && warpState.effectStamp, 0));
+      pushDouble(chunks, toFiniteNumber(warpState && warpState.totalDistance, 0));
+      pushDouble(chunks, toFiniteNumber(warpState && warpState.stopDistance, 0));
+      pushInt32(chunks, getShipWarpFactor(entity));
       break;
     }
     case BALL_MODE.ORBIT:
@@ -297,6 +299,107 @@ function encodeEntityBall(entity) {
   }
 
   return encodeRigidBall(entity);
+}
+
+function describeBallMode(mode) {
+  switch (mode) {
+    case BALL_MODE.GOTO:
+      return "GOTO";
+    case BALL_MODE.FOLLOW:
+      return "FOLLOW";
+    case BALL_MODE.STOP:
+      return "STOP";
+    case BALL_MODE.WARP:
+      return "WARP";
+    case BALL_MODE.ORBIT:
+      return "ORBIT";
+    case BALL_MODE.RIGID:
+      return "RIGID";
+    default:
+      return `UNKNOWN_${mode}`;
+  }
+}
+
+function describeBallFlags(flags) {
+  return {
+    byte: flags,
+    isFree: (flags & BALL_FLAG.IS_FREE) !== 0,
+    isGlobal: (flags & BALL_FLAG.IS_GLOBAL) !== 0,
+    isMassive: (flags & BALL_FLAG.IS_MASSIVE) !== 0,
+    isInteractive: (flags & BALL_FLAG.IS_INTERACTIVE) !== 0,
+  };
+}
+
+function debugDescribeEntityBall(entity) {
+  const encoded = encodeEntityBall(entity);
+  if (entity.kind === "ship") {
+    const mode = getShipMode(entity);
+    const flags = BALL_FLAG.IS_FREE | BALL_FLAG.IS_INTERACTIVE;
+    const summary = {
+      kind: entity.kind,
+      itemID: entity.itemID,
+      mode: describeBallMode(mode),
+      modeCode: mode,
+      flags: describeBallFlags(flags),
+      radius: toFiniteNumber(entity.radius, 1),
+      position: buildVector(entity.position),
+      mass: toFiniteNumber(entity.mass, 1_000_000),
+      allianceID: entity.allianceID || -1,
+      corporationID: entity.corporationID || 0,
+      maxVelocity: toFiniteNumber(entity.maxVelocity, 0),
+      velocity: buildVector(entity.velocity),
+      inertia: toFiniteNumber(entity.inertia, 1),
+      speedFraction: toFiniteNumber(entity.speedFraction, 0),
+      modeData: null,
+    };
+    if (mode === BALL_MODE.GOTO) {
+      summary.modeData = {
+        targetPoint: getShipTargetPoint(entity),
+      };
+    } else if (mode === BALL_MODE.FOLLOW) {
+      summary.modeData = {
+        targetEntityID: entity.targetEntityID || 0,
+        followRange: toFiniteNumber(entity.followRange, 0),
+      };
+    } else if (mode === BALL_MODE.WARP) {
+      const warpState = entity && entity.warpState;
+      summary.modeData = {
+        targetPoint: getShipTargetPoint(entity),
+        effectStamp: toInt32(warpState && warpState.effectStamp, 0),
+        totalDistance: toFiniteNumber(warpState && warpState.totalDistance, 0),
+        stopDistance: toFiniteNumber(warpState && warpState.stopDistance, 0),
+        warpFactor: getShipWarpFactor(entity),
+      };
+    } else if (mode === BALL_MODE.ORBIT) {
+      summary.modeData = {
+        targetEntityID: entity.targetEntityID || 0,
+        orbitDistance: toFiniteNumber(entity.orbitDistance, 0),
+      };
+    }
+    return {
+      encodedLength: encoded.length,
+      encodedHex: encoded.toString("hex"),
+      summary,
+    };
+  }
+
+  const flags =
+    entity.kind === "station" || entity.kind === "stargate"
+      ? BALL_FLAG.IS_GLOBAL | BALL_FLAG.IS_MASSIVE
+      : BALL_FLAG.IS_GLOBAL;
+  return {
+    encodedLength: encoded.length,
+    encodedHex: encoded.toString("hex"),
+    summary: {
+      kind: entity.kind,
+      itemID: entity.itemID,
+      mode: "RIGID",
+      modeCode: BALL_MODE.RIGID,
+      flags: describeBallFlags(flags),
+      radius: toFiniteNumber(entity.radius, 1),
+      position: buildVector(entity.position),
+    },
+  };
 }
 
 function buildDamageState(entity) {
@@ -329,7 +432,8 @@ function buildSlimItemDict(entity) {
     entries.push(["allianceID", entity.allianceID || 0]);
     entries.push(["warFactionID", entity.warFactionID || 0]);
     entries.push(["charID", entity.characterID || 0]);
-    entries.push(["modules", buildList(Array.isArray(entity.modules) ? entity.modules : [])]);
+    entries.push(["skinMaterialSetID", entity.skinMaterialSetID ?? null]);
+    entries.push(["modules", buildList([])]);
     entries.push(["securityStatus", 0.0]);
     entries.push(["bounty", 0.0]);
   } else if (entity.kind === "station") {
@@ -338,8 +442,58 @@ function buildSlimItemDict(entity) {
     entries.push(["warFactionID", entity.warFactionID || 0]);
     entries.push(["online", 1]);
     entries.push(["incapacitated", 0]);
+    entries.push(["activityLevel", entity.activityLevel ?? null]);
+    entries.push(["skinMaterialSetID", entity.skinMaterialSetID ?? null]);
+    if (entity.celestialEffect !== undefined && entity.celestialEffect !== null) {
+      entries.push(["celestialEffect", entity.celestialEffect]);
+    }
+    if (Array.isArray(entity.dunRotation) && entity.dunRotation.length === 3) {
+      entries.push(["dunRotation", entity.dunRotation]);
+    }
   } else if (entity.kind === "stargate") {
     entries.push(["nameID", null]);
+    entries.push(["activationState", entity.activationState ?? 2]);
+    entries.push(["poseID", entity.poseID ?? 0]);
+    entries.push([
+      "localCorruptionStageAndMaximum",
+      buildList(entity.localCorruptionStageAndMaximum || [0, 1]),
+    ]);
+    entries.push([
+      "destinationCorruptionStageAndMaximum",
+      buildList(entity.destinationCorruptionStageAndMaximum || [0, 1]),
+    ]);
+    entries.push([
+      "localSuppressionStageAndMaximum",
+      buildList(entity.localSuppressionStageAndMaximum || [0, 1]),
+    ]);
+    entries.push([
+      "destinationSuppressionStageAndMaximum",
+      buildList(entity.destinationSuppressionStageAndMaximum || [0, 1]),
+    ]);
+    entries.push([
+      "hasVolumetricDrifterCloud",
+      entity.hasVolumetricDrifterCloud ? 1 : 0,
+    ]);
+    entries.push(["originSystemOwnerID", entity.originSystemOwnerID ?? null]);
+    entries.push([
+      "destinationSystemOwnerID",
+      entity.destinationSystemOwnerID ?? null,
+    ]);
+    entries.push([
+      "destinationSystemStatusIcons",
+      buildList(entity.destinationSystemStatusIcons || []),
+    ]);
+    entries.push([
+      "destinationSystemWarning",
+      entity.destinationSystemWarning ?? null,
+    ]);
+    entries.push([
+      "destinationSystemWarningIcon",
+      entity.destinationSystemWarningIcon ?? null,
+    ]);
+    if (Array.isArray(entity.dunRotation) && entity.dunRotation.length === 3) {
+      entries.push(["dunRotation", entity.dunRotation]);
+    }
     entries.push(["jumps", buildStargateJumps(entity)]);
   }
 
@@ -448,12 +602,13 @@ function buildDestinyUpdatePayload(updates, waitForBubble = false) {
 }
 
 function buildGotoDirectionPayload(entityID, direction) {
-  const vector = buildVector(direction);
+  const vector = buildMarshalRealVector(direction);
   return ["GotoDirection", [entityID, vector.x, vector.y, vector.z]];
 }
 
-function buildAlignToPayload(entityID) {
-  return ["AlignTo", [entityID]];
+function buildGotoPointPayload(entityID, point) {
+  const vector = buildMarshalRealVector(point);
+  return ["GotoPoint", [entityID, vector.x, vector.y, vector.z]];
 }
 
 function buildFollowBallPayload(entityID, targetID, range) {
@@ -461,7 +616,7 @@ function buildFollowBallPayload(entityID, targetID, range) {
 }
 
 function buildWarpToPayload(entityID, destination, distance, warpSpeed) {
-  const vector = buildVector(destination);
+  const vector = buildMarshalRealVector(destination);
   return [
     "WarpTo",
     [
@@ -469,8 +624,65 @@ function buildWarpToPayload(entityID, destination, distance, warpSpeed) {
       vector.x,
       vector.y,
       vector.z,
-      toInt32(distance, 0),
+      buildMarshalReal(distance, 0),
       toInt32(warpSpeed, 30),
+    ],
+  ];
+}
+
+function buildAddBallPayload(
+  entityID,
+  {
+    mass = 0,
+    radius = 0,
+    maxSpeed = 0,
+    isFree = true,
+    isGlobal = false,
+    isMassive = false,
+    isInteractive = true,
+    isMoribund = false,
+    position = null,
+    velocity = null,
+    inertia = 1,
+    speedFraction = 0,
+  } = {},
+) {
+  const positionVector = buildMarshalRealVector(position);
+  const velocityVector = buildMarshalRealVector(velocity);
+  return [
+    "AddBall",
+    [
+      entityID,
+      buildMarshalReal(mass, 0),
+      buildMarshalReal(radius, 0),
+      buildMarshalReal(maxSpeed, 0),
+      isFree ? 1 : 0,
+      isGlobal ? 1 : 0,
+      isMassive ? 1 : 0,
+      isInteractive ? 1 : 0,
+      isMoribund ? 1 : 0,
+      positionVector.x,
+      positionVector.y,
+      positionVector.z,
+      velocityVector.x,
+      velocityVector.y,
+      velocityVector.z,
+      buildMarshalReal(inertia, 1),
+      buildMarshalReal(speedFraction, 0),
+    ],
+  ];
+}
+
+function buildEntityWarpInPayload(entityID, destination, warpFactor) {
+  const vector = buildMarshalRealVector(destination);
+  return [
+    "EntityWarpIn",
+    [
+      entityID,
+      vector.x,
+      vector.y,
+      vector.z,
+      toInt32(warpFactor, 0),
     ],
   ];
 }
@@ -480,7 +692,7 @@ function buildOrbitPayload(entityID, orbitEntityID, distance) {
 }
 
 function buildSetSpeedFractionPayload(entityID, fraction) {
-  return ["SetSpeedFraction", [entityID, toFiniteNumber(fraction, 0)]];
+  return ["SetSpeedFraction", [entityID, buildMarshalReal(fraction, 0)]];
 }
 
 function buildStopPayload(entityID) {
@@ -488,39 +700,52 @@ function buildStopPayload(entityID) {
 }
 
 function buildSetBallVelocityPayload(entityID, velocity) {
-  const vector = buildVector(velocity);
+  const vector = buildMarshalRealVector(velocity);
   return ["SetBallVelocity", [entityID, vector.x, vector.y, vector.z]];
 }
 
 function buildSetBallPositionPayload(entityID, position) {
-  const vector = buildVector(position);
+  const vector = buildMarshalRealVector(position);
   return ["SetBallPosition", [entityID, vector.x, vector.y, vector.z]];
 }
 
 function buildOnDockingAcceptedPayload(shipPosition, stationPosition, stationID) {
-  const ship = buildVector(shipPosition);
-  const station = buildVector(stationPosition);
-  return [
-    [ship.x, ship.y, ship.z],
-    [station.x, station.y, station.z],
-    toInt32(stationID, 0),
-  ];
+  return [toInt32(stationID, 0)];
 }
 
 function buildSetBallAgilityPayload(entityID, agility) {
-  return ["SetBallAgility", [entityID, toFiniteNumber(agility, 0)]];
+  return ["SetBallAgility", [entityID, buildMarshalReal(agility, 0)]];
 }
 
 function buildSetBallMassPayload(entityID, mass) {
-  return ["SetBallMass", [entityID, toFiniteNumber(mass, 0)]];
+  return ["SetBallMass", [entityID, buildMarshalReal(mass, 0)]];
 }
 
 function buildSetMaxSpeedPayload(entityID, speed) {
-  return ["SetMaxSpeed", [entityID, toFiniteNumber(speed, 0)]];
+  return [
+    "SetMaxSpeed",
+    [entityID, buildMarshalReal(speed, 0)],
+  ];
 }
 
 function buildSetBallMassivePayload(entityID, isMassive) {
   return ["SetBallMassive", [entityID, isMassive ? 1 : 0]];
+}
+
+function normalizeGraphicInfo(graphicInfo) {
+  if (graphicInfo === undefined) {
+    return undefined;
+  }
+  if (
+    graphicInfo === null ||
+    (graphicInfo && typeof graphicInfo === "object" && graphicInfo.type)
+  ) {
+    return graphicInfo;
+  }
+  if (graphicInfo && typeof graphicInfo === "object" && !Array.isArray(graphicInfo)) {
+    return buildDict(Object.entries(graphicInfo));
+  }
+  return graphicInfo;
 }
 
 function buildOnSpecialFXPayload(
@@ -537,6 +762,7 @@ function buildOnSpecialFXPayload(
     duration,
     repeat,
     startTime,
+    timeFromStart,
     graphicInfo,
   } = {},
 ) {
@@ -551,20 +777,26 @@ function buildOnSpecialFXPayload(
     start ? 1 : 0,
     active ? 1 : 0,
   ];
-  if (
-    duration !== undefined ||
-    repeat !== undefined ||
-    startTime !== undefined ||
-    graphicInfo !== undefined
-  ) {
-    args.push(
-      duration === undefined ? -1 : toFiniteNumber(duration, -1),
-      repeat === undefined ? null : repeat,
-      startTime === undefined ? null : startTime,
-      graphicInfo === undefined ? null : graphicInfo,
-    );
-  }
+  // Michelle's live signature always reserves the full optional tail:
+  // duration, repeat, startTime, timeFromStart, graphicInfo.
+  args.push(
+    duration === undefined ? -1 : toFiniteNumber(duration, -1),
+    repeat === undefined ? null : repeat,
+    startTime === undefined ? null : startTime,
+    timeFromStart === undefined ? 0 : toFiniteNumber(timeFromStart, 0),
+    graphicInfo === undefined ? null : normalizeGraphicInfo(graphicInfo),
+  );
   return ["OnSpecialFX", args];
+}
+
+function buildOnSlimItemChangePayload(entityID, slimItem = null) {
+  return [
+    "OnSlimItemChange",
+    [
+      toInt32(entityID, 0),
+      slimItem || null,
+    ],
+  ];
 }
 
 function buildRemoveBallPayload(entityID) {
@@ -583,9 +815,11 @@ module.exports = {
   buildSetStatePayload,
   buildDestinyUpdatePayload,
   buildGotoDirectionPayload,
-  buildAlignToPayload,
+  buildGotoPointPayload,
   buildFollowBallPayload,
+  buildAddBallPayload,
   buildWarpToPayload,
+  buildEntityWarpInPayload,
   buildOrbitPayload,
   buildSetSpeedFractionPayload,
   buildStopPayload,
@@ -597,6 +831,8 @@ module.exports = {
   buildSetMaxSpeedPayload,
   buildSetBallMassivePayload,
   buildOnSpecialFXPayload,
+  buildOnSlimItemChangePayload,
   buildRemoveBallPayload,
   buildRemoveBallsPayload,
+  debugDescribeEntityBall,
 };

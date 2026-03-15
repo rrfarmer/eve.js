@@ -1,31 +1,41 @@
+const config = require("../../config")
 const {
   spawnShipInHangarForSession,
   getActiveShipRecord,
-  activateShipForSession,
-  syncInventoryItemForSession,
+  applyCharacterToSession,
 } = require("../character/characterState");
 const sessionRegistry = require("./sessionRegistry");
 const {
   getAllItems,
   getCharacterHangarShipItems,
-  createInventoryItemForCharacter,
-  ITEM_FLAGS,
 } = require("../inventory/itemStore");
-const {
-  resolveModuleByTypeID,
-  resolveModuleByName,
-} = require("../inventory/moduleTypeRegistry");
 const {
   getCharacterWallet,
   setCharacterBalance,
   adjustCharacterBalance,
+  emitPlexBalanceChangeToSession,
+  setCharacterPlexBalance,
+  adjustCharacterPlexBalance,
 } = require("../account/walletState");
+const { resolveShipByName } = require("./shipTypeRegistry");
+const { resolveSolarSystemByName } = require("./solarSystemRegistry");
 const {
-  resolveShipByName,
-  resolveShipByTypeID,
-} = require("./shipTypeRegistry");
-const { getHotReloadController } = require("../../hotReload");
-const COMMAND_FEEDBACK_DELAY_MS = 150;
+  createCustomAllianceForCorporation,
+  createCustomCorporation,
+  joinCorporationToAllianceByName,
+  getCorporationRecord,
+} = require("../corporation/corporationState");
+const {
+  jumpSessionToSolarSystem,
+  jumpSessionToStation,
+} = require("../../space/transitions");
+const worldData = require("../../space/worldData");
+const spaceRuntime = require("../../space/runtime");
+const {
+  buildEffectListText,
+  playPlayableEffect,
+  stopAllPlayableEffects,
+} = require("./specialFxRegistry");
 
 const DEFAULT_MOTD_MESSAGE = [
   "Welcome to EvEJS.",
@@ -36,17 +46,26 @@ const DEFAULT_MOTD_MESSAGE = [
 const AVAILABLE_SLASH_COMMANDS = [
   "addisk",
   "announce",
+  "addplex",
+  "corpcreate",
   "commandlist",
   "commands",
   "giveme",
   "hangar",
   "help",
   "item",
+  "dock",
+  "effect",
   "fit",
   "load",
   "motd",
   "reload",
+  "joinalliance",
+  "loadsys",
+  "solar",
   "session",
+  "setalliance",
+  "setplex",
   "setisk",
   "ship",
   "tr",
@@ -59,12 +78,21 @@ const COMMANDS_HELP_TEXT = [
   "Commands:",
   "/help",
   "/motd",
+  "/dock",
   "/reload",
+  "/effect <name>",
   "/where",
   "/who",
   "/wallet",
+  "/corpcreate <corporation name>",
+  "/setalliance <alliance name>",
+  "/joinalliance <alliance name>",
+  "/loadsys",
+  "/solar <system name>",
   "/addisk <amount>",
+  "/addplex <amount>",
   "/setisk <amount>",
+  "/setplex <amount>",
   "/ship <ship name>",
   "/giveme <ship name>",
   "/load <character|me> <typeID> [quantity]",
@@ -87,11 +115,35 @@ function getTeleportSession() {
   return require("../../space/transitions").teleportSession;
 }
 
+function formatDistanceMeters(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "0 m";
+  }
+  if (numeric >= 1000) {
+    return `${(numeric / 1000).toLocaleString("en-US", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    })} km`;
+  }
+  return `${Math.round(numeric).toLocaleString("en-US")} m`;
+}
+
 function formatIsk(value) {
   return `${Number(value || 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ISK`;
+}
+
+function formatPlex(value) {
+  return `${Math.max(0, Math.trunc(Number(value || 0))).toLocaleString("en-US")} PLEX`;
+}
+
+function formatSignedPlex(value) {
+  const numeric = Math.trunc(Number(value || 0));
+  const prefix = numeric > 0 ? "+" : "";
+  return `${prefix}${numeric.toLocaleString("en-US")} PLEX`;
 }
 
 function parseAmount(value) {
@@ -141,10 +193,10 @@ function emitChatFeedback(chatHub, session, options, message) {
     session &&
     (!options || options.emitChatFeedback !== false)
   ) {
-    const delayMs =
+        const delayMs =
       options && Number.isFinite(Number(options.chatFeedbackDelayMs))
         ? Math.max(0, Number(options.chatFeedbackDelayMs))
-        : COMMAND_FEEDBACK_DELAY_MS;
+        : config.COMMAND_FEEDBACK_DELAY_MS;
 
     setTimeout(() => {
       if (!session.socket || session.socket.destroyed) {
@@ -153,6 +205,7 @@ function emitChatFeedback(chatHub, session, options, message) {
 
       chatHub.sendSystemMessage(session, message);
     }, delayMs);
+    chatHub.sendSystemMessage(session, message);
   }
 }
 
@@ -162,6 +215,118 @@ function handledResult(chatHub, session, options, message) {
     handled: true,
     message,
   };
+}
+
+function flushPendingLocalChannelSync(chatHub, session) {
+  if (
+    !chatHub ||
+    !session ||
+    typeof chatHub.moveLocalSession !== "function"
+  ) {
+    return;
+  }
+
+  const pending = session._pendingLocalChannelSync || null;
+  if (!pending) {
+    return;
+  }
+
+  session._pendingLocalChannelSync = null;
+  chatHub.moveLocalSession(session, pending.previousChannelID);
+}
+
+function normalizePositiveInteger(value) {
+  const numeric = Number(value || 0);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function refreshAffiliationSessions(characterIDs) {
+  const targetCharacterIDs = new Set(
+    (Array.isArray(characterIDs) ? characterIDs : [])
+      .map((characterID) => normalizePositiveInteger(characterID))
+      .filter(Boolean),
+  );
+
+  if (targetCharacterIDs.size === 0) {
+    return;
+  }
+
+  for (const targetSession of sessionRegistry.getSessions()) {
+    const characterID = normalizePositiveInteger(
+      targetSession && (targetSession.characterID || targetSession.charid),
+    );
+    if (!characterID || !targetCharacterIDs.has(characterID)) {
+      continue;
+    }
+
+    applyCharacterToSession(targetSession, characterID, {
+      selectionEvent: false,
+      emitNotifications: true,
+      logSelection: false,
+    });
+  }
+}
+
+function reconcileSolarTargetSessionIdentity(session, solarSystem) {
+  if (
+    !session ||
+    !solarSystem ||
+    typeof session.sendSessionChange !== "function"
+  ) {
+    return false;
+  }
+
+  const targetSolarSystemID =
+    normalizePositiveInteger(solarSystem.solarSystemID) || null;
+  const targetConstellationID =
+    normalizePositiveInteger(solarSystem.constellationID) || null;
+  const targetRegionID =
+    normalizePositiveInteger(solarSystem.regionID) || null;
+
+  if (!targetSolarSystemID) {
+    return false;
+  }
+
+  const sessionChanges = {};
+  const applyChange = (key, nextValue, aliases) => {
+    const previousValue = normalizePositiveInteger(
+      aliases.map((alias) => session[alias]).find((value) => value !== undefined),
+    );
+    const normalizedNextValue = normalizePositiveInteger(nextValue);
+    if (previousValue === normalizedNextValue) {
+      return;
+    }
+
+    for (const alias of aliases) {
+      session[alias] = normalizedNextValue;
+    }
+    sessionChanges[key] = [previousValue, normalizedNextValue];
+  };
+
+  applyChange("solarsystemid2", targetSolarSystemID, ["solarsystemid2"]);
+  applyChange("solarsystemid", targetSolarSystemID, ["solarsystemid"]);
+  applyChange("locationid", targetSolarSystemID, ["locationid"]);
+
+  if (targetConstellationID) {
+    applyChange("constellationid", targetConstellationID, [
+      "constellationid",
+      "constellationID",
+    ]);
+  }
+
+  if (targetRegionID) {
+    applyChange("regionid", targetRegionID, [
+      "regionid",
+      "regionID",
+    ]);
+  }
+
+  if (Object.keys(sessionChanges).length === 0) {
+    return false;
+  }
+
+  session.sendSessionChange(sessionChanges);
+  return true;
 }
 
 function getWalletSummary(session) {
@@ -177,7 +342,7 @@ function getWalletSummary(session) {
       ? "0.00 ISK"
       : `${wallet.balanceChange > 0 ? "+" : ""}${formatIsk(wallet.balanceChange)}`;
 
-  return `Wallet balance: ${formatIsk(wallet.balance)}. Last change: ${deltaText}.`;
+  return `Wallet balance: ${formatIsk(wallet.balance)}. PLEX: ${formatPlex(wallet.plexBalance)}. Last ISK change: ${deltaText}.`;
 }
 
 function getLocationSummary(session) {
@@ -194,6 +359,31 @@ function getLocationSummary(session) {
   }
 
   return "Current location is unknown.";
+}
+
+function getActiveSolarSystemID(session) {
+  return normalizePositiveInteger(
+    session &&
+      (
+        (session._space && session._space.systemID) ||
+        session.solarsystemid2 ||
+        session.solarsystemid
+      ),
+  );
+}
+
+function formatSolarSystemLabel(systemID) {
+  const system = worldData.getSolarSystemByID(systemID);
+  return system && system.solarSystemName
+    ? `${system.solarSystemName}(${systemID})`
+    : String(systemID || 0);
+}
+
+function formatSolarSystemList(systemIDs) {
+  const uniqueIDs = [...new Set((Array.isArray(systemIDs) ? systemIDs : []).filter(Boolean))];
+  return uniqueIDs.length > 0
+    ? uniqueIDs.map((systemID) => formatSolarSystemLabel(systemID)).join(", ")
+    : "none";
 }
 
 function getConnectedCharacterSummary() {
@@ -830,6 +1020,354 @@ function getHotReloadSummary() {
   ].join(" | ");
 }
 
+
+function handleSolarTeleport(session, argumentText, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /solar.",
+    );
+  }
+
+  if (!argumentText) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Usage: /solar <system name>",
+    );
+  }
+
+  const lookup = resolveSolarSystemByName(argumentText);
+  if (!lookup.success) {
+    const message =
+      lookup.errorMsg === "SOLAR_SYSTEM_NOT_FOUND"
+        ? `Solar system not found: ${argumentText}.${formatSuggestions(lookup.suggestions)}`
+        : `Solar system name is ambiguous: ${argumentText}.${formatSuggestions(lookup.suggestions)}`;
+    return handledResult(chatHub, session, options, message.trim());
+  }
+
+  const result = jumpSessionToSolarSystem(session, lookup.match.solarSystemID);
+  if (!result.success) {
+    let message = "Solar-system jump failed.";
+    if (result.errorMsg === "SHIP_NOT_FOUND") {
+      message = "Active ship not found for this character.";
+    } else if (result.errorMsg === "CHARACTER_NOT_SELECTED") {
+      message = "Select a character before using /solar.";
+    } else if (result.errorMsg === "SOLAR_SYSTEM_NOT_FOUND") {
+      message = `Solar system not found: ${lookup.match.solarSystemName}.`;
+    } else if (result.errorMsg === "SOLAR_JUMP_IN_PROGRESS") {
+      message = "A solar-system jump is already in progress for this character.";
+    }
+
+    return handledResult(chatHub, session, options, message);
+  }
+
+  const spawnState = result.data && result.data.spawnState;
+  const targetSolarSystem =
+    (result.data && result.data.solarSystem) ||
+    worldData.getSolarSystemByID(lookup.match.solarSystemID);
+  const anchorText = spawnState
+    ? ` near ${spawnState.anchorType} ${spawnState.anchorName}`
+    : "";
+
+  // The transition path should already send the correct full location identity.
+  // Keep a command-side backstop here so /solar does not depend exclusively on
+  // later session hydration if region/constellation drift again.
+  reconcileSolarTargetSessionIdentity(session, targetSolarSystem);
+
+  // Move Local before emitting feedback so slash responses do not land in the
+  // new system while the client is still joined to the previous room.
+  flushPendingLocalChannelSync(chatHub, session);
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Teleported to ${lookup.match.solarSystemName} (${lookup.match.solarSystemID})${anchorText}.`,
+  );
+}
+
+function handleHomeDock(session, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /dock.",
+    );
+  }
+
+  const homeStationID = Number(
+    session.homeStationID ||
+    session.homestationid ||
+    session.cloneStationID ||
+    session.clonestationid ||
+    0,
+  ) || 0;
+
+  if (!homeStationID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Home station is not set for this character.",
+    );
+  }
+
+  if (
+    Number(session.stationid || session.stationID || 0) === homeStationID
+  ) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Already docked at home station ${homeStationID}.`,
+    );
+  }
+
+  const result = jumpSessionToStation(session, homeStationID);
+  if (!result.success) {
+    let message = "Dock command failed.";
+    if (result.errorMsg === "SHIP_NOT_FOUND") {
+      message = "Active ship not found for this character.";
+    } else if (result.errorMsg === "CHARACTER_NOT_SELECTED") {
+      message = "Select a character before using /dock.";
+    } else if (result.errorMsg === "STATION_NOT_FOUND") {
+      message = `Home station not found: ${homeStationID}.`;
+    } else if (result.errorMsg === "STATION_JUMP_IN_PROGRESS") {
+      message = "A dock transition is already in progress for this character.";
+    }
+
+    return handledResult(chatHub, session, options, message);
+  }
+
+  const station = result.data && result.data.station;
+  flushPendingLocalChannelSync(chatHub, session);
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Docked at ${station ? station.stationName : `station ${homeStationID}`}.`,
+  );
+}
+
+function handleEffectCommand(session, argumentText, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /effect.",
+    );
+  }
+
+  if (!session._space || session.stationid || session.stationID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "You must be in space to use /effect.",
+    );
+  }
+
+  const trimmed = String(argumentText || "").trim();
+  if (!trimmed || trimmed === "list" || trimmed === "help" || trimmed === "?") {
+    return handledResult(chatHub, session, options, buildEffectListText());
+  }
+
+  const parts = trimmed.split(/\s+/);
+  const verb = normalizeCommandName(parts[0]);
+  const stop = verb === "stop" || verb === "off";
+  const effectName = stop ? parts.slice(1).join(" ").trim() : trimmed;
+  if (stop && !effectName) {
+    const stopResult = stopAllPlayableEffects(session);
+    if (!stopResult.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Effect stop failed.",
+      );
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Stopped all known self FX on your ship.",
+    );
+  }
+
+  if (!effectName) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Usage: /effect <name>, /effect stop, or /effect stop <name>",
+    );
+  }
+
+  const result = playPlayableEffect(session, effectName, { stop });
+  if (!result.success) {
+    if (result.errorMsg === "EFFECT_NOT_FOUND") {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `Unknown effect: ${effectName}. ${buildEffectListText()}`,
+      );
+    }
+    if (result.errorMsg === "DESTINY_NOT_READY") {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Space scene is not ready for FX yet. Try again in a moment.",
+      );
+    }
+    if (result.errorMsg === "DEBUG_TEST_TARGET_NO_STATION") {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "That debug/test effect needs a nearby station target, but there is no station entity available in the current scene.",
+      );
+    }
+    if (result.errorMsg === "DEBUG_TEST_TARGET_OUT_OF_RANGE") {
+      const maxRangeText = formatDistanceMeters(
+        result.data && result.data.maxRangeMeters,
+      );
+      const nearestDistanceText = formatDistanceMeters(
+        result.data && result.data.nearestDistanceMeters,
+      );
+      const targetName =
+        (result.data && result.data.targetName) || "the nearest station";
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `That debug/test effect needs a nearby station target within ${maxRangeText}. The nearest station is ${targetName} at ${nearestDistanceText}.`,
+      );
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Effect playback failed.",
+    );
+  }
+
+  const effect = result.data.effect;
+  const autoTarget = result.data.autoTarget;
+  if (effect.debugOnly && autoTarget) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `${stop ? "Stopped" : "Played"} debug/test ${effect.key} (${effect.guid}) on your ship using nearby station ${autoTarget.targetName} (${autoTarget.targetID}) at ${formatDistanceMeters(autoTarget.distanceMeters)}.`,
+    );
+  }
+  if (effect.debugOnly) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `${stop ? "Stopped" : "Played"} debug/test ${effect.key} (${effect.guid}) on your ship.`,
+    );
+  }
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `${stop ? "Stopped" : "Played"} ${effect.key} (${effect.guid}) on your ship.`,
+  );
+}
+
+function handleLoadSystemCommand(session, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before loading stargate destination systems.",
+    );
+  }
+
+  const currentSystemID = getActiveSolarSystemID(session);
+  if (!currentSystemID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Current solar system could not be resolved.",
+    );
+  }
+
+  const stargates = worldData.getStargatesForSystem(currentSystemID);
+  if (stargates.length === 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `No stargates found in ${formatSolarSystemLabel(currentSystemID)}.`,
+    );
+  }
+
+  const destinationSystemIDs = [...new Set(
+    stargates
+      .map((stargate) => normalizePositiveInteger(stargate.destinationSolarSystemID))
+      .filter((systemID) => systemID && systemID !== currentSystemID),
+  )];
+  if (destinationSystemIDs.length === 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `No valid stargate destination systems found in ${formatSolarSystemLabel(currentSystemID)}.`,
+    );
+  }
+
+  const alreadyLoaded = destinationSystemIDs.filter((systemID) =>
+    spaceRuntime.isSolarSystemSceneLoaded(systemID),
+  );
+  spaceRuntime.ensureScene(currentSystemID, {
+    refreshStargates: false,
+    broadcastStargateChanges: false,
+  });
+  const activationChanges = spaceRuntime.preloadSolarSystems(destinationSystemIDs, {
+    broadcast: true,
+  });
+  const loadedNow = destinationSystemIDs.filter((systemID) =>
+    spaceRuntime.isSolarSystemSceneLoaded(systemID),
+  );
+  const newlyLoaded = loadedNow.filter(
+    (systemID) => !alreadyLoaded.includes(systemID),
+  );
+  const failed = destinationSystemIDs.filter(
+    (systemID) => !loadedNow.includes(systemID),
+  );
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    [
+      `/loadsys ${formatSolarSystemLabel(currentSystemID)}:`,
+      `loaded ${newlyLoaded.length}/${destinationSystemIDs.length} destination systems`,
+      `(${formatSolarSystemList(newlyLoaded)})`,
+      alreadyLoaded.length > 0
+        ? `already loaded: ${formatSolarSystemList(alreadyLoaded)}`
+        : null,
+      failed.length > 0
+        ? `failed: ${formatSolarSystemList(failed)}`
+        : null,
+      `gate updates emitted: ${activationChanges.length}.`,
+    ].filter(Boolean).join(" "),
+  );
+}
+
 function executeChatCommand(session, rawMessage, chatHub, options = {}) {
   const trimmed = String(rawMessage || "").trim();
   if (!trimmed.startsWith("/") && !trimmed.startsWith(".")) {
@@ -862,7 +1400,7 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     return handledResult(chatHub, session, options, DEFAULT_MOTD_MESSAGE);
   }
 
-  if (command === "reload") {
+    if (command === "reload") {
     const controller = getHotReloadController();
     if (!controller) {
       return handledResult(chatHub, session, options, "Hot reload is disabled.");
@@ -903,8 +1441,21 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     );
   }
 
+
   if (command === "where") {
     return handledResult(chatHub, session, options, getLocationSummary(session));
+  }
+
+  if (command === "dock") {
+    return handleHomeDock(session, chatHub, options);
+  }
+
+  if (command === "effect") {
+    return handleEffectCommand(session, argumentText, chatHub, options);
+  }
+
+  if (command === "loadsys") {
+    return handleLoadSystemCommand(session, chatHub, options);
   }
 
   if (command === "who") {
@@ -924,6 +1475,154 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
       options,
       summary || "Select a character before checking wallet balance.",
     );
+  }
+
+  if (command === "corpcreate") {
+    if (!session || !session.characterID) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Select a character before creating a corporation.",
+      );
+    }
+
+    if (!argumentText) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Usage: /corpcreate <corporation name>",
+      );
+    }
+
+    const result = createCustomCorporation(session.characterID, argumentText);
+    if (!result.success) {
+      const message =
+        result.errorMsg === "CORPORATION_NAME_TAKEN"
+          ? `Corporation already exists: ${argumentText}.`
+          : "Corporation creation failed.";
+      return handledResult(chatHub, session, options, message);
+    }
+
+    refreshAffiliationSessions(result.data.affectedCharacterIDs);
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Created corporation ${result.data.corporationRecord.corporationName} [${result.data.corporationRecord.tickerName}] and moved your character into it.`,
+    );
+  }
+
+  if (command === "setalliance") {
+    if (!session || !session.characterID) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Select a character before creating an alliance.",
+      );
+    }
+
+    if (!argumentText) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Usage: /setalliance <alliance name>",
+      );
+    }
+
+    const corporationRecord = getCorporationRecord(session.corporationID);
+    if (!corporationRecord) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Current corporation could not be resolved.",
+      );
+    }
+
+    const result = createCustomAllianceForCorporation(
+      session.characterID,
+      corporationRecord.corporationID,
+      argumentText,
+    );
+    if (!result.success) {
+      let message = "Alliance creation failed.";
+      if (result.errorMsg === "CUSTOM_CORPORATION_REQUIRED") {
+        message = "You must be in a custom corporation before creating an alliance.";
+      } else if (result.errorMsg === "ALLIANCE_NAME_TAKEN") {
+        message = `Alliance already exists: ${argumentText}.`;
+      }
+      return handledResult(chatHub, session, options, message);
+    }
+
+    refreshAffiliationSessions(result.data.affectedCharacterIDs);
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Created alliance ${result.data.allianceRecord.allianceName} [${result.data.allianceRecord.shortName}] and set your corporation into it.`,
+    );
+  }
+
+  if (command === "joinalliance") {
+    if (!session || !session.characterID) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Select a character before joining an alliance.",
+      );
+    }
+
+    if (!argumentText) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Usage: /joinalliance <alliance name>",
+      );
+    }
+
+    const corporationRecord = getCorporationRecord(session.corporationID);
+    if (!corporationRecord) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Current corporation could not be resolved.",
+      );
+    }
+
+    const result = joinCorporationToAllianceByName(
+      corporationRecord.corporationID,
+      argumentText,
+    );
+    if (!result.success) {
+      let message = "Alliance join failed.";
+      if (result.errorMsg === "CUSTOM_CORPORATION_REQUIRED") {
+        message = "You must be in a custom corporation before joining a custom alliance.";
+      } else if (result.errorMsg === "ALLIANCE_NOT_FOUND") {
+        message = `Alliance not found: ${argumentText}.`;
+      } else if (result.errorMsg === "ALREADY_IN_ALLIANCE") {
+        message = `Your corporation is already in ${argumentText}.`;
+      }
+      return handledResult(chatHub, session, options, message);
+    }
+
+    refreshAffiliationSessions(result.data.affectedCharacterIDs);
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Joined alliance ${result.data.allianceRecord.allianceName} [${result.data.allianceRecord.shortName}].`,
+    );
+  }
+
+  if (command === "solar") {
+    return handleSolarTeleport(session, argumentText, chatHub, options);
   }
 
   if (command === "addisk") {
@@ -971,6 +1670,46 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     );
   }
 
+  if (command === "addplex") {
+    if (!session || !session.characterID) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Select a character before changing PLEX balance.",
+      );
+    }
+
+    const amount = parseAmount(argumentText);
+    if (amount === null) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Usage: /addplex <amount>",
+      );
+    }
+
+    const result = adjustCharacterPlexBalance(session.characterID, amount);
+    if (!result.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "PLEX balance change failed.",
+      );
+    }
+
+    emitPlexBalanceChangeToSession(session, result.data.plexBalance);
+
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Adjusted PLEX by ${formatSignedPlex(amount)}. New balance: ${formatPlex(result.data.plexBalance)}.`,
+    );
+  }
+
   if (command === "setisk") {
     if (!session || !session.characterID) {
       return handledResult(
@@ -1013,6 +1752,46 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
       session,
       options,
       `Wallet balance set to ${formatIsk(result.data.balance)}.`,
+    );
+  }
+
+  if (command === "setplex") {
+    if (!session || !session.characterID) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Select a character before changing PLEX balance.",
+      );
+    }
+
+    const amount = parseAmount(argumentText);
+    if (amount === null) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "Usage: /setplex <amount>",
+      );
+    }
+
+    const result = setCharacterPlexBalance(session.characterID, amount);
+    if (!result.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        "PLEX balance change failed.",
+      );
+    }
+
+    emitPlexBalanceChangeToSession(session, result.data.plexBalance);
+
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `PLEX balance set to ${formatPlex(result.data.plexBalance)}.`,
     );
   }
 
@@ -1082,7 +1861,7 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     );
   }
 
-  if (command === "tr") {
+    if (command === "tr") {
     const parts = argumentText ? argumentText.split(/\s+/).filter(Boolean) : [];
     if (parts.length === 0) {
       return handledResult(

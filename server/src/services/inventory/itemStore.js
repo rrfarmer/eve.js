@@ -6,6 +6,7 @@ const { resolveShipByTypeID } = require(path.join(
   __dirname,
   "../chat/shipTypeRegistry",
 ));
+
 const { resolveModuleType } = require(path.join(
   __dirname,
   "./moduleTypeRegistry",
@@ -22,6 +23,7 @@ const ITEM_FLAGS = {
   DRONE_BAY: 87,
   SHIP_HANGAR: 90,
 };
+
 const FITTED_SLOT_FLAGS = new Set([
   11, 12, 13, 14, 15, 16, 17, 18,
   19, 20, 21, 22, 23, 24, 25, 26,
@@ -199,6 +201,10 @@ function getShipMetadata(typeID, name = null) {
       name: name || "Ship",
       groupID: 25,
       categoryID: SHIP_CATEGORY_ID,
+      mass: null,
+      volume: null,
+      capacity: null,
+      radius: null,
     }
   );
 }
@@ -241,7 +247,9 @@ function buildShipItem({
     customInfo: String(customInfo || ""),
     itemName: metadata.name || itemName || "Ship",
     mass: toFiniteNumber(metadata.mass, 0),
+    volume: toFiniteNumber(metadata.volume, 0),
     capacity: toFiniteNumber(metadata.capacity, 0),
+    radius: toFiniteNumber(metadata.radius, 0),
     spaceState: normalizeSpaceState(spaceState),
     conditionState: normalizeShipConditionState(conditionState),
   };
@@ -288,7 +296,7 @@ function normalizeShipItem(rawItem, defaults = {}) {
     return null;
   }
 
-  if (!isShipLikeItem(rawItem, defaults)) {
+    if (!isShipLikeItem(rawItem, defaults)) {
     return null;
   }
 
@@ -317,7 +325,6 @@ function normalizeShipItem(rawItem, defaults = {}) {
       : defaults.conditionState ?? null,
   });
 }
-
 function isMeaningfulItemName(value) {
   const normalizedValue = String(value || "").trim();
   return normalizedValue !== "" && !/^Type\s+\d+$/i.test(normalizedValue);
@@ -555,19 +562,18 @@ function nextItemID(charId, items, characterRecord = null) {
   }
 
   for (const rawItem of Object.values(items)) {
-    const itemID = toNumber(rawItem && (rawItem.itemID ?? rawItem.shipID), 0);
-    if (itemID <= 0) {
+    const item = normalizeShipItem(rawItem);
+    if (!item) {
       continue;
     }
 
-    if (itemID > maxItemID) {
-      maxItemID = itemID;
+    if (item.itemID > maxItemID) {
+      maxItemID = item.itemID;
     }
   }
 
   return maxItemID + 1;
 }
-
 function getMigrationSignature() {
   return [
     `characters:${getTableRevisionSafe(CHARACTERS_TABLE)}`,
@@ -699,7 +705,7 @@ function ensureMigrated() {
       charactersDirty = true;
     }
 
-    if (reconcileCharacterCapsules(charId, nextRecord, items)) {
+        if (reconcileCharacterCapsules(charId, nextRecord, items)) {
       itemsDirty = true;
     }
   }
@@ -1412,7 +1418,7 @@ function setActiveShipForCharacter(charId, shipId) {
     return syncResult;
   }
 
-  const characters = readCharacters();
+    const characters = readCharacters();
   const items = readItems();
   const currentRecord = characters[String(toNumber(charId, 0))];
   if (currentRecord && reconcileCharacterCapsules(charId, currentRecord, items)) {
@@ -1599,4 +1605,3 @@ module.exports = {
   getShipConditionState,
   normalizeShipConditionState,
 };
-

@@ -20,11 +20,11 @@ function startImageServer() {
     ) {
       filePath = path.join(__dirname, "images", "hi.jpg");
       contentType = "image/jpeg";
-    } else if (
-      normalizedUrl.includes("/corporation/") ||
-      normalizedUrl.includes("/alliance/")
-    ) {
+    } else if (normalizedUrl.includes("/corporation/")) {
       filePath = path.join(__dirname, "images", "hi.png");
+      contentType = "image/png";
+    } else if (normalizedUrl.includes("/alliance/")) {
+      filePath = path.join(__dirname, "images", "alliance-default.png");
       contentType = "image/png";
     } else if (normalizedUrl.endsWith(".png")) {
       filePath = path.join(__dirname, "images", "hi.png");

@@ -33,6 +33,13 @@ function buildKeyVal(entries) {
   };
 }
 
+function buildList(items = []) {
+  return {
+    type: "list",
+    items,
+  };
+}
+
 class SkillMgrService extends BaseService {
   constructor() {
     super("skillMgr");
@@ -78,11 +85,15 @@ class SkillMgrService extends BaseService {
   }
 
   _buildSkillQueue() {
-    return { type: "list", items: [] };
+    return buildList([]);
   }
 
   _buildEmptyDict() {
     return { type: "dict", entries: [] };
+  }
+
+  _getCharacterData(session) {
+    return getCharacterRecord(this._getCharacterId(session)) || {};
   }
 
   _buildCharacterAttributes(session) {
@@ -128,7 +139,19 @@ class SkillMgrService extends BaseService {
 
   Handle_GetSkillHistory(args, session) {
     log.debug("[SkillMgr] GetSkillHistory");
-    return { type: "list", items: [] };
+    const charData = this._getCharacterData(session);
+    const history = Array.isArray(charData.skillHistory) ? charData.skillHistory : [];
+    return buildList(
+      history.map((entry) =>
+        buildKeyVal([
+          ["logDate", { type: "long", value: BigInt(String(entry.logDate || 0)) }],
+          ["eventTypeID", Number(entry.eventTypeID || 0)],
+          ["skillTypeID", Number(entry.skillTypeID || 0)],
+          ["absolutePoints", Number(entry.absolutePoints || 0)],
+          ["level", Number(entry.level || 0)],
+        ]),
+      ),
+    );
   }
 
   Handle_GetSkillPoints(args, session) {
@@ -168,15 +191,20 @@ class SkillMgrService extends BaseService {
 
   Handle_GetRespecInfo(args, session) {
     log.debug("[SkillMgr] GetRespecInfo");
+    const charData = this._getCharacterData(session);
+    const respecInfo =
+      charData.respecInfo && typeof charData.respecInfo === "object"
+        ? charData.respecInfo
+        : {};
     return {
       type: "object",
       name: "util.KeyVal",
       args: {
         type: "dict",
         entries: [
-          ["freeRespecs", 3],
-          ["lastRespecDate", null],
-          ["nextTimedRespec", null],
+          ["freeRespecs", Number(respecInfo.freeRespecs ?? 3)],
+          ["lastRespecDate", respecInfo.lastRespecDate || null],
+          ["nextTimedRespec", respecInfo.nextTimedRespec || null],
         ],
       },
     };
@@ -184,22 +212,40 @@ class SkillMgrService extends BaseService {
 
   Handle_GetSkillQueueAndFreePoints(args, session) {
     log.debug("[SkillMgr] GetSkillQueueAndFreePoints called");
-    return [this._buildSkillQueue(), 0];
+    const charData = this._getCharacterData(session);
+    return [this._buildSkillQueue(), Number(charData.freeSkillPoints || 0)];
   }
 
   Handle_GetBoosters(args, session) {
     log.debug("[SkillMgr] GetBoosters called");
-    return this._buildEmptyDict();
+    const charData = this._getCharacterData(session);
+    const boosters = Array.isArray(charData.boosters) ? charData.boosters : [];
+    return {
+      type: "dict",
+      entries: boosters.map((entry, index) => [
+        Number(entry.typeID || entry.itemID || index + 1),
+        buildKeyVal(Object.entries(entry || {})),
+      ]),
+    };
   }
 
   Handle_GetImplants(args, session) {
     log.debug("[SkillMgr] GetImplants called");
-    return this._buildEmptyDict();
+    const charData = this._getCharacterData(session);
+    const implants = Array.isArray(charData.implants) ? charData.implants : [];
+    return {
+      type: "dict",
+      entries: implants.map((entry, index) => [
+        Number(entry.typeID || entry.itemID || index + 1),
+        buildKeyVal(Object.entries(entry || {})),
+      ]),
+    };
   }
 
   Handle_GetFreeSkillPoints(args, session) {
     log.debug("[SkillMgr] GetFreeSkillPoints called");
-    return 0;
+    const charData = this._getCharacterData(session);
+    return Number(charData.freeSkillPoints || 0);
   }
 
   Handle_GetFreeSkillPointsAppliedToQueue(args, session) {

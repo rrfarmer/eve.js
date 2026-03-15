@@ -5,3 +5,5 @@ evejs.config.json
 _temp_files_ignore
 out.log
 out-clean.log
+mapMoons.jsonl
+types.jsonl

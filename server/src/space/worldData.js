@@ -1,7 +1,7 @@
 const path = require("path");
+const database = require("../database")
 
 const log = require(path.join(__dirname, "../utils/logger"));
-const database = require(path.join(__dirname, "../database"));
 const {
   TABLE,
   readStaticRows,
@@ -33,12 +33,16 @@ function getWorldDataSignature() {
 function buildMaps() {
   const solarSystems = readStaticRows(TABLE.SOLAR_SYSTEMS);
   const stations = readStaticRows(TABLE.STATIONS);
+  const stationTypes = readStaticRows(TABLE.STATION_TYPES);
+  const stargateTypes = readStaticRows(TABLE.STARGATE_TYPES);
   const celestials = readStaticRows(TABLE.CELESTIALS);
   const stargates = readStaticRows(TABLE.STARGATES);
   const attributes = readStaticRows(TABLE.MOVEMENT_ATTRIBUTES);
 
   const solarSystemsById = new Map();
   const stationsById = new Map();
+  const stationTypesById = new Map();
+  const stargateTypesById = new Map();
   const stationsBySystem = new Map();
   const celestialsById = new Map();
   const celestialsBySystem = new Map();
@@ -58,8 +62,15 @@ function buildMaps() {
     stationsBySystem.get(station.solarSystemID).push(station);
   }
 
+  for (const stationType of stationTypes) {
+    stationTypesById.set(stationType.stationTypeID, stationType);
+  }
+
+  for (const stargateType of stargateTypes) {
+    stargateTypesById.set(stargateType.typeID, stargateType);
+  }
+
   for (const celestial of celestials) {
-    celestialsById.set(celestial.itemID, celestial);
     if (!celestialsBySystem.has(celestial.solarSystemID)) {
       celestialsBySystem.set(celestial.solarSystemID, []);
     }
@@ -91,11 +102,15 @@ function buildMaps() {
   return {
     solarSystems,
     stations,
+    stationTypes,
+    stargateTypes,
     celestials,
     stargates,
     attributes,
     solarSystemsById,
     stationsById,
+    stationTypesById,
+    stargateTypesById,
     stationsBySystem,
     celestialsById,
     celestialsBySystem,
@@ -130,8 +145,20 @@ function getSolarSystemByID(solarSystemID) {
   return ensureLoaded().solarSystemsById.get(Number(solarSystemID)) || null;
 }
 
+function getSolarSystems() {
+  return [...ensureLoaded().solarSystems];
+}
+
 function getStationByID(stationID) {
   return ensureLoaded().stationsById.get(Number(stationID)) || null;
+}
+
+function getStationTypeByID(stationTypeID) {
+  return ensureLoaded().stationTypesById.get(Number(stationTypeID)) || null;
+}
+
+function getStargateTypeByID(typeID) {
+  return ensureLoaded().stargateTypesById.get(Number(typeID)) || null;
 }
 
 function getStationsForSystem(solarSystemID) {
@@ -175,8 +202,11 @@ function getMovementAttributesForType(typeID) {
 
 module.exports = {
   ensureLoaded,
+  getSolarSystems,
   getSolarSystemByID,
   getStationByID,
+  getStationTypeByID,
+  getStargateTypeByID,
   getStationsForSystem,
   getCelestialByID,
   getCelestialsForSystem,

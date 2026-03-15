@@ -5,6 +5,9 @@ const { currentFileTime } = require(path.join(
   "./serviceHelpers",
 ));
 const worldData = require(path.join(__dirname, "../../space/worldData"));
+const {
+  getOwnerLookupRecord,
+} = require(path.join(__dirname, "../corporation/corporationState"));
 
 const DEFAULT_STATION = {
   stationID: 60003760,
@@ -134,6 +137,8 @@ function getStationRecord(session = null, overrideStationID = null) {
   const station = worldData.getStationByID(stationID);
   if (station) {
     const ownerRecord =
+      getOwnerLookupRecord(station.corporationID) ||
+      getOwnerLookupRecord(station.ownerID) ||
       NPC_OWNER_OVERRIDES[station.corporationID] ||
       NPC_OWNER_OVERRIDES[station.ownerID] ||
       null;
@@ -184,6 +189,11 @@ function getStaticOwnerRecord(ownerID, session = null) {
   }
 
   const station = getStationRecord(session);
+  const dynamicOwnerRecord = getOwnerLookupRecord(numericOwnerID);
+  if (dynamicOwnerRecord) {
+    return dynamicOwnerRecord;
+  }
+
   if (
     numericOwnerID === station.ownerID ||
     numericOwnerID === station.corporationID

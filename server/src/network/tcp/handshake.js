@@ -647,4 +647,3 @@ class EVEHandshake {
 }
 
 module.exports = EVEHandshake;
-

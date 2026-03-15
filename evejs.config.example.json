@@ -1,5 +1,6 @@
 {
   "autoLaunch": false,
+  "COMMAND_FEEDBACK_DELAY_MS": 0,
   "serverPort": 26000,
   "publicHost": "",
   "microservicesBindHost": "0.0.0.0",

@@ -27,7 +27,7 @@ class CharFittingMgrService extends BaseService {
     super("charFittingMgr");
   }
 
-  _resolveOwnerID(args, session) {
+    _resolveOwnerID(args, session) {
     const numericArgs = extractPositiveIntegers(args || []);
     return numericArgs[0] || (session && session.characterID) || 0;
   }

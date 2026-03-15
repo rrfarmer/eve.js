@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "nextCustomAllianceID": 99000001
+  },
+  "records": {
+    "99000000": {
+      "allianceID": 99000000,
+      "allianceName": "E L Y S I A N",
+      "shortName": "ELYSI",
+      "creatorID": 140000003,
+      "executorCorporationID": 98000000,
+      "description": "Capsuleer alliance E L Y S I A N.",
+      "url": "",
+      "memberCorporationIDs": [
+        98000000
+      ],
+      "isNPC": false,
+      "createdAt": "134179207535930000"
+    }
+  }
+}

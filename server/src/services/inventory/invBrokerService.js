@@ -10,10 +10,9 @@ const path = require("path");
 const config = require(path.join(__dirname, "../../config"));
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
-const { resolveShipByTypeID } = require(path.join(
-  __dirname,
-  "../chat/shipTypeRegistry",
-));
+const { resolveShipByTypeID } = require(
+  path.join(__dirname, "../chat/shipTypeRegistry"),
+);
 const {
   getCharacterShips,
   findCharacterShip,
@@ -32,24 +31,21 @@ const {
   stackAllInventoryItemsInContainer,
   moveInventoryItem,
 } = require(path.join(__dirname, "./itemStore"));
-const { resolveModuleType } = require(path.join(
-  __dirname,
-  "./moduleTypeRegistry",
-));
-const {
-  setModuleOnline,
-} = require(path.join(__dirname, "../dogma/moduleOnlineState"));
-const {
-  setShipDirtTimestamp,
-} = require(path.join(__dirname, "../ship/shipDirtState"));
-const {
-  DEFAULT_STATION,
-  getStationRecord,
-} = require(path.join(__dirname, "../_shared/stationStaticData"));
-const {
-  getCharacterSkills,
-  SKILL_FLAG_ID,
-} = require(path.join(__dirname, "../skills/skillState"));
+const { resolveModuleType } = require(
+  path.join(__dirname, "./moduleTypeRegistry"),
+);
+const { setModuleOnline } = require(
+  path.join(__dirname, "../dogma/moduleOnlineState"),
+);
+const { setShipDirtTimestamp } = require(
+  path.join(__dirname, "../ship/shipDirtState"),
+);
+const { DEFAULT_STATION, getStationRecord } = require(
+  path.join(__dirname, "../_shared/stationStaticData"),
+);
+const { getCharacterSkills, SKILL_FLAG_ID } = require(
+  path.join(__dirname, "../skills/skillState"),
+);
 
 const inventoryDebugPath = path.join(
   __dirname,
@@ -103,10 +99,6 @@ const INVENTORY_ROW_DESCRIPTOR_COLUMNS = [
 ];
 
 function appendInventoryDebug(entry) {
-  if (!config.enableInventoryDebugTrace) {
-    return;
-  }
-
   try {
     fs.mkdirSync(path.dirname(inventoryDebugPath), { recursive: true });
     fs.appendFileSync(
@@ -115,7 +107,9 @@ function appendInventoryDebug(entry) {
       "utf8",
     );
   } catch (error) {
-    log.warn(`[InvBroker] Failed to write inventory debug log: ${error.message}`);
+    log.warn(
+      `[InvBroker] Failed to write inventory debug log: ${error.message}`,
+    );
   }
 }
 
@@ -127,7 +121,8 @@ class InvBrokerService extends BaseService {
 
   _getStationId(session) {
     return (
-      (session && (session.stationid || session.stationID || session.locationid)) ||
+      (session &&
+        (session.stationid || session.stationID || session.locationid)) ||
       60003760
     );
   }
@@ -152,9 +147,11 @@ class InvBrokerService extends BaseService {
   _getShipTypeId(session) {
     const charId = this._getCharacterId(session);
     const activeShip = getActiveShipRecord(charId);
-    const shipTypeID = activeShip ? activeShip.shipTypeID : (
-      session && Number.isInteger(session.shipTypeID) ? session.shipTypeID : null
-    );
+    const shipTypeID = activeShip
+      ? activeShip.shipTypeID
+      : session && Number.isInteger(session.shipTypeID)
+        ? session.shipTypeID
+        : null;
     return shipTypeID && shipTypeID > 0 ? shipTypeID : 606;
   }
 
@@ -172,7 +169,11 @@ class InvBrokerService extends BaseService {
       return value;
     }
 
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
       return value;
     }
 
@@ -203,7 +204,6 @@ class InvBrokerService extends BaseService {
     if (!config.enableInventoryDebugTrace) {
       return;
     }
-
     const entry = {
       method,
       charId: this._getCharacterId(session),
@@ -359,7 +359,12 @@ class InvBrokerService extends BaseService {
     return moduleType && moduleType.slotFamily ? moduleType.slotFamily : null;
   }
 
-  _resolveDestinationFlagForBoundMove(session, boundContext, item, requestedFlag) {
+  _resolveDestinationFlagForBoundMove(
+    session,
+    boundContext,
+    item,
+    requestedFlag,
+  ) {
     const hasExplicitRequestedFlag =
       requestedFlag !== undefined && requestedFlag !== null;
     const normalizedRequestedFlag = hasExplicitRequestedFlag
@@ -374,16 +379,28 @@ class InvBrokerService extends BaseService {
         return ITEM_FLAGS.HANGAR;
       }
 
-      return normalizedRequestedFlag || this._normalizeInventoryId(boundContext.flagID, 0);
+      return (
+        normalizedRequestedFlag ||
+        this._normalizeInventoryId(boundContext.flagID, 0)
+      );
     }
 
     if (!hasExplicitRequestedFlag) {
       return this._normalizeInventoryId(boundContext.flagID, 0);
     }
 
-    if (normalizedRequestedFlag > 0 && this._isFittingFlag(normalizedRequestedFlag)) {
-      const boundShipID = this._normalizeInventoryId(boundContext.inventoryID, 0);
-      const itemLocationID = this._normalizeInventoryId(item && item.locationID, 0);
+    if (
+      normalizedRequestedFlag > 0 &&
+      this._isFittingFlag(normalizedRequestedFlag)
+    ) {
+      const boundShipID = this._normalizeInventoryId(
+        boundContext.inventoryID,
+        0,
+      );
+      const itemLocationID = this._normalizeInventoryId(
+        item && item.locationID,
+        0,
+      );
       const itemFlagID = this._normalizeInventoryId(item && item.flagID, 0);
       const canSwapWithinShip =
         boundShipID > 0 &&
@@ -397,11 +414,9 @@ class InvBrokerService extends BaseService {
         return normalizedRequestedFlag;
       }
 
-      return this._findFirstFreeShipFlag(
-        session,
-        boundShipID,
-        [normalizedRequestedFlag],
-      );
+      return this._findFirstFreeShipFlag(session, boundShipID, [
+        normalizedRequestedFlag,
+      ]);
     }
 
     if (normalizedRequestedFlag > 0) {
@@ -443,7 +458,10 @@ class InvBrokerService extends BaseService {
 
     if (Array.isArray(destinationArg)) {
       return {
-        locationID: this._normalizeInventoryId(destinationArg[0], defaultHint.locationID),
+        locationID: this._normalizeInventoryId(
+          destinationArg[0],
+          defaultHint.locationID,
+        ),
         flagID: this._normalizeInventoryId(
           destinationArg.length > 1 ? destinationArg[1] : fallbackFlagArg,
           0,
@@ -451,26 +469,43 @@ class InvBrokerService extends BaseService {
       };
     }
 
-    if (destinationArg && destinationArg.type === "list" && Array.isArray(destinationArg.items)) {
+    if (
+      destinationArg &&
+      destinationArg.type === "list" &&
+      Array.isArray(destinationArg.items)
+    ) {
       return {
-        locationID: this._normalizeInventoryId(destinationArg.items[0], defaultHint.locationID),
+        locationID: this._normalizeInventoryId(
+          destinationArg.items[0],
+          defaultHint.locationID,
+        ),
         flagID: this._normalizeInventoryId(
-          destinationArg.items.length > 1 ? destinationArg.items[1] : fallbackFlagArg,
+          destinationArg.items.length > 1
+            ? destinationArg.items[1]
+            : fallbackFlagArg,
           0,
         ),
       };
     }
 
-    if (destinationArg && destinationArg.type === "dict" && Array.isArray(destinationArg.entries)) {
+    if (
+      destinationArg &&
+      destinationArg.type === "dict" &&
+      Array.isArray(destinationArg.entries)
+    ) {
       const entryMap = new Map();
       for (const [rawKey, value] of destinationArg.entries) {
-        const key = Buffer.isBuffer(rawKey) ? rawKey.toString("utf8") : String(rawKey);
+        const key = Buffer.isBuffer(rawKey)
+          ? rawKey.toString("utf8")
+          : String(rawKey);
         entryMap.set(key, value);
       }
 
       return {
         locationID: this._normalizeInventoryId(
-          entryMap.get("locationID") ?? entryMap.get("locationid") ?? defaultHint.locationID,
+          entryMap.get("locationID") ??
+            entryMap.get("locationid") ??
+            defaultHint.locationID,
           defaultHint.locationID,
         ),
         flagID: this._normalizeInventoryId(
@@ -517,7 +552,10 @@ class InvBrokerService extends BaseService {
       previousItem && previousItem.locationID,
       0,
     );
-    const nextFlagID = this._normalizeInventoryId(nextItem && nextItem.flagID, 0);
+    const nextFlagID = this._normalizeInventoryId(
+      nextItem && nextItem.flagID,
+      0,
+    );
     const nextLocationID = this._normalizeInventoryId(
       nextItem && nextItem.locationID,
       0,
@@ -590,7 +628,12 @@ class InvBrokerService extends BaseService {
     return null;
   }
 
-  _swapFittedItemsIfNeeded(session, sourceItem, destinationLocationID, destinationFlagID) {
+  _swapFittedItemsIfNeeded(
+    session,
+    sourceItem,
+    destinationLocationID,
+    destinationFlagID,
+  ) {
     if (!sourceItem || !session) {
       return { success: true };
     }
@@ -599,11 +642,15 @@ class InvBrokerService extends BaseService {
       return { success: true };
     }
 
-    const sourceLocationID = this._normalizeInventoryId(sourceItem.locationID, 0);
+    const sourceLocationID = this._normalizeInventoryId(
+      sourceItem.locationID,
+      0,
+    );
     const sourceFlagID = this._normalizeInventoryId(sourceItem.flagID, 0);
     if (
       sourceLocationID <= 0 ||
-      sourceLocationID !== this._normalizeInventoryId(destinationLocationID, 0) ||
+      sourceLocationID !==
+        this._normalizeInventoryId(destinationLocationID, 0) ||
       !this._isFittingFlag(sourceFlagID) ||
       sourceFlagID === destinationFlagID
     ) {
@@ -792,9 +839,14 @@ class InvBrokerService extends BaseService {
             emitCfgLocation: true,
           },
         );
-        syncInventoryItemForSession(session, moveResult.data, {}, {
-          emitCfgLocation: true,
-        });
+        syncInventoryItemForSession(
+          session,
+          moveResult.data,
+          {},
+          {
+            emitCfgLocation: true,
+          },
+        );
         continue;
       }
 
@@ -845,8 +897,9 @@ class InvBrokerService extends BaseService {
     }
 
     return (
-      getCharacterSkills(charId).find((skill) => skill.itemID === numericItemId) ||
-      null
+      getCharacterSkills(charId).find(
+        (skill) => skill.itemID === numericItemId,
+      ) || null
     );
   }
 
@@ -872,10 +925,16 @@ class InvBrokerService extends BaseService {
 
   _buildStationItemOverrides(session, overrideStationID = null) {
     const station = getStationRecord(session, overrideStationID);
-    const stationID = this._normalizeInventoryId(station.stationID, this._getStationId(session));
+    const stationID = this._normalizeInventoryId(
+      station.stationID,
+      this._getStationId(session),
+    );
     return {
       itemID: stationID,
-      typeID: this._normalizeInventoryId(station.stationTypeID, STATION_TYPE_ID),
+      typeID: this._normalizeInventoryId(
+        station.stationTypeID,
+        STATION_TYPE_ID,
+      ),
       ownerID: this._normalizeInventoryId(
         station.ownerID || station.corporationID,
         STATION_OWNER_ID,
@@ -910,13 +969,13 @@ class InvBrokerService extends BaseService {
     const numericInventoryID = this._normalizeInventoryId(inventoryID);
     const charId = this._getCharacterId(session);
     const stationId = this._getStationId(session);
-    const storedItem =
+    const shipRecord =
       findCharacterShip(charId, numericInventoryID) ||
       findItemById(numericInventoryID) ||
       findShipItemById(numericInventoryID);
 
-    if (storedItem) {
-      return this._itemOverridesFromId(session, storedItem.itemID);
+    if (shipRecord) {
+      return this._itemOverridesFromId(session, shipRecord.itemID);
     }
 
     if (numericInventoryID === charId) {
@@ -950,35 +1009,22 @@ class InvBrokerService extends BaseService {
       requestedFlag === null || requestedFlag === undefined
         ? null
         : this._normalizeInventoryId(requestedFlag, 0);
-    const containerID = boundContext && Number(boundContext.inventoryID)
-      ? Number(boundContext.inventoryID)
-      : stationId;
+    const containerID =
+      boundContext && Number(boundContext.inventoryID)
+        ? Number(boundContext.inventoryID)
+        : stationId;
 
     if (containerID === charId) {
       return this._getCharacterContainerItems(session, numericFlag);
     }
 
     if (containerID === stationId) {
-      const stationItems = listContainerItems(
+      return listContainerItems(
         charId,
         stationId,
-        ITEM_FLAGS.HANGAR,
-      );
-
-      if (numericFlag === STATION_ITEM_HANGAR_FLAG) {
-        return stationItems.filter(
-          (item) => this._normalizeInventoryId(item.categoryID, 0) !== 6,
-        );
-      }
-
-      if (numericFlag === null || numericFlag === 0 || numericFlag === ITEM_FLAGS.HANGAR) {
-        return stationItems.filter(
-          (item) => this._normalizeInventoryId(item.categoryID, 0) === 6,
-        );
-      }
-
-      return stationItems.filter(
-        (item) => this._normalizeInventoryId(item.flagID, 0) === numericFlag,
+        numericFlag === null || numericFlag === 0
+          ? ITEM_FLAGS.HANGAR
+          : numericFlag,
       );
     }
 
@@ -1016,11 +1062,17 @@ class InvBrokerService extends BaseService {
   }
 
   _calculateCapacity(session, boundContext, requestedFlag = null) {
-    const items = this._resolveContainerItems(session, requestedFlag, boundContext);
+    const items = this._resolveContainerItems(
+      session,
+      requestedFlag,
+      boundContext,
+    );
     const used = items.length * 2500.0;
     const numericFlag =
       requestedFlag === null || requestedFlag === undefined
-        ? boundContext && boundContext.flagID !== null && boundContext.flagID !== undefined
+        ? boundContext &&
+          boundContext.flagID !== null &&
+          boundContext.flagID !== undefined
           ? Number(boundContext.flagID)
           : null
         : Number(requestedFlag);
@@ -1050,8 +1102,7 @@ class InvBrokerService extends BaseService {
     const flagID = overrides.flagID ?? 4; // station hangar
     const singleton = overrides.singleton ?? 1;
     const quantity = overrides.quantity ?? (singleton === 1 ? -1 : 1);
-    const stacksize =
-      overrides.stacksize ?? (singleton === 1 ? 1 : quantity);
+    const stacksize = overrides.stacksize ?? (singleton === 1 ? 1 : quantity);
     const groupID = overrides.groupID ?? shipMetadata.groupID;
     const categoryID = overrides.categoryID ?? shipMetadata.categoryID;
     const customInfo = overrides.customInfo ?? "";
@@ -1109,24 +1160,21 @@ class InvBrokerService extends BaseService {
       return this._buildSkillItemOverrides(skillRecord);
     }
 
-    const storedItem =
-      findCharacterShip(charId, id) ||
-      findItemById(id) ||
-      findShipItemById(id);
-    if (storedItem) {
+    const shipRecord = findCharacterShip(charId, id) || findShipItemById(id);
+    if (shipRecord) {
       return {
-        itemID: storedItem.itemID,
-        typeID: storedItem.typeID,
-        shipName: storedItem.itemName,
-        ownerID: storedItem.ownerID,
-        locationID: storedItem.locationID,
-        flagID: storedItem.flagID,
-        quantity: storedItem.quantity,
-        groupID: storedItem.groupID,
-        categoryID: storedItem.categoryID,
-        customInfo: storedItem.customInfo || "",
-        singleton: storedItem.singleton,
-        stacksize: storedItem.stacksize,
+        itemID: shipRecord.itemID,
+        typeID: shipRecord.typeID,
+        shipName: shipRecord.itemName,
+        ownerID: shipRecord.ownerID,
+        locationID: shipRecord.locationID,
+        flagID: shipRecord.flagID,
+        quantity: shipRecord.quantity,
+        groupID: shipRecord.groupID,
+        categoryID: shipRecord.categoryID,
+        customInfo: shipRecord.customInfo || "",
+        singleton: shipRecord.singleton,
+        stacksize: shipRecord.stacksize,
       };
     }
 
@@ -1236,10 +1284,6 @@ class InvBrokerService extends BaseService {
     const boundShip =
       findCharacterShip(charId, numericItemId) ||
       findShipItemById(numericItemId);
-    const boundItem =
-      boundShip ||
-      findItemById(numericItemId) ||
-      null;
     const explicitLocationID =
       this._extractKwarg(kwargs, "locationID") ??
       (args && args.length > 2 ? args[2] : undefined);
@@ -1253,13 +1297,13 @@ class InvBrokerService extends BaseService {
       boundContext.locationID !== undefined
         ? this._normalizeInventoryId(boundContext.locationID)
         : 0;
-    const shipLocationID = boundItem
-      ? this._normalizeInventoryId(boundItem.locationID)
+    const shipLocationID = boundShip
+      ? this._normalizeInventoryId(boundShip.locationID)
       : 0;
     const resolvedLocationID =
       normalizedExplicitLocationID > 0
         ? normalizedExplicitLocationID
-        : boundItem && inheritedLocationID > 0
+        : boundShip && inheritedLocationID > 0
           ? inheritedLocationID
           : shipLocationID > 0
             ? shipLocationID
@@ -1276,21 +1320,19 @@ class InvBrokerService extends BaseService {
       flagID:
         numericItemId === charId
           ? null
-          :
-        numericItemId === stationId
-          ? ITEM_FLAGS.HANGAR
-          : boundShip
-            ? ITEM_FLAGS.CARGO_HOLD
-            : null,
+          : numericItemId === stationId
+            ? ITEM_FLAGS.HANGAR
+            : boundShip
+              ? ITEM_FLAGS.CARGO_HOLD
+              : null,
       kind:
         numericItemId === charId
           ? "characterInventory"
-          :
-        numericItemId === stationId
-          ? "stationHangar"
-          : boundShip
-            ? "shipInventory"
-            : "container",
+          : numericItemId === stationId
+            ? "stationHangar"
+            : boundShip
+              ? "shipInventory"
+              : "container",
     });
   }
 
@@ -1418,7 +1460,8 @@ class InvBrokerService extends BaseService {
   }
 
   Handle_GetItems(args, session) {
-    const ids = args && args.length > 0 && Array.isArray(args[0]) ? args[0] : [];
+    const ids =
+      args && args.length > 0 && Array.isArray(args[0]) ? args[0] : [];
     this._traceInventory("GetItems", session, { args });
     log.debug(`[InvBroker] GetItems(count=${ids.length})`);
 
@@ -1431,7 +1474,9 @@ class InvBrokerService extends BaseService {
   Handle_GetSelfInvItem(args, session) {
     const boundContext = this._getBoundContext(session);
     const inventoryID =
-      boundContext && boundContext.inventoryID !== null && boundContext.inventoryID !== undefined
+      boundContext &&
+      boundContext.inventoryID !== null &&
+      boundContext.inventoryID !== undefined
         ? boundContext.inventoryID
         : this._getShipId(session);
     const overrides = this._buildContainerItemOverrides(session, inventoryID);
@@ -1464,18 +1509,17 @@ class InvBrokerService extends BaseService {
     const items =
       numericContainerID === this._getCharacterId(session)
         ? this._getCharacterContainerItems(session, null)
-        :
-      numericContainerID === stationId
-        ? listContainerItems(
-            this._getCharacterId(session),
-            stationId,
-            ITEM_FLAGS.HANGAR,
-          )
-        : listContainerItems(
-            this._getCharacterId(session),
-            numericContainerID,
-            null,
-          );
+        : numericContainerID === stationId
+          ? listContainerItems(
+              this._getCharacterId(session),
+              stationId,
+              ITEM_FLAGS.HANGAR,
+            )
+          : listContainerItems(
+              this._getCharacterId(session),
+              numericContainerID,
+              null,
+            );
 
     this._traceInventory("GetContainerContentsResult", session, {
       containerID: numericContainerID,
@@ -1522,13 +1566,12 @@ class InvBrokerService extends BaseService {
       boundContext.locationID !== undefined
         ? this._normalizeInventoryId(boundContext.locationID, 0)
         : this._getStationId(session);
-    const containerFlagID =
-      this._normalizeInventoryId(
-        requestedFlag === STATION_ITEM_HANGAR_FLAG
-          ? ITEM_FLAGS.HANGAR
-          : requestedFlag,
-        ITEM_FLAGS.HANGAR,
-      );
+    const containerFlagID = this._normalizeInventoryId(
+      requestedFlag === STATION_ITEM_HANGAR_FLAG
+        ? ITEM_FLAGS.HANGAR
+        : requestedFlag,
+      ITEM_FLAGS.HANGAR,
+    );
 
     log.debug(
       `[InvBroker] StackAll(locationID=${containerLocationID}, flagID=${containerFlagID})`,
@@ -1590,42 +1633,54 @@ class InvBrokerService extends BaseService {
   Handle_Add(args, session, kwargs) {
     this._traceInventory("Add", session, { args, kwargs });
     log.debug("[InvBroker] Add");
-    const itemIds = this._normalizeItemIdList(args && args.length > 0 ? args[0] : null);
+    const itemIds = this._normalizeItemIdList(
+      args && args.length > 0 ? args[0] : null,
+    );
     return this._applyBoundInventoryMove(itemIds, session, kwargs, args);
   }
 
   Handle_MultiAdd(args, session, kwargs) {
     this._traceInventory("MultiAdd", session, { args, kwargs });
     log.debug("[InvBroker] MultiAdd");
-    const itemIds = this._normalizeItemIdList(args && args.length > 0 ? args[0] : null);
+    const itemIds = this._normalizeItemIdList(
+      args && args.length > 0 ? args[0] : null,
+    );
     return this._applyBoundInventoryMove(itemIds, session, kwargs, args);
   }
 
   Handle_Remove(args, session, kwargs) {
     this._traceInventory("Remove", session, { args, kwargs });
     log.debug("[InvBroker] Remove");
-    const itemIds = this._normalizeItemIdList(args && args.length > 0 ? args[0] : null);
+    const itemIds = this._normalizeItemIdList(
+      args && args.length > 0 ? args[0] : null,
+    );
     return this._applyBoundInventoryMove(itemIds, session, kwargs, args);
   }
 
   Handle_MultiRemove(args, session, kwargs) {
     this._traceInventory("MultiRemove", session, { args, kwargs });
     log.debug("[InvBroker] MultiRemove");
-    const itemIds = this._normalizeItemIdList(args && args.length > 0 ? args[0] : null);
+    const itemIds = this._normalizeItemIdList(
+      args && args.length > 0 ? args[0] : null,
+    );
     return this._applyBoundInventoryMove(itemIds, session, kwargs, args);
   }
 
   Handle_Move(args, session, kwargs) {
     this._traceInventory("Move", session, { args, kwargs });
     log.debug("[InvBroker] Move");
-    const itemIds = this._normalizeItemIdList(args && args.length > 0 ? args[0] : null);
+    const itemIds = this._normalizeItemIdList(
+      args && args.length > 0 ? args[0] : null,
+    );
     return this._applyBoundInventoryMove(itemIds, session, kwargs, args);
   }
 
   Handle_MultiMove(args, session, kwargs) {
     this._traceInventory("MultiMove", session, { args, kwargs });
     log.debug("[InvBroker] MultiMove");
-    const itemIds = this._normalizeItemIdList(args && args.length > 0 ? args[0] : null);
+    const itemIds = this._normalizeItemIdList(
+      args && args.length > 0 ? args[0] : null,
+    );
     return this._applyBoundInventoryMove(itemIds, session, kwargs, args);
   }
 
@@ -1767,10 +1822,7 @@ class InvBrokerService extends BaseService {
       return;
     }
 
-    if (
-      method !== "List" &&
-      method !== "GetSelfInvItem"
-    ) {
+    if (method !== "List" && method !== "GetSelfInvItem") {
       return;
     }
 

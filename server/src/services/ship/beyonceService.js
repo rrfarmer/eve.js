@@ -5,16 +5,42 @@ const log = require(path.join(__dirname, "../../utils/logger"));
 const config = require(path.join(__dirname, "../../config"));
 const {
   buildBoundObjectResponse,
-  normalizeNumber,
   extractDictEntries,
+  normalizeNumber,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const {
   throwWrappedUserError,
 } = require(path.join(__dirname, "../../common/machoErrors"));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 const {
+  getCharacterRecord,
+} = require(path.join(__dirname, "../character/characterState"));
+const {
   jumpSessionViaStargate,
 } = require(path.join(__dirname, "../../space/transitions"));
+const {
+  flushPendingCommandSessionEffects,
+} = require(path.join(__dirname, "../chat/commandSessionEffects"));
+
+function getKwargValue(kwargs, key) {
+  const entries = extractDictEntries(kwargs);
+  const match = entries.find(([entryKey]) => String(entryKey) === String(key));
+  return match ? match[1] : null;
+}
+
+function resolveBookmarkAlignTarget(session, bookmarkID) {
+  const normalizedBookmarkID = normalizeNumber(bookmarkID, 0);
+  if (normalizedBookmarkID <= 0) {
+    return 0;
+  }
+
+  const charRecord = getCharacterRecord(session && session.characterID) || {};
+  const bookmarks = Array.isArray(charRecord.bookmarks) ? charRecord.bookmarks : [];
+  const bookmark = bookmarks.find(
+    (candidate) => normalizeNumber(candidate && candidate.bookmarkID, 0) === normalizedBookmarkID,
+  );
+  return normalizeNumber(bookmark && bookmark.itemID, 0);
+}
 
 class BeyonceService extends BaseService {
   constructor() {
@@ -68,17 +94,15 @@ class BeyonceService extends BaseService {
   }
 
   Handle_CmdAlignTo(args, session, kwargs) {
-    const kwargEntries = extractDictEntries(kwargs);
-    const dstEntry = kwargEntries.find(([key]) => {
-      const normalizedKey = Buffer.isBuffer(key) ? key.toString("utf8") : String(key);
-      return normalizedKey === "dstID";
-    });
-    const targetID = normalizeNumber(
-      args && args[0] !== undefined ? args[0] : dstEntry ? dstEntry[1] : 0,
-      0,
-    );
+    const positionalTargetID = normalizeNumber(args && args[0], 0);
+    const kwargTargetID = normalizeNumber(getKwargValue(kwargs, "dstID"), 0);
+    const bookmarkID = normalizeNumber(getKwargValue(kwargs, "bookmarkID"), 0);
+    const targetID =
+      positionalTargetID ||
+      kwargTargetID ||
+      resolveBookmarkAlignTarget(session, bookmarkID);
     log.info(
-      `[Beyonce] CmdAlignTo char=${session && session.characterID} target=${targetID}`,
+      `[Beyonce] CmdAlignTo char=${session && session.characterID} target=${targetID} bookmark=${bookmarkID}`,
     );
     spaceRuntime.alignTo(session, targetID);
     return null;
@@ -194,7 +218,7 @@ class BeyonceService extends BaseService {
       log.info(
         `[Beyonce] CmdDock converting to docking approach for char=${session && session.characterID} station=${stationID}`,
       );
-      const followed = spaceRuntime.followBall(session, stationID, 50, {
+      const followed = spaceRuntime.followBall(session, stationID, 2500, {
         dockingTargetID: stationID,
       });
       if (!followed) {
@@ -244,11 +268,15 @@ class BeyonceService extends BaseService {
   }
 
   afterCallResponse(methodName, session) {
-    if (methodName !== "MachoBindObject") {
+    if (methodName === "MachoBindObject") {
+      spaceRuntime.ensureInitialBallpark(session);
+      flushPendingCommandSessionEffects(session);
       return;
     }
 
-    spaceRuntime.ensureInitialBallpark(session);
+    if (methodName === "CmdStargateJump") {
+      flushPendingCommandSessionEffects(session);
+    }
   }
 }
 
