@@ -22,6 +22,20 @@ EVE.js is an easy-to-use server emulator for Eve Online. We are functional again
 3. Run `StartMarketServer.bat` inside the root project directory.
 *It's recommended to only seed Jita + New Caldari, because eeding the entire universe will take some time*
 
+## **Other Guides**
+- [Start here](doc/SETUP.md)
+- [Launcher guide](doc/LAUNCHERS.md)
+- [Optional market setup](doc/MARKET_SETUP.md)
+- [Market seeder guide](doc/MARKET_SEEDER.md)
+- [Troubleshooting](doc/TROUBLESHOOTING.md)
+- [Tools and admin basics](doc/TOOLS.md)
+- [Feature audit](doc/IMPLEMENTED_FEATURE_STATUS.txt)
+
+## **Good To Know**
+- Use a **copy** of your EVE client, not the one you normally play on.
+- `doc/Olddocs` is legacy reference material. The current player-friendly guides live in `doc/`.
+- Some folders under `tools/` are maintainer-only. If a guide does not mention them, you can ignore them.
+
 ## **Features:**
 - [x] Character Creation
 - [x] Paperdolls (character faces / images)
@@ -72,3 +86,4 @@ EVE.js is an easy-to-use server emulator for Eve Online. We are functional again
     - *Asset overview and market-server load insanely fast, thanks to Rust!*
 
 ***The above list will be changes as development continues***
+
