@@ -85,5 +85,5 @@ EVE.js is an easy-to-use server emulator for Eve Online. We are functional again
   - [x] Speedy asset overview
     - *Asset overview and market-server load insanely fast, thanks to Rust!*
 
-***The above list will be changes as development continues***
+***The above list will be changes as development continues.***
 
