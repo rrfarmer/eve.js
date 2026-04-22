@@ -37,6 +37,7 @@ const {
   moveItemToLocation,
   transferItemToOwnerLocation,
   mergeItemStacks,
+  removeInventoryItem,
 } = require(path.join(__dirname, "./itemStore"));
 const {
   getCorporationOfficeByInventoryID,
@@ -2630,7 +2631,34 @@ class InvBrokerService extends BaseService {
 
   Handle_TrashItems(args, session) {
     this._traceInventory("TrashItems", session, { args });
-    log.debug("[InvBroker] TrashItems");
+    const itemIDs = this._normalizeItemIdList(args && args.length > 0 ? args[0] : args);
+    log.debug(`[InvBroker] TrashItems itemCount=${itemIDs.length}`);
+
+    const allChanges = [];
+    let removedCount = 0;
+
+    for (const itemID of itemIDs) {
+      const removeResult = removeInventoryItem(itemID, { removeContents: true });
+      if (!removeResult.success) {
+        if (removeResult.errorMsg === "ITEM_NOT_FOUND") {
+          log.debug(`[InvBroker] TrashItems skipped itemID=${itemID} (not found)`);
+        } else {
+          log.warn(`[InvBroker] TrashItems failed to remove itemID=${itemID} error=${removeResult.errorMsg}`);
+        }
+        continue;
+      }
+
+      removedCount += 1;
+      allChanges.push(...((removeResult.data && removeResult.data.changes) || []));
+    }
+
+    if (removedCount <= 0) {
+      return null;
+    }
+
+    this._emitInventoryMoveChanges(session, allChanges);
+    this._refreshBallparkShipPresentation(session, allChanges);
+    this._refreshBallparkInventoryPresentation(session, allChanges);
     return null;
   }
 
