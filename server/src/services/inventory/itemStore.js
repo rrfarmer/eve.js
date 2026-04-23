@@ -2234,6 +2234,15 @@ function setShipPackagingState(shipId, packaged) {
   }));
 }
 
+function setItemPackagingState(itemId, packaged) {
+  return updateInventoryItem(itemId, (currentItem) => ({
+    ...currentItem,
+    singleton: packaged ? 0 : 1,
+    quantity: packaged ? 1 : -1,
+    stacksize: packaged ? 1 : 1,
+  }));
+}
+
 function moveShipToSpace(shipId, solarSystemId, spaceState) {
   return updateShipItem(shipId, (currentItem) => ({
     ...currentItem,
@@ -2460,6 +2469,7 @@ module.exports = {
   mergeItemStacks,
   updateShipItem,
   setShipPackagingState,
+  setItemPackagingState,
   moveShipToSpace,
   dockShipToLocation,
   dockShipToStation,
