@@ -1,15 +1,15 @@
 {
   "_meta": {
     "version": 1,
-    "nextLabelID": 17592186044416,
-    "nextBulletinID": 18,
+    "nextLabelID": 144115188075855870,
+    "nextBulletinID": 21,
     "nextApplicationID": 3,
     "nextInvitationID": 2,
     "nextRecruitmentAdID": 2,
     "nextMedalID": 3,
-    "nextOfficeID": 266,
-    "nextOfficeFolderID": 266,
-    "nextOfficeItemID": 266,
+    "nextOfficeID": 267,
+    "nextOfficeFolderID": 267,
+    "nextOfficeItemID": 267,
     "nextBillID": 1,
     "nextWarID": 6,
     "nextNegotiationID": 5,
@@ -48,7 +48,32 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {},
+      "members": {
+        "140000138": {
+          "characterID": 140000138,
+          "corporationID": 1000001,
+          "startDate": "134206380997420000",
+          "title": "",
+          "divisionID": 0,
+          "squadronID": 0,
+          "roles": "0",
+          "grantableRoles": "0",
+          "rolesAtHQ": "0",
+          "grantableRolesAtHQ": "0",
+          "rolesAtBase": "0",
+          "grantableRolesAtBase": "0",
+          "rolesAtOther": "0",
+          "grantableRolesAtOther": "0",
+          "baseID": 60003760,
+          "titleMask": 0,
+          "blockRoles": null,
+          "accountKey": 1000,
+          "isCEO": false,
+          "lastOnline": "134206381128300000",
+          "locationID": 60003760,
+          "shipTypeID": 596
+        }
+      },
       "titles": {
         "1": {
           "titleID": 1,
@@ -1666,54 +1691,6 @@
           "lastOnline": "134188705449200000",
           "locationID": 30002187,
           "shipTypeID": 24692
-        },
-        "140000006": {
-          "characterID": 140000006,
-          "corporationID": 1000006,
-          "startDate": "134188705449200000",
-          "title": "",
-          "divisionID": 0,
-          "squadronID": 0,
-          "roles": "0",
-          "grantableRoles": "0",
-          "rolesAtHQ": "0",
-          "grantableRolesAtHQ": "0",
-          "rolesAtBase": "0",
-          "grantableRolesAtBase": "0",
-          "rolesAtOther": "0",
-          "grantableRolesAtOther": "0",
-          "baseID": 60003760,
-          "titleMask": 0,
-          "blockRoles": null,
-          "accountKey": 1000,
-          "isCEO": false,
-          "lastOnline": "134188705449200000",
-          "locationID": 30000142,
-          "shipTypeID": 606
-        },
-        "140000007": {
-          "characterID": 140000007,
-          "corporationID": 1000006,
-          "startDate": "134188705449200000",
-          "title": "",
-          "divisionID": 0,
-          "squadronID": 0,
-          "roles": "0",
-          "grantableRoles": "0",
-          "rolesAtHQ": "0",
-          "grantableRolesAtHQ": "0",
-          "rolesAtBase": "0",
-          "grantableRolesAtBase": "0",
-          "rolesAtOther": "0",
-          "grantableRolesAtOther": "0",
-          "baseID": 60003760,
-          "titleMask": 0,
-          "blockRoles": null,
-          "accountKey": 1000,
-          "isCEO": false,
-          "lastOnline": "134188705449200000",
-          "locationID": 30000142,
-          "shipTypeID": 606
         }
       },
       "titles": {
@@ -2883,32 +2860,7 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {
-        "140000009": {
-          "characterID": 140000009,
-          "corporationID": 1000009,
-          "startDate": "134188705449380000",
-          "title": "",
-          "divisionID": 0,
-          "squadronID": 0,
-          "roles": "0",
-          "grantableRoles": "0",
-          "rolesAtHQ": "0",
-          "grantableRolesAtHQ": "0",
-          "rolesAtBase": "0",
-          "grantableRolesAtBase": "0",
-          "rolesAtOther": "0",
-          "grantableRolesAtOther": "0",
-          "baseID": 60003760,
-          "titleMask": 0,
-          "blockRoles": null,
-          "accountKey": 1000,
-          "isCEO": false,
-          "lastOnline": "134188705449380000",
-          "locationID": 60003760,
-          "shipTypeID": 601
-        }
-      },
+      "members": {},
       "titles": {
         "1": {
           "titleID": 1,
@@ -14236,9 +14188,67 @@
         "divisions": {
           "1000": {
             "key": 1000,
-            "balance": 0,
-            "journal": [],
-            "transactions": []
+            "balance": 100000,
+            "journal": [
+              {
+                "transactionID": 177543735295542,
+                "transactionDate": "134199109529550000",
+                "referenceID": 140000001,
+                "entryTypeID": 10,
+                "ownerID1": 1000044,
+                "ownerID2": 140000001,
+                "accountKey": 1000,
+                "amount": 193600,
+                "balance": 193600,
+                "description": "Blueprint auto-build wallet top-up",
+                "currency": 1,
+                "sortValue": 1
+              },
+              {
+                "transactionID": 177543735298928,
+                "transactionDate": "134199109529890000",
+                "referenceID": 140000001,
+                "entryTypeID": 10,
+                "ownerID1": 1000044,
+                "ownerID2": 140000001,
+                "accountKey": 1000,
+                "amount": -93600,
+                "balance": 100000,
+                "description": "Industry manufacturing install by 140000001",
+                "currency": 1,
+                "sortValue": 1
+              }
+            ],
+            "transactions": [
+              {
+                "transactionID": 177543735295542,
+                "transactionDate": "134199109529550000",
+                "referenceID": 140000001,
+                "entryTypeID": 10,
+                "ownerID1": 1000044,
+                "ownerID2": 140000001,
+                "accountKey": 1000,
+                "amount": 193600,
+                "balance": 193600,
+                "description": "Blueprint auto-build wallet top-up",
+                "currency": 1,
+                "sortValue": 1
+              },
+              {
+                "transactionID": 177543735298928,
+                "transactionDate": "134199109529890000",
+                "referenceID": 140000001,
+                "entryTypeID": 10,
+                "ownerID1": 1000044,
+                "ownerID2": 140000001,
+                "accountKey": 1000,
+                "amount": -93600,
+                "balance": 100000,
+                "description": "Industry manufacturing install by 140000001",
+                "currency": 1,
+                "sortValue": 1
+              }
+            ]
           },
           "1001": {
             "key": 1001,
@@ -14637,7 +14647,32 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {},
+      "members": {
+        "140000177": {
+          "characterID": 140000177,
+          "corporationID": 1000046,
+          "startDate": "134206381125300000",
+          "title": "",
+          "divisionID": 0,
+          "squadronID": 0,
+          "roles": "0",
+          "grantableRoles": "0",
+          "rolesAtHQ": "0",
+          "grantableRolesAtHQ": "0",
+          "rolesAtBase": "0",
+          "grantableRolesAtBase": "0",
+          "rolesAtOther": "0",
+          "grantableRolesAtOther": "0",
+          "baseID": 60004480,
+          "titleMask": 0,
+          "blockRoles": null,
+          "accountKey": 1000,
+          "isCEO": false,
+          "lastOnline": "134206387469540000",
+          "locationID": 60004480,
+          "shipTypeID": 588
+        }
+      },
       "titles": {
         "1": {
           "titleID": 1,
@@ -15579,32 +15614,7 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {
-        "140000010": {
-          "characterID": 140000010,
-          "corporationID": 1000049,
-          "startDate": "134188760178250000",
-          "title": "",
-          "divisionID": 0,
-          "squadronID": 0,
-          "roles": "0",
-          "grantableRoles": "0",
-          "rolesAtHQ": "0",
-          "grantableRolesAtHQ": "0",
-          "rolesAtBase": "0",
-          "grantableRolesAtBase": "0",
-          "rolesAtOther": "0",
-          "grantableRolesAtOther": "0",
-          "baseID": 60003760,
-          "titleMask": 0,
-          "blockRoles": null,
-          "accountKey": 1000,
-          "isCEO": false,
-          "lastOnline": "134188760181630000",
-          "locationID": 60003760,
-          "shipTypeID": 588
-        }
-      },
+      "members": {},
       "titles": {
         "1": {
           "titleID": 1,
@@ -19058,7 +19068,32 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {},
+      "members": {
+        "140000227": {
+          "characterID": 140000227,
+          "corporationID": 1000060,
+          "startDate": "134206585129990000",
+          "title": "",
+          "divisionID": 0,
+          "squadronID": 0,
+          "roles": "0",
+          "grantableRoles": "0",
+          "rolesAtHQ": "0",
+          "grantableRolesAtHQ": "0",
+          "rolesAtBase": "0",
+          "grantableRolesAtBase": "0",
+          "rolesAtOther": "0",
+          "grantableRolesAtOther": "0",
+          "baseID": 60015249,
+          "titleMask": 0,
+          "blockRoles": null,
+          "accountKey": 1000,
+          "isCEO": false,
+          "lastOnline": "134206585275590000",
+          "locationID": 60015249,
+          "shipTypeID": 588
+        }
+      },
       "titles": {
         "1": {
           "titleID": 1,
@@ -25338,7 +25373,32 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {},
+      "members": {
+        "140000228": {
+          "characterID": 140000228,
+          "corporationID": 1000080,
+          "startDate": "134206591691080000",
+          "title": "",
+          "divisionID": 0,
+          "squadronID": 0,
+          "roles": "0",
+          "grantableRoles": "0",
+          "rolesAtHQ": "0",
+          "grantableRolesAtHQ": "0",
+          "rolesAtBase": "0",
+          "grantableRolesAtBase": "0",
+          "rolesAtOther": "0",
+          "grantableRolesAtOther": "0",
+          "baseID": 60015249,
+          "titleMask": 0,
+          "blockRoles": null,
+          "accountKey": 1000,
+          "isCEO": false,
+          "lastOnline": "134206599070980000",
+          "locationID": 60015249,
+          "shipTypeID": 596
+        }
+      },
       "titles": {
         "1": {
           "titleID": 1,
@@ -33816,7 +33876,32 @@
       "contacts": {},
       "labels": {},
       "bulletins": [],
-      "members": {},
+      "members": {
+        "140000225": {
+          "characterID": 140000225,
+          "corporationID": 1000107,
+          "startDate": "134206560159820000",
+          "title": "",
+          "divisionID": 0,
+          "squadronID": 0,
+          "roles": "0",
+          "grantableRoles": "0",
+          "rolesAtHQ": "0",
+          "grantableRolesAtHQ": "0",
+          "rolesAtBase": "0",
+          "grantableRolesAtBase": "0",
+          "rolesAtOther": "0",
+          "grantableRolesAtOther": "0",
+          "baseID": 60010636,
+          "titleMask": 0,
+          "blockRoles": null,
+          "accountKey": 1000,
+          "isCEO": false,
+          "lastOnline": "134206577014920000",
+          "locationID": 60015249,
+          "shipTypeID": 670
+        }
+      },
       "titles": {
         "1": {
           "titleID": 1,

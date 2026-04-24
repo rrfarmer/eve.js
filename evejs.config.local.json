@@ -1,12 +1,121 @@
-// EvEJS server config.
+// EveJS Elysian server config.
 // This file supports // comments.
 // Missing keys are re-added with defaults when the server loads it.
 {
-  // Enables local development shortcuts such as auto-creating accounts and skipping password validation.
+  // Automatically creates a missing account record on login using the hash the client just supplied.
   // Valid values: true or false.
   // Default: false.
 
-  "devMode": true,
+  "devAutoCreateAccounts": true,
+
+  // Skips password-hash validation during login so any password can access an existing non-banned account.
+  // Valid values: true or false.
+  // Default: false.
+
+  "devSkipPasswordValidation": true,
+
+  // Seeds empty/new characters with all published skills at level V instead of the normal racial starter skill bundle.
+  // Valid values: true or false.
+  // Default: false.
+
+  "devBootstrapPublishedSkills": false,
+
+  // Enables the AIR NPE / new-character tutorial gate for freshly created characters.
+  // When enabled, brand-new characters start with tutorial-active AIR NPE state and character selection respects skipTutorial for those new characters.
+  // Valid values: true or false.
+  // Default: false.
+
+  "newCharacterTutorialEnabled": false,
+
+  // Enables the AIR NPE intro-movie entry path for newly created characters without activating the full tutorial runtime.
+  // Use this when you want the cinematic handoff but still land in the normal station or hangar UI because full tutorial parity is not implemented yet.
+  // Valid values: true or false.
+  // Default: false.
+
+  "newCharacterIntroCinematicEnabled": false,
+
+  // How long a character must remain queued before biomass can finalize.
+  // Use 600 for retail parity; the default 5-minute value keeps local deletion testing fast.
+  // Valid values: Integer minutes greater than or equal to 1.
+  // Default: 5.
+
+  "characterDeletionDelayMinutes": 5,
+
+  // Seeds the packaged client connection service with a local access token during the signed login-handshake patch.
+  // This bypasses the client-side launcher-token gate for skill extraction when using EveJS Elysian launch scripts instead of the official CCP launcher.
+  // Valid values: true or false.
+  // Default: true.
+
+  "devHandshakeSeedSkillExtractorAccessToken": true,
+
+  // Global multiplier applied after the official CCP skill-training SP-per-minute formula is calculated.
+  // 1 = retail training speed, 2 = 2x speed, 10 = 10x speed.
+  // Valid values: Positive number greater than 0.
+  // Default: 1.
+
+  "skillTrainingSpeed": 1,
+
+  // Enables client direct skillbook purchase through skillHandler.PurchaseSkills.
+  // Keep this enabled for TQ-style skill plan Buy Skill / Buy and Train flows.
+  // Valid values: true or false.
+  // Default: true.
+
+  "skillPurchaseEnabled": true,
+
+  // Enables Expert System item activation, active Expert System overlays, and the client expert_system_feature_enabled flag.
+  // Disable only when testing no-Expert-System retail edge cases; GM force installs still require explicit command/runtime force options.
+  // Valid values: true or false.
+  // Default: true.
+
+  "expertSystemsEnabled": true,
+
+  // Enables the live wormhole runtime, wormholeMgr jump service, and automatic static wormhole seeding for eligible systems.
+  // Disable only when isolating unrelated space-runtime regressions.
+  // Valid values: true or false.
+  // Default: true.
+
+  "wormholesEnabled": true,
+
+  // Global multiplier applied to authoritative wormhole lifetimes after static data is loaded.
+  // 1 = retail lifetime, 0.5 = half lifetime, 2 = double lifetime.
+  // Valid values: Positive number greater than 0.
+  // Default: 1.
+
+  "wormholeLifetimeScale": 1,
+
+  // Delay before a collapsed static wormhole slot reseeds a fresh connection.
+  // Use 60 for quick dev parity iteration; increase only when calibrating live collapse/respawn behavior.
+  // Valid values: Non-negative number of seconds.
+  // Default: 60.
+
+  "wormholeStaticRespawnDelaySeconds": 60,
+
+  // Enables automatic maintenance of repo-owned wandering wormhole families during startup and runtime reconciliation.
+  // Disable only when isolating static-only wormhole behavior or tuning wandering-family authority.
+  // Valid values: true or false.
+  // Default: true.
+
+  "wormholeWanderingEnabled": true,
+
+  // Global multiplier applied to repo-owned wandering wormhole profile counts after authority is loaded.
+  // 1 = authored wandering volume, 0 = no automatic wandering connections, 2 = double authored volume.
+  // Valid values: Non-negative number.
+  // Default: 1.
+
+  "wormholeWanderingCountScale": 1,
+
+  // Delay before a collapsed wandering wormhole profile is eligible to replenish its global active count.
+  // Use 60 for quick parity iteration; raise only when calibrating live wandering replacement cadence.
+  // Valid values: Non-negative number of seconds.
+  // Default: 60.
+
+  "wormholeWanderingRespawnDelaySeconds": 60,
+
+  // Lets any session manage and deliver asset-safety wraps without ownership or corporation access checks.
+  // Valid values: true or false.
+  // Default: false.
+
+  "devBypassAssetSafetyWrapAccess": false,
 
   // Allows GM/dev sessions to bypass Upwell docking, settings, and timer safety restrictions.
   // Keep this disabled for stricter CCP parity and enable it only when iterating on structure lifecycle tests.
@@ -305,6 +414,36 @@
 
   "miningIceSitesWormholePerSystem": 0,
 
+  // Number of high-security systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.
+  // Valid values: Non-negative integer.
+  // Default: 36.
+
+  "miningIceTargetSystemsHighSec": 36,
+
+  // Number of low-security systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.
+  // Valid values: Non-negative integer.
+  // Default: 18.
+
+  "miningIceTargetSystemsLowSec": 18,
+
+  // Number of null-security systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.
+  // Valid values: Non-negative integer.
+  // Default: 84.
+
+  "miningIceTargetSystemsNullSec": 84,
+
+  // Number of wormhole systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.
+  // Valid values: Non-negative integer.
+  // Default: 0.
+
+  "miningIceTargetSystemsWormhole": 0,
+
+  // Lifetime in minutes for universe-seeded generated ice site slots before they rotate in place to the next deterministic field definition.
+  // Valid values: Positive integer minutes.
+  // Default: 1440.
+
+  "miningGeneratedIceSiteLifetimeMinutes": 1440,
+
   // Number of generated gas-field anchors created in each high-security system scene when gas runtime content is enabled.
   // Valid values: Non-negative integer.
   // Default: 0.
@@ -539,8 +678,8 @@
   "machoVersion": 496,
 
   // Project codename reported to the client during startup.
-  // Valid values: String. For the current client keep this as "EvEJS".
-  // Default: "EvEJS".
+  // Valid values: String matching the client boot codename; leave the default unless your client build requires another value.
+  // Default: client compatibility codename.
 
   "projectCodename": "EvEJS",
 
@@ -555,6 +694,38 @@
   // Default: "V23.02@ccp".
 
   "projectVersion": "V23.02@ccp",
+
+  // Login-screen server status label returned by machoNet.GetServerStatus.
+  // Use CCP-style labels such as /Carbon/MachoNet/ServerStatus/OK, /Carbon/MachoNet/ServerStatus/StartingUp, /Carbon/MachoNet/ServerStatus/ShuttingDown, or /Carbon/MachoNet/ServerStatus/NotAcceptingConnections.
+  // Valid values: A known Carbon login-status label such as "/Carbon/MachoNet/ServerStatus/OK" or "/Carbon/MachoNet/ServerStatus/StartingUp".
+  // Default: "/Carbon/MachoNet/ServerStatus/OK".
+
+  "serverStatusLabel": "/Carbon/MachoNet/ServerStatus/OK",
+
+  // Progress/countdown value injected when serverStatusLabel is /Carbon/MachoNet/ServerStatus/StartingUp.
+  // Valid values: Non-negative integer seconds.
+  // Default: 0.
+
+  "serverStatusProgressSeconds": 0,
+
+  // Limit value injected when serverStatusLabel is /Carbon/MachoNet/ServerStatus/ProxyFullWithLimit.
+  // Valid values: Non-negative integer.
+  // Default: 0.
+
+  "serverStatusProxyLimit": 0,
+
+  // Cluster user count reported during login-status and handshake flows.
+  // Valid values: Non-negative integer.
+  // Default: 1.
+
+  "serverStatusClusterUserCount": 1,
+
+  // Logon queue position exposed during handshake.
+  // Values of 2 or greater trigger the retail client queue flow.
+  // Valid values: Non-negative integer.
+  // Default: 1.
+
+  "serverStatusQueuePosition": 1,
 
   // Two-letter ISO country code injected into the initial user session when an account does not define one.
   // HyperNet visibility checks read session.countryCode during early client startup, so this default keeps the feature available in local dev.
@@ -632,11 +803,23 @@
 
   "logLevel": 2,
 
+  // When verbose debug logging is enabled, also dumps decoded packet payload previews and outgoing packet hex summaries on hot network paths.
+  // Valid values: true or false.
+  // Default: false.
+
+  "logPacketPayloadDetails": false,
+
   // TCP port used by the main game server listener.
   // Valid values: Available TCP port number.
   // Default: 26000.
 
   "serverPort": 26000,
+
+  // Host name or IP address the client should use when connecting to the main game TCP listener.
+  // Valid values: Host name or IP string such as "127.0.0.1" or "203.0.113.10".
+  // Default: "127.0.0.1".
+
+  "gameServerHost": "127.0.0.1",
 
   // Host name or IP address used by the main server to reach the standalone Rust market daemon RPC listener.
   // Valid values: Host name or IP string such as "127.0.0.1" or "192.168.1.20".
@@ -674,23 +857,83 @@
 
   "imageServerUrl": "http://127.0.0.1:26001/",
 
+  // Host or bind address the local image HTTP server listens on.
+  // Valid values: Host name or IP string such as "127.0.0.1" or "0.0.0.0".
+  // Default: "127.0.0.1".
+
+  "imageServerBindHost": "127.0.0.1",
+
   // Base URL used to redirect supported microservice calls away from CCP.
   // Valid values: Absolute URL string ending with a slash, for example "http://localhost:26002/".
   // Default: "http://localhost:26002/".
 
   "microservicesRedirectUrl": "http://localhost:26002/",
 
+  // Server-side HTTP base URL where the EveJS microservice and public-gateway bridge listens for forwarded helper traffic.
+  // Valid values: Absolute URL string ending with a slash, for example "http://127.0.0.1:26002/".
+  // Default: "http://127.0.0.1:26002/".
+
+  "microservicesPublicBaseUrl": "http://127.0.0.1:26002/",
+
+  // Host or bind address the EveJS microservice and public-gateway bridge listens on.
+  // Valid values: Host name or IP string such as "127.0.0.1" or "0.0.0.0".
+  // Default: "127.0.0.1".
+
+  "microservicesBindHost": "127.0.0.1",
+
+  // Host or bind address the Redshift TiDi monitor API listens on.
+  // Valid values: Host name or IP string such as "127.0.0.1" or "0.0.0.0".
+  // Default: "127.0.0.1".
+
+  "redshiftMonitorHost": "127.0.0.1",
+
+  // TCP port used by the Redshift TiDi monitor API.
+  // Valid values: Available TCP port number.
+  // Default: 26400.
+
+  "redshiftMonitorPort": 26400,
+
   // Comma-separated hostnames or dot-prefix suffixes the local HTTP proxy should block instead of forwarding off-box.
-  // Valid values: Comma-separated host patterns, for example "api.ipify.org,sentry.io,.sentry.io".
-  // Default: "api.ipify.org,sentry.io,.sentry.io".
+  // Valid values: Comma-separated host patterns, for example "api.ipify.org,sentry.io,.sentry.io,google-analytics.com,.google-analytics.com,launchdarkly.com,.launchdarkly.com".
+  // Default: "api.ipify.org,sentry.io,.sentry.io,google-analytics.com,.google-analytics.com,launchdarkly.com,.launchdarkly.com".
 
   "proxyBlockedHosts": "api.ipify.org,sentry.io,.sentry.io",
+
+  // Comma-separated extra hostnames or suffix patterns the local HTTP proxy may forward off-box when they are not handled by the built-in EveJS gateway intercepts.
+  // Valid values: Comma-separated host patterns, for example "images.example.com,.examplecdn.net", or blank to allow only EveJS-handled endpoints.
+  // Default: "".
+
+  "proxyAllowedHosts": "",
+
+  // Controls what the local HTTP proxy does with proxied hosts that are neither EveJS-intercepted nor explicitly allow-listed. "block" is the safe default that suppresses telemetry and stray outbound traffic; "forward" restores the old transparent pass-through behavior.
+  // Valid values: "block" or "forward".
+  // Default: "block".
+
+  "proxyUnhandledHostPolicy": "block",
 
   // TCP port used by the local XMPP chat stub server.
   // Valid values: Available TCP port number.
   // Default: 5222.
 
   "xmppServerPort": 5222,
+
+  // Host name or IP address returned to the client for the XMPP chat connection target.
+  // Valid values: Host name or IP string such as "localhost" or "chat.example.com".
+  // Default: "localhost".
+
+  "xmppConnectHost": "localhost",
+
+  // XMPP domain used for bare JIDs and chat identity values.
+  // Valid values: Domain or host string such as "localhost" or "chat.example.com".
+  // Default: "localhost".
+
+  "xmppDomain": "localhost",
+
+  // XMPP conference domain used for chat room JIDs.
+  // Valid values: Domain or host string such as "conference.localhost" or "conference.chat.example.com".
+  // Default: "conference.localhost".
+
+  "xmppConferenceDomain": "conference.localhost",
 
   // Enables the stubbed omega-license path for modern eve_public flows.
   // Valid values: true or false.
@@ -777,10 +1020,10 @@
   "tidiAutoscaler": false,
 
   // Controls which solar-system scenes are created during server startup.
-  // 1 = current lazy/default boot: only Jita and New Caldari are preloaded so the existing startup behavior stays the same.
+  // 1 = current lazy/default boot: only Jita, New Caldari, and Manifest are preloaded so the existing startup behavior stays the same.
   // 2 = preload every high-security system by checking the solar-system security data for displayed security `0.5+` at startup, so newly added systems are picked up automatically.
   // 3 = preload every solar system in New Eden at startup.
-  // 4 = OnGoingLazy: preload only Jita and New Caldari, but keep every stargate active so destination systems load on demand when a player jumps through.
+  // 4 = OnGoingLazy: preload only Jita, New Caldari, and Manifest, but keep every stargate active so destination systems load on demand when a player jumps through.
   // Valid values: 1, 2, 3, or 4. Any other value falls back to 1.
   // Default: 1.
 

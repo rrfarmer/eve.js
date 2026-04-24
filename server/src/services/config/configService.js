@@ -24,6 +24,10 @@ const { getCharacterShips } = require(path.join(
   __dirname,
   "../character/characterState",
 ));
+const { normalizeCharacterGender } = require(path.join(
+  __dirname,
+  "../character/characterIdentity",
+));
 const { findShipItemById } = require(path.join(
   __dirname,
   "../inventory/itemStore",
@@ -85,6 +89,7 @@ function buildAveragePriceEntry(price, adjustedPrice = null) {
 }
 
 let staticLocationRowsById = null;
+let averageMarketPricesPayload = null;
 
 function normalizeSolarSystemID(value, fallback = null) {
   const numericValue = Number(value);
@@ -193,6 +198,31 @@ function getStaticLocationRowsById() {
   return rowsById;
 }
 
+function getAverageMarketPricesPayload() {
+  if (averageMarketPricesPayload) {
+    return averageMarketPricesPayload;
+  }
+
+  const entries = readStaticRows(TABLE.ITEM_TYPES)
+    .filter(
+      (itemType) =>
+        itemType &&
+        Number(itemType.typeID) > 0 &&
+        Number(itemType.basePrice) > 0 &&
+        itemType.published !== false,
+    )
+    .map((itemType) => [
+      Number(itemType.typeID),
+      buildAveragePriceEntry(itemType.basePrice),
+    ]);
+
+  averageMarketPricesPayload = {
+    type: "dict",
+    entries,
+  };
+  return averageMarketPricesPayload;
+}
+
 function buildShipItemOwnerRow(itemID) {
   const shipItem = findShipItemById(itemID);
   if (!shipItem) {
@@ -248,7 +278,7 @@ class ConfigService extends BaseService {
           normalizedId, // ownerID
           charData.characterName || "Unknown", // ownerName
           charData.typeID || 1373, // typeID
-          charData.gender || 1, // gender
+          normalizeCharacterGender(charData.gender, 1), // gender
           null, // ownerNameID
         ]);
         continue;
@@ -597,16 +627,7 @@ class ConfigService extends BaseService {
 
   Handle_GetAverageMarketPrices(args, session) {
     log.debug("[ConfigService] GetAverageMarketPrices");
-    const ships = readStaticRows(TABLE.SHIP_TYPES);
-    return {
-      type: "dict",
-      entries: ships
-        .filter((ship) => Number(ship.typeID) > 0 && Number(ship.basePrice) > 0)
-        .map((ship) => [
-          Number(ship.typeID),
-          buildAveragePriceEntry(ship.basePrice),
-        ]),
-    };
+    return getAverageMarketPricesPayload();
   }
 }
 

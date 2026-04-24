@@ -1,0 +1,260 @@
+{
+  "_meta": {
+    "generatedAt": null,
+    "lastUpdatedAt": "2026-04-14T13:44:29.026Z",
+    "version": 1
+  },
+  "blueprintsByItemID": {},
+  "records": {
+    "991006439": {
+      "itemID": 991006439,
+      "typeID": 691,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "991006443": {
+      "itemID": 991006443,
+      "typeID": 33401,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "991006457": {
+      "itemID": 991006457,
+      "typeID": 821,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "991006460": {
+      "itemID": 991006460,
+      "typeID": 821,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "991006461": {
+      "itemID": 991006461,
+      "typeID": 821,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "2990000064": {
+      "itemID": 2990000064,
+      "typeID": 4305,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "2990000065": {
+      "itemID": 2990000065,
+      "typeID": 62670,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "2990000066": {
+      "itemID": 2990000066,
+      "typeID": 24514,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "2990000067": {
+      "itemID": 2990000067,
+      "typeID": 32877,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": 970000000000036,
+      "updatedAt": 1775949301085
+    },
+    "2990000079": {
+      "itemID": 2990000079,
+      "typeID": 20184,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578156408
+    },
+    "2990000080": {
+      "itemID": 2990000080,
+      "typeID": 805,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": 970000000000038,
+      "updatedAt": 1775949381952
+    },
+    "2990000081": {
+      "itemID": 2990000081,
+      "typeID": 1148,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775949323884
+    },
+    "2990000554": {
+      "itemID": 2990000554,
+      "typeID": 17479,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578156408
+    },
+    "2990000555": {
+      "itemID": 2990000555,
+      "typeID": 17479,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": 970000000000037,
+      "updatedAt": 1775949319431
+    },
+    "2990000556": {
+      "itemID": 2990000556,
+      "typeID": 17479,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578156409
+    },
+    "2990000557": {
+      "itemID": 2990000557,
+      "typeID": 17479,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578183346
+    },
+    "2990000558": {
+      "itemID": 2990000558,
+      "typeID": 17479,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578156409
+    },
+    "2990000559": {
+      "itemID": 2990000559,
+      "typeID": 20126,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578166914
+    },
+    "2990000589": {
+      "itemID": 2990000589,
+      "typeID": 20126,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "2990000601": {
+      "itemID": 2990000601,
+      "typeID": 20126,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033365
+    },
+    "2990000604": {
+      "itemID": 2990000604,
+      "typeID": 20126,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1775578033364
+    },
+    "2990003593": {
+      "itemID": 2990003593,
+      "typeID": 31563,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1776174266962
+    },
+    "2990003594": {
+      "itemID": 2990003594,
+      "typeID": 31563,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1776174018163
+    },
+    "2990003619": {
+      "itemID": 2990003619,
+      "typeID": 22952,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1776174269026
+    },
+    "2990003620": {
+      "itemID": 2990003620,
+      "typeID": 22952,
+      "materialEfficiency": 0,
+      "timeEfficiency": 0,
+      "original": true,
+      "runsRemaining": -1,
+      "jobID": null,
+      "updatedAt": 1776174265261
+    }
+  }
+}

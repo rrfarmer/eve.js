@@ -267,6 +267,24 @@ function extractAddBallsEntityIDs(entry) {
     .filter((itemID) => Number.isInteger(itemID) && itemID > 0);
 }
 
+function extractRemoveBallsEntityIDs(entry) {
+  if (!entry || entry.name !== "RemoveBalls" || !Array.isArray(entry.args)) {
+    return [];
+  }
+
+  const removedIDs = Array.isArray(entry.args[0])
+    ? entry.args[0]
+    : entry.args[0] &&
+        typeof entry.args[0] === "object" &&
+        entry.args[0].type === "list" &&
+        Array.isArray(entry.args[0].items)
+      ? entry.args[0].items
+      : [];
+  return removedIDs
+    .map((itemID) => Number(itemID))
+    .filter((itemID) => Number.isInteger(itemID) && itemID > 0);
+}
+
 test.afterEach(() => {
   shipDestruction._testing.clearPendingDeathTests();
   spaceRuntime._testing.clearScenes();
@@ -288,6 +306,118 @@ test("ship wreck resolution prefers race and hull class over the generic Wreck f
   assert.equal(
     shipDestruction._testing.resolveShipWreckType(11567).name,
     "Amarr Titan Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(52907).name,
+    "Triglavian Dreadnought Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(81040).name,
+    "Upwell Freighter Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(87381).name,
+    "Angel Dreadnought Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(78576).name,
+    "Angel Titan Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(42241).name,
+    "Blood Titan Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(42243).name,
+    "Blood Dreadnought Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(45647).name,
+    "Guristas Dreadnought Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(42126).name,
+    "Serpentis Titan Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(45649).name,
+    "Guristas Titan Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(42124).name,
+    "Serpentis Dreadnought Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(42125).name,
+    "Serpentis Supercarrier Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(34495).name,
+    "Drifter Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(47153).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(47722).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(37473).name,
+    "Drifter Response Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(86498).name,
+    "Drifter Response Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(47724).name,
+    "Drifter Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(47958).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(47959).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(47960).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(56217).name,
+    "Drifter Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(56219).name,
+    "Drifter Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(56220).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(56221).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(56222).name,
+    "Drifter Cruiser Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(87612).name,
+    "Drifter Battleship Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(88153).name,
+    "Drifter Small Wreck",
+  );
+  assert.equal(
+    shipDestruction._testing.resolveShipWreckType(88154).name,
+    "Strategos Dreadnought Wreck",
   );
 });
 
@@ -331,13 +461,199 @@ test("ship destruction broadcasts the explosion/removal before the spawned wreck
     (entry) => entry.name === "TerminalPlayDestructionEffect",
   );
   const removeIndex = flattened.findIndex((entry) => entry.name === "RemoveBalls");
-  const addIndex = flattened.findIndex((entry) => entry.name === "AddBalls2");
+  const addIndex = flattened.findIndex((entry) => (
+    entry.name === "AddBalls2" &&
+    extractAddBallsEntityIDs(entry).includes(Number(destroyResult.data.wreck.itemID))
+  ));
 
   assert.notEqual(destructionIndex, -1);
   assert.notEqual(removeIndex, -1);
   assert.notEqual(addIndex, -1);
   assert.ok(destructionIndex < addIndex);
   assert.ok(removeIndex < addIndex);
+});
+
+test("transient non-character-owned dummy hulls still drop wrecks on destruction", () => {
+  const testOwnerID = 991234567;
+  const scene = spaceRuntime.ensureScene(30000142);
+  const observer = buildShipEntity(scene, 980101, -5_000, {
+    typeID: 606,
+    characterID: 140000004,
+  });
+  const observerSession = attachSession(scene, observer, 101, 140000004);
+  const dummy = buildShipEntity(scene, 980102, 5_000, {
+    typeID: 24698,
+  });
+  dummy.ownerID = testOwnerID;
+  dummy.transient = true;
+
+  try {
+    cleanupOwnedItems(testOwnerID);
+    scene.spawnDynamicEntity(dummy, { broadcast: false });
+    scene.syncDynamicVisibilityForAllSessions(scene.getCurrentSimTimeMs());
+    observerSession.notifications.length = 0;
+
+    const destroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      30000142,
+      dummy,
+      {
+        ownerCharacterID: testOwnerID,
+      },
+    );
+
+    assert.equal(destroyResult.success, true);
+    assert.ok(destroyResult.data && destroyResult.data.wreck);
+    assert.equal(
+      Boolean(destroyResult.data.transientFallback),
+      false,
+      "Expected dummy destruction to stay on the real wreck path",
+    );
+
+    const wreckEntity = scene.getEntityByID(destroyResult.data.wreck.itemID);
+    assert.ok(wreckEntity, "Expected the spawned wreck to materialize in the scene");
+    assert.equal(wreckEntity.kind, "wreck");
+
+    const flattened = flattenDestinyUpdates(observerSession.notifications).flat();
+    assert.equal(
+      flattened.some((entry) => (
+        entry.name === "AddBalls2" &&
+        extractAddBallsEntityIDs(entry).includes(Number(destroyResult.data.wreck.itemID))
+      )),
+      true,
+      "Expected observers to receive the wreck acquire for the destroyed dummy",
+    );
+  } finally {
+    cleanupOwnedItems(testOwnerID);
+  }
+});
+
+test("death-test multi-hull detonation keeps wreck visuals visible to nearby observers", async () => {
+  const scene = spaceRuntime.ensureScene(30000142);
+  const anchor = buildShipEntity(scene, 990011, 0, {
+    typeID: 606,
+    characterID: 140000004,
+  });
+  const anchorSession = attachSession(scene, anchor, 11, 140000004);
+  const observer = buildShipEntity(scene, 990012, 1_000, {
+    typeID: 606,
+    characterID: 140000005,
+  });
+  const observerSession = attachSession(scene, observer, 12, 140000005);
+
+  const spawnResult = shipDestruction.spawnShipDeathTestField(anchorSession.session, {
+    shipType: {
+      typeID: 16236,
+      groupID: 420,
+      categoryID: 6,
+      name: "Coercer",
+    },
+    count: 6,
+    delayMs: 2_000,
+  });
+
+  assert.equal(spawnResult.success, true);
+  assert.equal(spawnResult.data.spawned.length, 6);
+
+  anchorSession.notifications.length = 0;
+  observerSession.notifications.length = 0;
+
+  let completion = null;
+  spawnResult.data.completionPromise.then((value) => {
+    completion = value;
+  });
+
+  const remainingSimMs = Math.max(
+    0,
+    Number(spawnResult.data.detonateAtSimMs || 0) - Number(scene.simTimeMs || 0),
+  );
+  const remainingWallclockMs = Math.ceil(
+    remainingSimMs / Math.max(scene.getTimeDilation(), 0.000001),
+  );
+  advanceScene(scene, remainingWallclockMs + 5);
+  shipDestruction._testing.processPendingDeathTests();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.ok(completion);
+  assert.equal(completion.destroyed.length, 6);
+
+  const expectedWreckIDs = new Set(
+    completion.destroyed.map((entry) => Number(entry && entry.wreckID) || 0),
+  );
+  const observerFlattened = flattenDestinyUpdates(observerSession.notifications).flat();
+  const observedWreckIDs = new Set(
+    observerFlattened
+      .filter((entry) => entry && entry.name === "AddBalls2")
+      .flatMap((entry) => extractAddBallsEntityIDs(entry))
+      .filter((entityID) => expectedWreckIDs.has(Number(entityID) || 0)),
+  );
+
+  assert.equal(
+    observedWreckIDs.size,
+    expectedWreckIDs.size,
+    "Expected nearby observers to receive AddBalls2 for every /deathtest wreck",
+  );
+});
+
+test("dynamic exploding removals survive an owner held-future presented lane", () => {
+  const scene = spaceRuntime.ensureScene(POD_KILL_TEST_SYSTEM_ID);
+  const owner = buildShipEntity(scene, 980101, 0, {
+    typeID: 606,
+    characterID: 140000004,
+  });
+  const ownerSession = attachSession(scene, owner, 501, 140000004);
+  const doomedHull = buildShipEntity(scene, 980102, 15_000, {
+    typeID: 11567,
+  });
+
+  scene.spawnDynamicEntity(doomedHull, { broadcast: false });
+  ownerSession.session._space.visibleDynamicEntityIDs = new Set([doomedHull.itemID]);
+  ownerSession.notifications.length = 0;
+
+  const nowMs = scene.getCurrentSimTimeMs();
+  const currentSessionStamp = scene.getCurrentSessionDestinyStamp(
+    ownerSession.session,
+    nowMs,
+  );
+  ownerSession.session._space.destinyAuthorityState = {
+    ...(ownerSession.session._space.destinyAuthorityState || {}),
+    lastPresentedStamp: (currentSessionStamp + 3) >>> 0,
+    lastNonCriticalStamp: (currentSessionStamp + 3) >>> 0,
+    lastRawDispatchStamp: scene.getCurrentDestinyStamp(nowMs),
+    heldQueueState: {
+      active: false,
+      queuedCount: 0,
+      lastQueueStamp: 0,
+    },
+  };
+  ownerSession.session._space.lastSentDestinyStamp = (currentSessionStamp + 3) >>> 0;
+  ownerSession.session._space.lastSentDestinyRawDispatchStamp =
+    scene.getCurrentDestinyStamp(nowMs);
+  ownerSession.session._space.lastSentDestinyWasOwnerCritical = false;
+  ownerSession.session._space.lastSentDestinyOnlyStaleProjectedOwnerMissileLane = false;
+
+  scene.broadcastRemoveBall(doomedHull.itemID, null, {
+    terminalDestructionEffectID: 3,
+    visibilityEntity: doomedHull,
+    nowMs,
+  });
+
+  const flattened = flattenDestinyUpdates(ownerSession.notifications).flat();
+  const destroyEntry = flattened.find((entry) => (
+    entry.name === "TerminalPlayDestructionEffect" &&
+    Number(entry.args && entry.args[0]) === doomedHull.itemID
+  ));
+  const removeEntry = flattened.find((entry) => (
+    extractRemoveBallsEntityIDs(entry).includes(doomedHull.itemID)
+  ));
+
+  assert.ok(
+    destroyEntry,
+    "expected destruction FX to survive the owner's already-presented death lane",
+  );
+  assert.ok(
+    removeEntry,
+    "expected RemoveBalls to survive instead of leaving a ghost hull burning for the owner",
+  );
 });
 
 test("same-scene ship destruction uses a remote-style shipid session change during eject", () => {
@@ -568,6 +884,136 @@ test("same-scene ship destruction explicitly seeds the victim capsule ego ball",
       postDestroyCapsuleAddIndex,
       -1,
       "expected ship destruction to reseed the victim capsule after the hull dies",
+    );
+  } finally {
+    cleanupOwnedItems(testCharacterID);
+
+    if (originalCharacter) {
+      writeTransientTableEntry("characters", testCharacterID, originalCharacter);
+    } else {
+      database.remove("characters", `/${testCharacterID}`);
+    }
+
+    if (originalShip) {
+      writeTransientTableEntry("items", testShipID, originalShip);
+    } else {
+      database.remove("items", `/${testShipID}`);
+    }
+
+    if (originalSkills) {
+      writeTransientTableEntry("skills", testCharacterID, originalSkills);
+    } else {
+      database.remove("skills", `/${testCharacterID}`);
+    }
+  }
+});
+
+test("same-scene ship destruction removes the victim's abandoned hull ball after eject", () => {
+  const testCharacterID = 990901234;
+  const testShipID = 990901334;
+  const originalCharacter = readOptionalTableEntry("characters", testCharacterID);
+  const originalShip = readOptionalTableEntry("items", testShipID);
+  const originalSkills = readOptionalTableEntry("skills", testCharacterID);
+
+  try {
+    writeTransientTableEntry("characters", testCharacterID, {
+      characterID: testCharacterID,
+      characterName: "Victim Hull Removal Test",
+      corporationID: 1000009,
+      allianceID: null,
+      warFactionID: null,
+      raceID: 1,
+      bloodlineID: 1,
+      gender: 1,
+      stationID: null,
+      solarSystemID: POD_KILL_TEST_SYSTEM_ID,
+      worldSpaceID: 0,
+      shipID: testShipID,
+      shipTypeID: 606,
+      shipName: "Rifter",
+      homeStationID: POD_KILL_TEST_STATION_ID,
+      cloneStationID: POD_KILL_TEST_STATION_ID,
+      securityStatus: 0,
+      securityRating: 0,
+    });
+    writeTransientTableEntry(
+      "items",
+      testShipID,
+      buildShipItem({
+        itemID: testShipID,
+        typeID: 606,
+        ownerID: testCharacterID,
+        locationID: POD_KILL_TEST_SYSTEM_ID,
+        flagID: 0,
+        itemName: "Rifter",
+        spaceState: {
+          systemID: POD_KILL_TEST_SYSTEM_ID,
+          position: { x: 15_000, y: 0, z: 0 },
+          velocity: { x: 0, y: 0, z: 0 },
+          direction: { x: 1, y: 0, z: 0 },
+          targetPoint: { x: 15_000, y: 0, z: 0 },
+          speedFraction: 0,
+          mode: "STOP",
+        },
+        conditionState: {
+          damage: 0,
+          charge: 1,
+          armorDamage: 0,
+          shieldCharge: 1,
+          incapacitated: false,
+        },
+      }),
+    );
+
+    const characterRecord = getCharacterRecord(testCharacterID);
+    const activeShip = getActiveShipRecord(testCharacterID);
+    assert.ok(characterRecord);
+    assert.ok(activeShip);
+
+    const victimSession = buildVictimSession(
+      characterRecord,
+      activeShip,
+      testCharacterID + 39,
+    );
+    const victimEntity = spaceRuntime.attachSession(victimSession, activeShip, {
+      systemID: POD_KILL_TEST_SYSTEM_ID,
+      broadcast: false,
+      spawnStopped: true,
+    });
+    assert.ok(victimEntity);
+    victimSession._space.initialStateSent = true;
+    victimSession._space.initialBallparkVisualsSent = true;
+    victimSession._space.initialBallparkClockSynced = true;
+    victimSession._space.beyonceBound = true;
+
+    const destroyResult = shipDestruction.destroySessionShip(victimSession, {
+      sessionChangeReason: "combat",
+    });
+    assert.equal(destroyResult.success, true);
+
+    const flattened = flattenDestinyUpdates(victimSession.notifications).flat();
+    const destroyedShipID = Number(activeShip.itemID);
+    const destructionIndex = flattened.findIndex((entry) => (
+      entry.name === "TerminalPlayDestructionEffect" &&
+      Number(entry.args && entry.args[0]) === destroyedShipID
+    ));
+    const removeIndex = flattened.findIndex((entry) => (
+      extractRemoveBallsEntityIDs(entry).includes(destroyedShipID)
+    ));
+
+    assert.notEqual(
+      destructionIndex,
+      -1,
+      "expected same-scene destruction to send the victim hull explosion effect",
+    );
+    assert.notEqual(
+      removeIndex,
+      -1,
+      "expected same-scene destruction to RemoveBalls the victim's abandoned hull",
+    );
+    assert.ok(
+      destructionIndex < removeIndex,
+      "expected hull RemoveBalls to follow the destruction effect for the victim",
     );
   } finally {
     cleanupOwnedItems(testCharacterID);
@@ -905,6 +1351,27 @@ test("same-scene ship destruction repairs victim visibility without removing the
     victimSession._space.initialBallparkVisualsSent = true;
     victimSession._space.initialBallparkClockSynced = true;
     victimSession._space.beyonceBound = true;
+    const nowMs = scene.getCurrentSimTimeMs();
+    const currentSessionStamp = scene.getCurrentSessionDestinyStamp(
+      victimSession,
+      nowMs,
+    );
+    victimSession._space.destinyAuthorityState = {
+      ...(victimSession._space.destinyAuthorityState || {}),
+      lastPresentedStamp: (currentSessionStamp + 2) >>> 0,
+      lastNonCriticalStamp: (currentSessionStamp + 2) >>> 0,
+      lastRawDispatchStamp: scene.getCurrentDestinyStamp(nowMs),
+      heldQueueState: {
+        active: false,
+        queuedCount: 0,
+        lastQueueStamp: 0,
+      },
+    };
+    victimSession._space.lastSentDestinyStamp = (currentSessionStamp + 2) >>> 0;
+    victimSession._space.lastSentDestinyRawDispatchStamp =
+      scene.getCurrentDestinyStamp(nowMs);
+    victimSession._space.lastSentDestinyWasOwnerCritical = false;
+    victimSession._space.lastSentDestinyOnlyStaleProjectedOwnerMissileLane = false;
 
     const responderA = buildShipEntity(scene, 990901431, 26_000, {
       typeID: 10037,
@@ -1104,6 +1571,144 @@ test("same-scene ship destruction reseeds the victim capsule without an owner Se
       postDestroySetState,
       undefined,
       "expected ship destruction capsule reseed not to send an owner SetState rebase",
+    );
+  } finally {
+    cleanupOwnedItems(testCharacterID);
+
+    if (originalCharacter) {
+      writeTransientTableEntry("characters", testCharacterID, originalCharacter);
+    } else {
+      database.remove("characters", `/${testCharacterID}`);
+    }
+
+    if (originalShip) {
+      writeTransientTableEntry("items", testShipID, originalShip);
+    } else {
+      database.remove("items", `/${testShipID}`);
+    }
+
+    if (originalSkills) {
+      writeTransientTableEntry("skills", testCharacterID, originalSkills);
+    } else {
+      database.remove("skills", `/${testCharacterID}`);
+    }
+  }
+});
+
+test("combat ship destruction does not reintroduce the abandoned hull to the victim session", () => {
+  const testCharacterID = 990901244;
+  const testShipID = 990901344;
+  const originalCharacter = readOptionalTableEntry("characters", testCharacterID);
+  const originalShip = readOptionalTableEntry("items", testShipID);
+  const originalSkills = readOptionalTableEntry("skills", testCharacterID);
+
+  try {
+    writeTransientTableEntry("characters", testCharacterID, {
+      characterID: testCharacterID,
+      characterName: "Combat Destruction Dead Hull Test",
+      corporationID: 1000009,
+      allianceID: null,
+      warFactionID: null,
+      raceID: 1,
+      bloodlineID: 1,
+      gender: 1,
+      stationID: null,
+      solarSystemID: POD_KILL_TEST_SYSTEM_ID,
+      worldSpaceID: 0,
+      shipID: testShipID,
+      shipTypeID: 24698,
+      shipName: "Drake",
+      homeStationID: POD_KILL_TEST_STATION_ID,
+      cloneStationID: POD_KILL_TEST_STATION_ID,
+      securityStatus: 0,
+      securityRating: 0,
+    });
+    writeTransientTableEntry(
+      "items",
+      testShipID,
+      buildShipItem({
+        itemID: testShipID,
+        typeID: 24698,
+        ownerID: testCharacterID,
+        locationID: POD_KILL_TEST_SYSTEM_ID,
+        flagID: 0,
+        itemName: "Drake",
+        spaceState: {
+          systemID: POD_KILL_TEST_SYSTEM_ID,
+          position: { x: 24_000, y: 0, z: 0 },
+          velocity: { x: 0, y: 0, z: 0 },
+          direction: { x: 1, y: 0, z: 0 },
+          targetPoint: { x: 24_000, y: 0, z: 0 },
+          speedFraction: 0,
+          mode: "STOP",
+        },
+        conditionState: {
+          damage: 0,
+          charge: 1,
+          armorDamage: 0,
+          shieldCharge: 1,
+          incapacitated: false,
+        },
+      }),
+    );
+
+    const characterRecord = getCharacterRecord(testCharacterID);
+    const activeShip = getActiveShipRecord(testCharacterID);
+    assert.ok(characterRecord);
+    assert.ok(activeShip);
+
+    const victimSession = buildVictimSession(
+      characterRecord,
+      activeShip,
+      testCharacterID + 49,
+    );
+    const victimEntity = spaceRuntime.attachSession(victimSession, activeShip, {
+      systemID: POD_KILL_TEST_SYSTEM_ID,
+      broadcast: false,
+      spawnStopped: true,
+    });
+    assert.ok(victimEntity);
+    victimSession._space.initialStateSent = true;
+    victimSession._space.initialBallparkVisualsSent = true;
+    victimSession._space.initialBallparkClockSynced = true;
+    victimSession._space.beyonceBound = true;
+    victimSession.notifications.length = 0;
+
+    const destroyResult = shipDestruction.destroySessionShip(victimSession, {
+      sessionChangeReason: "combat",
+    });
+    assert.equal(destroyResult.success, true);
+
+    const flattened = flattenDestinyUpdates(victimSession.notifications).flat();
+    const destroyedShipID = Number(activeShip.itemID);
+    const destructionIndex = flattened.findIndex((entry) => (
+      entry.name === "TerminalPlayDestructionEffect" &&
+      Number(entry.args && entry.args[0]) === destroyedShipID
+    ));
+    assert.notEqual(
+      destructionIndex,
+      -1,
+      "expected the destroyed hull explosion to reach the victim",
+    );
+
+    const abandonedShipSlim = flattened.find((entry) => (
+      entry.name === "OnSlimItemChange" &&
+      Number(entry.args && entry.args[0]) === destroyedShipID
+    ));
+    const postDestroyAbandonedShipAdd = flattened.find((entry, index) => (
+      index > destructionIndex &&
+      extractAddBallsEntityIDs(entry).includes(destroyedShipID)
+    ));
+
+    assert.equal(
+      abandonedShipSlim,
+      undefined,
+      "expected combat destruction not to re-send the abandoned hull slim row to the victim",
+    );
+    assert.equal(
+      postDestroyAbandonedShipAdd,
+      undefined,
+      "expected combat destruction not to reintroduce the destroyed hull ball to the victim",
     );
   } finally {
     cleanupOwnedItems(testCharacterID);
@@ -1632,6 +2237,20 @@ test("podded capsules despawn for observers before the victim rebuilds docked in
     const replacementShip = getActiveShipRecord(POD_KILL_TEST_CHARACTER_ID);
     assert.ok(replacementShip);
     assert.equal(Number(replacementShip.locationID), POD_KILL_TEST_STATION_ID);
+
+    const shipidSessionChanges = victimSession.sessionChanges.filter(
+      (entry) => entry && entry.changes && entry.changes.shipid,
+    );
+    assert.equal(
+      shipidSessionChanges.length,
+      1,
+      "expected pod respawn dock to emit a single final shipid session change",
+    );
+    assert.deepEqual(
+      shipidSessionChanges[0].changes.shipid,
+      [POD_KILL_TEST_CAPSULE_ID, replacementShip.itemID],
+      "expected pod respawn to switch directly from the destroyed capsule to the docked replacement ship",
+    );
 
     await Promise.resolve();
 

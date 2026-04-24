@@ -253,6 +253,7 @@ function seedSovereigntyGatewayFixture(t) {
   resetSovereigntyStateForTests();
   resetSovereigntyModernStateForTests();
 
+  const sessionStamp = Number.MAX_SAFE_INTEGER - 1000;
   const ownerSession = {
     characterID: ACTIVE_CHARACTER_ID,
     corporationID: CORPORATION_ID,
@@ -261,6 +262,9 @@ function seedSovereigntyGatewayFixture(t) {
     allianceid: ALLIANCE_ID,
     solarsystemid2: solarSystem1,
     solarsystemid: solarSystem1,
+    lastActivity: sessionStamp + 1,
+    connectTime: sessionStamp + 1,
+    clientID: 9_900_001,
     socket: { destroyed: false },
   };
   const unauthorizedSession = {
@@ -271,6 +275,9 @@ function seedSovereigntyGatewayFixture(t) {
     allianceid: 0,
     solarsystemid2: solarSystem1,
     solarsystemid: solarSystem1,
+    lastActivity: sessionStamp + 2,
+    connectTime: sessionStamp + 2,
+    clientID: 9_900_002,
     socket: { destroyed: false },
   };
   sessionRegistry.register(ownerSession);

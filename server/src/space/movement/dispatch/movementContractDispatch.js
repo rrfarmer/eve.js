@@ -4,6 +4,7 @@ const {
 } = require("../movementParity");
 const {
   projectPreviouslySentDestinyLane,
+  resolveOwnerMovementRestampState,
 } = require("../movementDeliveryPolicy");
 const {
   clampQueuedSubwarpUpdates,
@@ -11,6 +12,13 @@ const {
 const {
   tagUpdatesRequireExistingVisibility,
 } = require("./movementDispatchUtils");
+const {
+  DESTINY_CONTRACTS,
+} = require("../authority/destinyContracts");
+const {
+  snapshotDestinyAuthorityState,
+  updateDestinyAuthorityState,
+} = require("../authority/destinySessionState");
 
 function createMovementContractDispatch(deps = {}) {
   const {
@@ -22,8 +30,10 @@ function createMovementContractDispatch(deps = {}) {
     sessionMatchesIdentity,
     summarizeRuntimeEntityForMissileDebug,
     buildMissileSessionSnapshot,
+    directionsNearlyMatch,
     toFiniteNumber,
     toInt,
+    DEFAULT_RIGHT,
     MICHELLE_DIRECT_CRITICAL_ECHO_DESTINY_LEAD,
     MICHELLE_HELD_FUTURE_DESTINY_LEAD,
     PILOT_WARP_ACTIVATION_DELAY_DESTINY_TICKS,
@@ -139,6 +149,11 @@ function createMovementContractDispatch(deps = {}) {
           options.suppressedSessions instanceof Set
             ? new Set(options.suppressedSessions)
             : null,
+        ownerDirectEchoLeadOverride:
+          options.ownerDirectEchoLeadOverride === undefined ||
+          options.ownerDirectEchoLeadOverride === null
+            ? undefined
+            : (toInt(options.ownerDirectEchoLeadOverride, 0) || 0),
       });
       return true;
     },
@@ -175,6 +190,7 @@ function createMovementContractDispatch(deps = {}) {
           return queuedUpdates;
         }
 
+        const authorityState = snapshotDestinyAuthorityState(session);
         const presentedFloorStamp = runtime.getCurrentPresentedSessionDestinyStamp(
           session,
           now,
@@ -182,17 +198,18 @@ function createMovementContractDispatch(deps = {}) {
         );
         const currentRawDispatchStamp = runtime.getCurrentDestinyStamp(now);
         const lastSentDestinyStamp = toInt(
+          authorityState && authorityState.lastPresentedStamp,
           session._space && session._space.lastSentDestinyStamp,
           0,
         ) >>> 0;
         const lastSentDestinyRawDispatchStamp = toInt(
+          authorityState && authorityState.lastRawDispatchStamp,
           session._space && session._space.lastSentDestinyRawDispatchStamp,
           0,
         ) >>> 0;
         const lastSentDestinyWasOwnerCritical =
-          session &&
-          session._space &&
-          session._space.lastSentDestinyWasOwnerCritical === true;
+          authorityState &&
+          authorityState.lastSentWasOwnerCritical === true;
         const projectedFloorStamp =
           lastSentDestinyStamp > 0 &&
           lastSentDestinyRawDispatchStamp > 0 &&
@@ -201,8 +218,8 @@ function createMovementContractDispatch(deps = {}) {
             currentRawDispatchStamp - lastSentDestinyRawDispatchStamp
           ) <= 1 &&
           !(
-            session._space &&
-            session._space.lastSentDestinyOnlyStaleProjectedOwnerMissileLane === true
+            authorityState &&
+            authorityState.lastSentOnlyStaleProjectedOwnerMissileLane === true
           )
             ? projectPreviouslySentDestinyLane(
                 lastSentDestinyStamp,
@@ -284,10 +301,12 @@ function createMovementContractDispatch(deps = {}) {
             ? pending.suppressedSessions
             : null;
         if (ownerSession && !(suppressedSessions && suppressedSessions.has(ownerSession))) {
+          const ownerAuthorityState = snapshotDestinyAuthorityState(ownerSession);
           const liveOwnerSessionStamp = runtime.getCurrentSessionDestinyStamp(
             ownerSession,
             now,
           );
+          const currentRawDispatchStamp = runtime.getCurrentDestinyStamp(now);
           let ownerUpdates = runtime.filterMovementUpdatesForSession(
             ownerSession,
             updates,
@@ -297,6 +316,167 @@ function createMovementContractDispatch(deps = {}) {
               !Array.isArray(update && update.payload) ||
               update.payload[0] !== "GotoDirection"
             ));
+          }
+          const ownerMovementPayloadNamesBeforeClamp = ownerUpdates
+            .map((update) => (
+              update &&
+              Array.isArray(update.payload) &&
+              typeof update.payload[0] === "string"
+                ? update.payload[0]
+                : null
+            ))
+            .filter((name) => Boolean(name));
+          const ownerHasSteeringCommandBeforeClamp =
+            ownerMovementPayloadNamesBeforeClamp.some(isSteeringPayloadName);
+          let queuedOwnerRestampState = null;
+          if (ownerHasSteeringCommandBeforeClamp) {
+            const quietWindowActive =
+              typeof runtime.isSessionInPilotWarpQuietWindow === "function" &&
+              runtime.isSessionInPilotWarpQuietWindow(ownerSession, now);
+            const currentVisibleOwnerStamp =
+              runtime.getCurrentVisibleSessionDestinyStamp(
+                ownerSession,
+                now,
+              );
+            const currentPresentedOwnerStamp =
+              runtime.getCurrentPresentedSessionDestinyStamp(
+                ownerSession,
+                now,
+                quietWindowActive
+                  ? PILOT_WARP_ACTIVATION_DELAY_DESTINY_TICKS
+                  : MICHELLE_HELD_FUTURE_DESTINY_LEAD,
+              );
+            const quietWindowMinimumStamp = quietWindowActive
+              ? Math.max(
+                  toInt(
+                    ownerSession._space &&
+                      ownerSession._space.pilotWarpQuietUntilStamp,
+                    0,
+                  ),
+                  typeof runtime.getHistorySafeSessionDestinyStamp === "function"
+                    ? runtime.getHistorySafeSessionDestinyStamp(
+                        ownerSession,
+                        now,
+                        PILOT_WARP_ACTIVATION_DELAY_DESTINY_TICKS,
+                        PILOT_WARP_ACTIVATION_DELAY_DESTINY_TICKS,
+                      )
+                    : 0,
+                ) >>> 0
+              : 0;
+            queuedOwnerRestampState = resolveOwnerMovementRestampState({
+              ownerMovementUpdates: ownerUpdates,
+              ownerHasSteeringCommand: true,
+              ownerDirectEchoLeadOverride: pending.ownerDirectEchoLeadOverride,
+              currentRawDispatchStamp,
+              liveOwnerSessionStamp,
+              currentVisibleOwnerStamp,
+              currentPresentedOwnerStamp,
+              previousLastSentDestinyWasOwnerCritical:
+                ownerAuthorityState &&
+                ownerAuthorityState.lastSentWasOwnerCritical === true,
+              quietWindowMinimumStamp,
+              lastFreshAcquireLifecycleStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastFreshAcquireLifecycleStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastFreshAcquireLifecycleStamp,
+                0,
+              ) >>> 0,
+              lastOwnerNonMissileCriticalStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerNonMissileCriticalStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastOwnerNonMissileCriticalStamp,
+                0,
+              ) >>> 0,
+              lastOwnerNonMissileCriticalRawDispatchStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerNonMissileCriticalRawDispatchStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastOwnerNonMissileCriticalRawDispatchStamp,
+                0,
+              ) >>> 0,
+              lastOwnerMissileLifecycleStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerMissileLifecycleStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastOwnerMissileLifecycleStamp,
+                0,
+              ) >>> 0,
+              lastOwnerMissileLifecycleRawDispatchStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerMissileLifecycleRawDispatchStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastOwnerMissileLifecycleRawDispatchStamp,
+                0,
+              ) >>> 0,
+              lastOwnerMissileFreshAcquireStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerMissileFreshAcquireStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastOwnerMissileFreshAcquireStamp,
+                0,
+              ) >>> 0,
+              lastOwnerMissileFreshAcquireRawDispatchStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerMissileFreshAcquireRawDispatchStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastOwnerMissileFreshAcquireRawDispatchStamp,
+                0,
+              ) >>> 0,
+              previousOwnerPilotCommandStamp: toInt(
+                ownerAuthorityState && ownerAuthorityState.lastOwnerCommandStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastPilotCommandMovementStamp,
+                0,
+              ) >>> 0,
+              previousOwnerPilotCommandAnchorStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerCommandAnchorStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastPilotCommandMovementAnchorStamp,
+                0,
+              ) >>> 0,
+              previousOwnerPilotCommandRawDispatchStamp: toInt(
+                ownerAuthorityState &&
+                  ownerAuthorityState.lastOwnerCommandRawDispatchStamp,
+                ownerSession._space &&
+                  ownerSession._space.lastPilotCommandMovementRawDispatchStamp,
+                0,
+              ) >>> 0,
+              previousOwnerPilotCommandDirectionRaw:
+                ownerSession &&
+                ownerSession._space &&
+                ownerSession._space.lastPilotCommandDirection,
+              normalizeVector,
+              directionsNearlyMatch,
+              getPendingHistorySafeStamp: (authoredStamp, minimumLead = 0) => (
+                typeof runtime.getPendingHistorySafeSessionDestinyStamp === "function"
+                  ? runtime.getPendingHistorySafeSessionDestinyStamp(
+                      ownerSession,
+                      authoredStamp,
+                      now,
+                      minimumLead,
+                    )
+                  : Math.max(
+                      toInt(authoredStamp, 0) >>> 0,
+                      (
+                        liveOwnerSessionStamp +
+                        toInt(minimumLead, 0)
+                      ) >>> 0,
+                    ) >>> 0
+              ),
+              defaultRight:
+                DEFAULT_RIGHT && typeof DEFAULT_RIGHT === "object"
+                  ? DEFAULT_RIGHT
+                  : { x: 1, y: 0, z: 0 },
+            });
+            if (
+              queuedOwnerRestampState &&
+              Array.isArray(queuedOwnerRestampState.ownerUpdates)
+            ) {
+              ownerUpdates = queuedOwnerRestampState.ownerUpdates;
+            }
           }
           ownerUpdates = clampQueuedSubwarpUpdatesForSession(
             ownerSession,
@@ -351,15 +531,24 @@ function createMovementContractDispatch(deps = {}) {
                       0,
                     ),
                   },
-                  latestDirection || { x: 0, y: 0, z: 0 },
+                  latestDirection ||
+                    (
+                      DEFAULT_RIGHT && typeof DEFAULT_RIGHT === "object"
+                        ? DEFAULT_RIGHT
+                        : { x: 1, y: 0, z: 0 }
+                    ),
                 );
               },
-              null,
+              queuedOwnerRestampState &&
+                queuedOwnerRestampState.currentOwnerPilotCommandDirection
+                ? queuedOwnerRestampState.currentOwnerPilotCommandDirection
+                : null,
             );
             let recordedOwnerMovementStamp = 0;
             if (runtime.hasActiveTickDestinyPresentationBatch()) {
               runtime.queueTickDestinyPresentationUpdates(ownerSession, ownerUpdates, {
                 sendOptions: {
+                  destinyAuthorityContract: DESTINY_CONTRACTS.OWNER_PILOT_COMMAND,
                   // Queued owner steering was already clamped onto its safe
                   // presented lane before entering the generic destiny sender.
                   // Re-running owner monotonic restamp here can push or clamp
@@ -376,6 +565,7 @@ function createMovementContractDispatch(deps = {}) {
                 ownerUpdates,
                 false,
                 {
+                  destinyAuthorityContract: DESTINY_CONTRACTS.OWNER_PILOT_COMMAND,
                   // Match the direct owner movement path above: queued owner
                   // steering is already restamped once and must not be
                   // reprocessed by the generic owner-critical monotonic pass.
@@ -424,6 +614,35 @@ function createMovementContractDispatch(deps = {}) {
                   );
                 }
               }
+              updateDestinyAuthorityState(ownerSession, {
+                lastOwnerNonMissileCriticalStamp:
+                  toInt(ownerSession._space.lastOwnerNonMissileCriticalStamp, 0) >>> 0,
+                lastOwnerNonMissileCriticalRawDispatchStamp:
+                  runtime.getCurrentDestinyStamp(now),
+                ...(ownerHasSteeringCommand
+                  ? {
+                      lastOwnerCommandStamp:
+                        toInt(ownerSession._space.lastPilotCommandMovementStamp, 0) >>> 0,
+                      lastOwnerCommandAnchorStamp:
+                        toInt(
+                          ownerSession._space.lastPilotCommandMovementAnchorStamp,
+                          liveOwnerSessionStamp,
+                        ) >>> 0,
+                      lastOwnerCommandRawDispatchStamp:
+                        runtime.getCurrentDestinyStamp(now),
+                      lastOwnerCommandHeadingHash: latestGotoDirection
+                        ? JSON.stringify({
+                            x: toFiniteNumber(latestGotoDirection.x, 0),
+                            y: toFiniteNumber(latestGotoDirection.y, 0),
+                            z: toFiniteNumber(latestGotoDirection.z, 0),
+                          })
+                        : (
+                            ownerAuthorityState &&
+                            ownerAuthorityState.lastOwnerCommandHeadingHash
+                          ) || "",
+                    }
+                  : {}),
+              });
             }
             delivered = true;
           }
@@ -458,6 +677,8 @@ function createMovementContractDispatch(deps = {}) {
           if (runtime.hasActiveTickDestinyPresentationBatch()) {
             runtime.queueTickDestinyPresentationUpdates(session, queuedUpdates, {
               sendOptions: {
+                destinyAuthorityContract:
+                  DESTINY_CONTRACTS.CRITICAL_MOVEMENT_OR_SHIPPRIME,
                 translateStamps: false,
               },
             });
@@ -466,7 +687,11 @@ function createMovementContractDispatch(deps = {}) {
               session,
               queuedUpdates,
               false,
-              { translateStamps: false },
+              {
+                destinyAuthorityContract:
+                  DESTINY_CONTRACTS.CRITICAL_MOVEMENT_OR_SHIPPRIME,
+                translateStamps: false,
+              },
             );
           }
           delivered = true;

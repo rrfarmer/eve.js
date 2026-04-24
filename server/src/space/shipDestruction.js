@@ -5,11 +5,13 @@ const spaceRuntime = require(path.join(__dirname, "./runtime"));
 const {
   ejectSession,
   rebuildDockedSessionAtStation,
+  repairSameSceneSessionViewState,
+  resolveSameSceneEgoAddBallsStamp,
 } = require(path.join(__dirname, "./transitions"));
 const {
   CAPSULE_TYPE_ID,
   ITEM_FLAGS,
-  createSpaceItemForCharacter,
+  createSpaceItemForOwner,
   findShipItemById,
   removeInventoryItem,
 } = require(path.join(__dirname, "../services/inventory/itemStore"));
@@ -18,34 +20,21 @@ const {
   getActiveShipRecord,
 } = require(path.join(__dirname, "../services/character/characterState"));
 const {
-  resolveShipByTypeID,
-} = require(path.join(__dirname, "../services/chat/shipTypeRegistry"));
-const {
-  resolveItemByName,
-  resolveItemByTypeID,
-} = require(path.join(__dirname, "../services/inventory/itemTypeRegistry"));
-const {
   getSpaceDebrisLifetimeMs,
 } = require(path.join(__dirname, "../services/inventory/spaceDebrisState"));
 const {
   resolveLocationDeathOutcome,
 } = require(path.join(__dirname, "../services/killmail/deathOutcomeResolver"));
+const {
+  buildDunRotationFromDirection,
+  resolveEntityWreckType,
+  resolveShipWreckType,
+} = require(path.join(__dirname, "./wreckUtils"));
 
 const DEFAULT_DEATH_TEST_COUNT = 6;
 const DEFAULT_DEATH_TEST_RADIUS_METERS = 20_000;
 const DEFAULT_DEATH_TEST_DELAY_MS = 2_000;
 const DESTRUCTION_EFFECT_EXPLOSION = 3;
-const RACE_WRECK_PREFIX_BY_ID = Object.freeze({
-  1: "Caldari",
-  2: "Minmatar",
-  4: "Amarr",
-  8: "Gallente",
-  32: "Jove",
-  64: "CONCORD",
-  128: "ORE",
-  256: "Triglavian",
-  512: "EDENCOM",
-});
 
 const pendingDeathTests = new Map();
 let nextPendingDeathTestID = 1;
@@ -100,13 +89,6 @@ function normalizeVector(vector, fallback = { x: 1, y: 0, z: 0 }) {
   };
 }
 
-function buildDunRotationFromDirection(direction) {
-  const forward = normalizeVector(direction, { x: 1, y: 0, z: 0 });
-  const yawDegrees = Math.atan2(forward.x, forward.z) * (180 / Math.PI);
-  const pitchDegrees = -Math.asin(Math.max(-1, Math.min(1, forward.y))) * (180 / Math.PI);
-  return [yawDegrees, pitchDegrees, 0];
-}
-
 function distance(left, right) {
   const dx = toFiniteNumber(left && left.x, 0) - toFiniteNumber(right && right.x, 0);
   const dy = toFiniteNumber(left && left.y, 0) - toFiniteNumber(right && right.y, 0);
@@ -153,88 +135,6 @@ function buildShipDeathPositions(anchorEntity, count, radiusMeters) {
   }
 
   return positions;
-}
-
-function resolveShipWreckRacePrefix(shipMeta = {}, itemMeta = {}) {
-  const raceID = toPositiveInt(
-    shipMeta.raceID !== undefined ? shipMeta.raceID : itemMeta.raceID,
-    0,
-  );
-  return RACE_WRECK_PREFIX_BY_ID[raceID] || null;
-}
-
-function resolveShipHullClassName(shipMeta = {}, itemMeta = {}) {
-  const groupName = String(
-    shipMeta.groupName ||
-    itemMeta.groupName ||
-    "",
-  ).trim().toLowerCase();
-  if (!groupName) {
-    return null;
-  }
-  if (groupName.includes("titan")) {
-    return "Titan";
-  }
-  if (groupName.includes("supercarrier")) {
-    return "Supercarrier";
-  }
-  if (groupName.includes("carrier")) {
-    return "Carrier";
-  }
-  if (groupName.includes("dread")) {
-    return "Dreadnought";
-  }
-  if (groupName.includes("jump freighter") || groupName.includes("freighter")) {
-    return "Freighter";
-  }
-  if (groupName.includes("mining barge") || groupName.includes("barge") || groupName.includes("exhumer")) {
-    return "Mining Barge";
-  }
-  if (groupName.includes("industrial") || groupName.includes("hauler") || groupName.includes("transport ship")) {
-    return "Hauler";
-  }
-  if (groupName.includes("battleship") || groupName.includes("marauder") || groupName.includes("black ops")) {
-    return "Battleship";
-  }
-  if (groupName.includes("battlecruiser") || groupName.includes("command ship")) {
-    return "Battlecruiser";
-  }
-  if (groupName.includes("cruiser") || groupName.includes("heavy interdictor") || groupName.includes("strategic cruiser")) {
-    return "Cruiser";
-  }
-  if (groupName.includes("destroyer") || groupName.includes("interdictor")) {
-    return "Destroyer";
-  }
-  if (groupName.includes("shuttle")) {
-    return "Shuttle";
-  }
-  if (groupName.includes("frigate") || groupName.includes("corvette")) {
-    return "Frigate";
-  }
-  return null;
-}
-
-function buildShipWreckCandidateNames(shipMeta = {}, itemMeta = {}) {
-  const hullClassName = resolveShipHullClassName(shipMeta, itemMeta);
-  const racePrefix = resolveShipWreckRacePrefix(shipMeta, itemMeta);
-  const groupName = String(
-    shipMeta.groupName ||
-    itemMeta.groupName ||
-    "",
-  ).trim().toLowerCase();
-  const candidates = [];
-
-  if (groupName.includes("capsule")) {
-    candidates.push("Mysterious Capsule Wreck");
-  }
-  if (racePrefix && hullClassName) {
-    candidates.push(`${racePrefix} ${hullClassName} Wreck`);
-  }
-  if (hullClassName) {
-    candidates.push(`${hullClassName} Wreck`);
-  }
-  candidates.push("Wreck");
-  return [...new Set(candidates)];
 }
 
 function releaseControlledCraftForDestroyedShip(systemID, shipEntity) {
@@ -295,26 +195,6 @@ function ensurePendingDeathTestTimer() {
   if (pendingDeathTestTimer && typeof pendingDeathTestTimer.unref === "function") {
     pendingDeathTestTimer.unref();
   }
-}
-
-function resolveShipWreckType(shipTypeID) {
-  const shipMeta = resolveShipByTypeID(shipTypeID) || {};
-  const itemMeta = resolveItemByTypeID(shipTypeID) || {};
-  const candidates = buildShipWreckCandidateNames(shipMeta, itemMeta);
-
-  for (const candidate of candidates) {
-    const lookup = resolveItemByName(candidate);
-    if (
-      lookup &&
-      lookup.success &&
-      lookup.match &&
-      String(lookup.match.groupName || "").trim().toLowerCase() === "wreck"
-    ) {
-      return lookup.match;
-    }
-  }
-
-  return null;
 }
 
 function processPendingDeathTests() {
@@ -459,7 +339,7 @@ function destroyShipEntityWithWreck(systemID, shipEntity, options = {}) {
   }
 
   const now = spaceRuntime.getSimulationTimeMsForSystem(numericSystemID);
-  const wreckCreateResult = createSpaceItemForCharacter(
+  const wreckCreateResult = createSpaceItemForOwner(
     ownerCharacterID,
     numericSystemID,
     wreckType,
@@ -538,6 +418,7 @@ function destroyShipEntityWithWreck(systemID, shipEntity, options = {}) {
       {
         allowSessionOwned: false,
         terminalDestructionEffectID: DESTRUCTION_EFFECT_EXPLOSION,
+        forceVisibleSessions: options.forceVisibleSessions,
       },
     );
     if (!destroyResult.success) {
@@ -592,6 +473,7 @@ function destroyShipEntityWithWreck(systemID, shipEntity, options = {}) {
       {
         allowSessionOwned: false,
         terminalDestructionEffectID: DESTRUCTION_EFFECT_EXPLOSION,
+        forceVisibleSessions: options.forceVisibleSessions,
       },
     );
     if (!destroyResult.success) {
@@ -611,6 +493,15 @@ function destroyShipEntityWithWreck(systemID, shipEntity, options = {}) {
   const wreckSpawnResult = spaceRuntime.spawnDynamicInventoryEntity(
     numericSystemID,
     wreckItem.itemID,
+    {
+      // Replacement wrecks are a follow-on to an already visible destruction
+      // event, not a fresh scene bootstrap. Sending them on the lighter
+      // immediate lane avoids bootstrap-acquire backsteps when several hulls
+      // die in the same tick, which is exactly what /deathtest does.
+      broadcastOptions: {
+        freshAcquire: false,
+      },
+    },
   );
   if (!wreckSpawnResult.success) {
     return wreckSpawnResult;
@@ -730,11 +621,57 @@ function reseedDestroyedPilotSession(scene, session, capsuleEntity) {
   // extra owner SetState in this handoff was also replaying a stale hull view
   // after the client had already switched session/dogma to the capsule. Keep
   // the capsule/HUD alive, clear only the server-side non-ego visibility
-  // bookkeeping, and let the normal same-scene refresh re-add any missing
-  // CONCORD/wreck balls.
+  // bookkeeping, and reseed the scene on the same monotonic session-stamped
+  // lane used by healthy same-scene ship swaps. The live bug here was the pod
+  // handoff advancing the victim's last sent stamp, then the generic
+  // visibility replay arriving one step behind and getting rejected as an
+  // unsafe bootstrap_acquire. That rejection is what made all hostile NPCs
+  // "vanish" until a later dock/undock rebuilt the ballpark.
+  repairSameSceneSessionViewState(session);
   session._space.visibleDynamicEntityIDs = new Set();
-  scene.sendAddBallsToSession(session, [capsuleEntity]);
-  scene.syncDynamicVisibilityForSession(session);
+  session._space.freshlyVisibleDynamicEntityIDs = new Set();
+  session._space.freshlyVisibleDynamicEntityReleaseStampByID = new Map();
+
+  const nowMs =
+    typeof scene.getCurrentSimTimeMs === "function"
+      ? scene.getCurrentSimTimeMs()
+      : Date.now();
+  const capsuleStamp = resolveSameSceneEgoAddBallsStamp(scene, session, nowMs);
+  scene.sendAddBallsToSession(session, [capsuleEntity], {
+    nowMs,
+    sessionStampedAddBalls: true,
+    stampOverride: capsuleStamp === null ? undefined : capsuleStamp,
+    bypassTickPresentationBatch: true,
+  });
+
+  const visibilityDelta =
+    typeof scene.buildDynamicVisibilityDeltaForSession === "function"
+      ? scene.buildDynamicVisibilityDeltaForSession(session, nowMs, {
+        bypassPilotWarpQuietWindow: true,
+      })
+      : null;
+  if (
+    visibilityDelta &&
+    Array.isArray(visibilityDelta.addedEntities) &&
+    visibilityDelta.addedEntities.length > 0
+  ) {
+    const visibilityStamp = resolveSameSceneEgoAddBallsStamp(scene, session, nowMs);
+    scene.sendAddBallsToSession(session, visibilityDelta.addedEntities, {
+      nowMs,
+      freshAcquire: true,
+      sessionStampedAddBalls: true,
+      stampOverride: visibilityStamp === null ? undefined : visibilityStamp,
+      bypassTickPresentationBatch: true,
+    });
+  }
+  if (visibilityDelta && visibilityDelta.desiredIDs instanceof Set) {
+    session._space.visibleDynamicEntityIDs = visibilityDelta.desiredIDs;
+    session._space.freshlyVisibleDynamicEntityIDs = new Set(
+      Array.isArray(visibilityDelta.addedEntities)
+        ? visibilityDelta.addedEntities.map((entity) => entity && entity.itemID).filter(Boolean)
+        : [],
+    );
+  }
   return true;
 }
 
@@ -773,6 +710,135 @@ function purgeDestroyedShipEntityFromScene(scene, shipID) {
   return true;
 }
 
+function getAttachedSessionShipDestructionContext(session) {
+  if (!session || !session._space) {
+    return {
+      scene: null,
+      entity: null,
+      systemID: 0,
+    };
+  }
+
+  const systemID = toPositiveInt(session._space.systemID, 0);
+  const scene = systemID > 0 ? spaceRuntime.ensureScene(systemID) : null;
+  const entity =
+    scene && session._space
+      ? scene.getEntityByID(toPositiveInt(session._space.shipID, 0))
+      : null;
+  return {
+    scene,
+    entity: entity && entity.kind === "ship" ? entity : null,
+    systemID,
+  };
+}
+
+function resolvePodRespawnStationID(session) {
+  const characterRecord = getCharacterRecord(session && session.characterID) || {};
+  return Number(
+    characterRecord.homeStationID ||
+    characterRecord.cloneStationID ||
+    (session && session.homeStationID) ||
+    (session && session.homestationid) ||
+    (session && session.cloneStationID) ||
+    (session && session.clonestationid) ||
+    60003760,
+  ) || 60003760;
+}
+
+function destroyAttachedSessionCapsuleFallback(session, options = {}) {
+  if (!session || !session.characterID || !session._space) {
+    return {
+      success: false,
+      errorMsg: "NOT_IN_SPACE",
+    };
+  }
+
+  const {
+    scene,
+    entity: attachedCapsuleEntity,
+    systemID,
+  } = getAttachedSessionShipDestructionContext(session);
+  if (!scene || !attachedCapsuleEntity || Number(attachedCapsuleEntity.typeID) !== CAPSULE_TYPE_ID) {
+    return {
+      success: false,
+      errorMsg: "CAPSULE_ENTITY_NOT_FOUND",
+    };
+  }
+
+  session.sessionChangeReason = options.sessionChangeReason || "selfdestruct";
+  const abandonedCapsuleEntity = spaceRuntime.disembarkSession(session, {
+    broadcast: false,
+  });
+  if (!abandonedCapsuleEntity) {
+    return {
+      success: false,
+      errorMsg: "CAPSULE_ENTITY_NOT_FOUND",
+    };
+  }
+
+  const destroyResult = destroyShipEntityWithWreck(
+    systemID,
+    abandonedCapsuleEntity,
+    {
+      ownerCharacterID: session.characterID,
+      shipRecord: {
+        itemID: abandonedCapsuleEntity.itemID,
+        typeID: abandonedCapsuleEntity.typeID,
+        locationID: systemID,
+        ownerID: session.characterID,
+      },
+    },
+  );
+  if (!destroyResult.success) {
+    log.warn(
+      `[ShipDestruction] Fallback capsule destroy cleanup failed for char=${session.characterID} pod=${abandonedCapsuleEntity.itemID} error=${destroyResult.errorMsg}`,
+    );
+    return destroyResult;
+  }
+
+  let respawnResult = null;
+  if (getCharacterRecord(session.characterID)) {
+    const targetStationID = resolvePodRespawnStationID(session);
+    respawnResult = rebuildDockedSessionAtStation(session, targetStationID, {
+      emitNotifications: true,
+      logSelection: true,
+      boardNewbieShip: true,
+      newbieShipLogLabel: "PodRespawnFallback",
+    });
+    if (!respawnResult.success || !respawnResult.data) {
+      return respawnResult;
+    }
+    log.info(
+      `[ShipDestruction] Fallback-podded ${session.characterName || session.characterID} pod=${abandonedCapsuleEntity.itemID} station=${targetStationID} ship=${respawnResult.data.ship && respawnResult.data.ship.itemID}`,
+    );
+  }
+
+  return {
+    success: true,
+    data: {
+      station: respawnResult && respawnResult.data ? respawnResult.data.station : null,
+      capsule: respawnResult && respawnResult.data ? respawnResult.data.capsule : null,
+      ship: respawnResult && respawnResult.data ? respawnResult.data.ship : null,
+      destroyedShipID: abandonedCapsuleEntity.itemID,
+      wreck: destroyResult.data ? destroyResult.data.wreck || null : null,
+      movedChanges:
+        destroyResult.data && Array.isArray(destroyResult.data.movedChanges)
+          ? destroyResult.data.movedChanges
+          : [],
+      destroyChanges:
+        destroyResult.data && Array.isArray(destroyResult.data.destroyChanges)
+          ? destroyResult.data.destroyChanges
+          : [],
+      wreckChanges:
+        destroyResult.data && Array.isArray(destroyResult.data.wreckChanges)
+          ? destroyResult.data.wreckChanges
+          : [],
+      boundResult: respawnResult && respawnResult.data ? respawnResult.data.boundResult : null,
+      transientSessionFallback: true,
+    },
+  };
+}
+
 function destroySessionShip(session, options = {}) {
   if (!session || !session.characterID || !session._space) {
     return {
@@ -783,6 +849,10 @@ function destroySessionShip(session, options = {}) {
 
   const activeShip = getActiveShipRecord(session.characterID);
   if (!activeShip) {
+    const { entity: attachedEntity } = getAttachedSessionShipDestructionContext(session);
+    if (attachedEntity && Number(attachedEntity.typeID) === CAPSULE_TYPE_ID) {
+      return destroyAttachedSessionCapsuleFallback(session, options);
+    }
     return {
       success: false,
       errorMsg: "SHIP_NOT_FOUND",
@@ -823,6 +893,7 @@ function destroySessionShip(session, options = {}) {
   const destroyResult = destroyShipEntityWithWreck(systemID, abandonedEntity, {
     ownerCharacterID: session.characterID,
     shipRecord: activeShip,
+    forceVisibleSessions: [session],
   });
   if (!destroyResult.success) {
     return destroyResult;
@@ -879,16 +950,7 @@ function destroySessionCapsuleToHomeStation(session, activeShip, options = {}) {
   }
 
   const characterRecord = getCharacterRecord(session.characterID) || {};
-  const targetStationID =
-    Number(
-      characterRecord.homeStationID ||
-      characterRecord.cloneStationID ||
-      session.homeStationID ||
-      session.homestationid ||
-      session.cloneStationID ||
-      session.clonestationid ||
-      60003760,
-    ) || 60003760;
+  const targetStationID = resolvePodRespawnStationID(session);
 
   session.sessionChangeReason = options.sessionChangeReason || "selfdestruct";
   const abandonedCapsuleEntity = spaceRuntime.disembarkSession(session, {
@@ -1065,6 +1127,7 @@ module.exports = {
 module.exports._testing = {
   destroyShipEntityWithWreck,
   destroyShipEntityWithoutWreck,
+  resolveEntityWreckType,
   resolveShipWreckType,
   buildShipDeathPositions,
   processPendingDeathTests,

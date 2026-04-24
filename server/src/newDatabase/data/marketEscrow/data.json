@@ -3,13 +3,12 @@
     "orderId": "1",
     "ownerId": 140000003,
     "isCorp": false,
-    "escrowType": "buy",
-    "typeId": 18,
-    "stationId": 60000076,
-    "price": 1,
-    "remainingQuantity": 1,
-    "escrowAmount": 1,
-    "createdAt": "2026-03-23T14:39:18.147Z",
-    "updatedAt": "2026-03-23T14:39:18.158Z"
+    "typeId": 34,
+    "stationId": 60003760,
+    "escrowLocationID": 9200000001,
+    "remainingQuantity": 2146003136,
+    "createdAt": "2026-04-06T13:22:15.199Z",
+    "updatedAt": "2026-04-07T16:09:38.247Z",
+    "escrowType": "sell"
   }
 }

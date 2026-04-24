@@ -134,6 +134,40 @@ test("regular local chat exchanges occupant presence on join and leave", { concu
   );
 });
 
+test("highsec local joins advertise same-system connected pilots even if their local xmpp room state was not established yet", { concurrency: false }, () => {
+  sessionRegistry.getSessions = () => [
+    buildSession(140000001),
+    buildSession(140000002),
+  ];
+
+  const clientA = buildClient(140000001);
+  const clientB = buildClient(140000002);
+  xmppStubServer.__test__.registerClient(clientA);
+  xmppStubServer.__test__.registerClient(clientB);
+
+  xmppStubServer.__test__.handleJoinPresence(
+    clientB,
+    "<presence to='local@conference.localhost/140000002' id='join-b'/>",
+  );
+
+  assert.equal(
+    clientB.getSent().some((xml) =>
+      xml.includes("from='local_30000142@conference.localhost/140000001'"),
+    ),
+    true,
+  );
+  assert.equal(
+    clientA.getSent().some((xml) =>
+      xml.includes("from='local_30000142@conference.localhost/140000002'"),
+    ),
+    true,
+  );
+  assert.equal(
+    clientA.rooms.has("local_30000142@conference.localhost"),
+    true,
+  );
+});
+
 test("wormhole local suppresses occupant presence and normalizes bare local joins", { concurrency: false }, () => {
   sessionRegistry.getSessions = () => [
     buildSession(140000001, {
@@ -179,6 +213,101 @@ test("wormhole local suppresses occupant presence and normalizes bare local join
       xml.includes("from='wormhole_31000005@conference.localhost/140000002'"),
     ),
     false,
+  );
+});
+
+test("global session changes move highsec Local occupants between solar systems without requiring anyone to speak", { concurrency: false }, () => {
+  const moverSession = new ClientSession(
+    {
+      userId: 424,
+      userName: "140000024",
+      clientId: 140000024,
+      sessionId: 140000024,
+      role: 0,
+    },
+    {
+      destroyed: false,
+      remoteAddress: "127.0.0.1",
+      write() {},
+    },
+  );
+  moverSession.sendPacket = () => {};
+  moverSession.characterID = 140000024;
+  moverSession.characterName = "Local Jumper";
+  moverSession.corporationID = 1000044;
+  moverSession.corpid = 1000044;
+  moverSession.solarsystemid2 = 30000142;
+  moverSession.locationid = 30000142;
+
+  const oldLocalSession = buildSession(140000025, {
+    solarsystemid2: 30000142,
+  });
+  const newLocalSession = buildSession(140000026, {
+    solarsystemid2: 30000144,
+  });
+
+  sessionRegistry.getSessions = () => [
+    moverSession,
+    oldLocalSession,
+    newLocalSession,
+  ];
+
+  const moverClient = buildClient(140000024);
+  const oldLocalClient = buildClient(140000025);
+  const newLocalClient = buildClient(140000026);
+  xmppStubServer.__test__.registerClient(moverClient);
+  xmppStubServer.__test__.registerClient(oldLocalClient);
+  xmppStubServer.__test__.registerClient(newLocalClient);
+
+  xmppStubServer.__test__.handleJoinPresence(
+    oldLocalClient,
+    "<presence to='local@conference.localhost/140000025' id='old-local-join'/>",
+  );
+  xmppStubServer.__test__.handleJoinPresence(
+    newLocalClient,
+    "<presence to='local@conference.localhost/140000026' id='new-local-join'/>",
+  );
+  xmppStubServer.__test__.handleJoinPresence(
+    moverClient,
+    "<presence to='local@conference.localhost/140000024' id='mover-local-join'/>",
+  );
+
+  assert.equal(moverClient.rooms.has("local_30000142@conference.localhost"), true);
+  assert.equal(moverClient.rooms.has("local_30000144@conference.localhost"), false);
+
+  moverClient.clearSent();
+  oldLocalClient.clearSent();
+  newLocalClient.clearSent();
+
+  moverSession.solarsystemid2 = 30000144;
+  moverSession.locationid = 30000144;
+  moverSession.sendSessionChange({
+    solarsystemid2: [30000142, 30000144],
+    locationid: [30000142, 30000144],
+  });
+
+  assert.equal(moverClient.rooms.has("local_30000142@conference.localhost"), false);
+  assert.equal(moverClient.rooms.has("local_30000144@conference.localhost"), true);
+  assert.equal(
+    oldLocalClient.getSent().some((xml) =>
+      xml.includes("from='local_30000142@conference.localhost/140000024'") &&
+      xml.includes("type='unavailable'"),
+    ),
+    true,
+  );
+  assert.equal(
+    newLocalClient.getSent().some((xml) =>
+      xml.includes("from='local_30000144@conference.localhost/140000024'") &&
+      xml.includes("<item affiliation='member' role='participant'"),
+    ),
+    true,
+  );
+  assert.equal(
+    moverClient.getSent().some((xml) =>
+      xml.includes("from='local_30000144@conference.localhost/140000026'") &&
+      xml.includes("<item affiliation='member' role='participant'"),
+    ),
+    true,
   );
 });
 
@@ -242,7 +371,7 @@ test("local chat answers muc#admin affiliation queries instead of timing out", {
   );
 });
 
-test("conference disco items exposes static rooms with Eve JS Elysian first and custom player channels through forme and byname lookups", { concurrency: false }, () => {
+test("conference disco items exposes static rooms with EveJS Elysian first and custom player channels through forme and byname lookups", { concurrency: false }, () => {
   sessionRegistry.getSessions = () => [
     buildSession(140000001),
   ];
@@ -261,7 +390,7 @@ test("conference disco items exposes static rooms with Eve JS Elysian first and 
       formeEmptyXml.includes("from='conference.localhost'") &&
       formeEmptyXml.includes("node='forme'") &&
       formeEmptyXml.includes("jid='player_900001@conference.localhost'") &&
-      formeEmptyXml.includes("name='Eve JS Elysian chat'") &&
+      formeEmptyXml.includes("name='EveJS Elysian chat'") &&
       formeEmptyXml.includes("jid='system_263238_263262@conference.localhost'") &&
       formeEmptyXml.includes("name='English Help'") &&
       formeEmptyXml.includes("jid='system_263328_530248@conference.localhost'") &&
@@ -400,7 +529,7 @@ test("verified help channels stay static and are not promoted into player-owned 
   assert.equal(helpRecord.displayName, "English Help");
 });
 
-test("Eve JS Elysian custom room behaves like a durable player channel and sends its MOTD on join", { concurrency: false }, () => {
+test("EveJS Elysian custom room behaves like a durable player channel and sends its MOTD on join", { concurrency: false }, () => {
   sessionRegistry.getSessions = () => [
     buildSession(140000040),
   ];
@@ -419,7 +548,7 @@ test("Eve JS Elysian custom room behaves like a durable player channel and sends
       xml.includes("from='conference.localhost'") &&
       xml.includes("node='player_900001'") &&
       xml.includes("type='player'") &&
-      xml.includes("name='Eve JS Elysian chat'"),
+      xml.includes("name='EveJS Elysian chat'"),
     ),
     true,
   );
@@ -443,7 +572,7 @@ test("Eve JS Elysian custom room behaves like a durable player channel and sends
   );
   assert.equal(
     client.getSent().some((xml) =>
-      xml.includes("<subject>Welcome to Eve JS Elysian.") &&
+      xml.includes("<subject>Welcome to EveJS Elysian.") &&
       xml.includes("forge full chat parity together."),
     ),
     true,
@@ -567,6 +696,53 @@ test("corp channels keep MOTD parity and only replay requested backlog once", { 
   assert.equal(
     clientB.getSent().some((xml) => xml.includes("Backlog survives and replays.")),
     false,
+  );
+});
+
+test("groupchat echoes preserve the sender stanza id so pending sends clear as delivered", { concurrency: false }, () => {
+  sessionRegistry.getSessions = () => [
+    buildSession(140000001, {
+      corprole: CORP_ROLE_CHAT_MANAGER,
+    }),
+    buildSession(140000002),
+  ];
+
+  const senderClient = buildClient(140000001);
+  const recipientClient = buildClient(140000002);
+  xmppStubServer.__test__.registerClient(senderClient);
+  xmppStubServer.__test__.registerClient(recipientClient);
+
+  xmppStubServer.__test__.handleJoinPresence(
+    senderClient,
+    "<presence to='corp@conference.localhost/140000001' id='corp-sender'/>",
+  );
+  xmppStubServer.__test__.handleJoinPresence(
+    recipientClient,
+    "<presence to='corp@conference.localhost/140000002' id='corp-recipient'/>",
+  );
+
+  senderClient.clearSent();
+  recipientClient.clearSent();
+  xmppStubServer.__test__.handleGroupMessage(
+    senderClient,
+    "<message to='corp@conference.localhost' type='groupchat' id='msg-parity-1'><body>Echo contract parity.</body></message>",
+  );
+
+  assert.equal(
+    senderClient.getSent().some((xml) =>
+      xml.includes("from='corp_1000044@conference.localhost/140000001'") &&
+      xml.includes("id='msg-parity-1'") &&
+      xml.includes("<body>Echo contract parity.</body>"),
+    ),
+    true,
+  );
+  assert.equal(
+    recipientClient.getSent().some((xml) =>
+      xml.includes("from='corp_1000044@conference.localhost/140000001'") &&
+      xml.includes("id='msg-parity-1'") &&
+      xml.includes("<body>Echo contract parity.</body>"),
+    ),
+    true,
   );
 });
 

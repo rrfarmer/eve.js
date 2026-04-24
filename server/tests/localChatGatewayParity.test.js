@@ -27,6 +27,10 @@ const publicGatewayLocal = require(path.join(
   repoRoot,
   "server/src/_secondary/express/publicGatewayLocal",
 ));
+const xmppStubServer = require(path.join(
+  repoRoot,
+  "server/src/services/chat/xmppStubServer",
+));
 const sessionRegistry = require(path.join(
   repoRoot,
   "server/src/services/chat/sessionRegistry",
@@ -61,6 +65,12 @@ const MessageBroadcastNotice = LOCAL_CHAT_PROTO_ROOT.lookupType(
 );
 const MembershipListNotice = LOCAL_CHAT_PROTO_ROOT.lookupType(
   "eve_public.chat.local.api.MembershipListNotice",
+);
+const JoinNotice = LOCAL_CHAT_PROTO_ROOT.lookupType(
+  "eve_public.chat.local.api.JoinNotice",
+);
+const LeaveNotice = LOCAL_CHAT_PROTO_ROOT.lookupType(
+  "eve_public.chat.local.api.LeaveNotice",
 );
 const MuteRequest = LOCAL_CHAT_PROTO_ROOT.lookupType(
   "eve_public.chat.local.api.admin.MuteRequest",
@@ -152,11 +162,34 @@ function decodeNotices(stream) {
   );
 }
 
+function buildXmppClient(charId) {
+  const sent = [];
+  return {
+    userName: String(charId),
+    boundJid: `${charId}@localhost/evejs`,
+    nick: String(charId),
+    lastRoomJid: "",
+    localWelcomeSent: false,
+    roomBacklogCursorMs: new Map(),
+    rooms: new Set(),
+    socket: {
+      destroyed: false,
+      write(xml) {
+        sent.push(xml);
+      },
+    },
+    getSent() {
+      return sent.slice();
+    },
+  };
+}
+
 test.afterEach(() => {
   while (registeredSessions.length > 0) {
     sessionRegistry.unregister(registeredSessions.pop());
   }
   publicGatewayLocal._testing.resetGatewayState();
+  xmppStubServer.__test__.resetState();
   chatRuntime._testing.resetRuntimeState({
     removeFiles: true,
   });
@@ -407,4 +440,110 @@ test("local gateway broadcasts chat notices by solar system and enforces muted s
   assert.equal(mutedBroadcastResponse.status_code, 403);
   assert.equal(mutedBroadcastResponse.status_message, "Muted");
   assert.equal(decodeNotices(listenerStream).length, 0);
+});
+
+test("xmpp local joins publish solar-system JoinNotice updates through the public gateway", () => {
+  const joiningSession = registerSession(buildSession(140000001));
+  const observingSession = registerSession(buildSession(140000002));
+
+  const observingStream = new FakeGatewayStream();
+  assert.equal(
+    publicGatewayLocal.handleGatewayStream(observingStream, {
+      ":path": "/eve_public.gateway.Notices/Consume",
+    }),
+    true,
+  );
+
+  observingStream.emit(
+    "data",
+    publicGatewayLocal.createGrpcFrame(
+      buildGatewayEnvelope(
+        "eve_public.chat.local.api.GetMembershipListRequest",
+        Buffer.alloc(0),
+        observingSession.characterID,
+      ),
+    ),
+  );
+
+  observingStream.frames = [];
+
+  const joiningClient = buildXmppClient(joiningSession.characterID);
+  xmppStubServer.__test__.registerClient(joiningClient);
+  xmppStubServer.__test__.handleJoinPresence(
+    joiningClient,
+    "<presence to='local@conference.localhost/140000001' id='gateway-local-join'/>",
+  );
+
+  const notices = decodeNotices(observingStream);
+  const joinNotice = notices.find(
+    (notice) =>
+      notice.payload.type_url ===
+      "type.googleapis.com/eve_public.chat.local.api.JoinNotice",
+  );
+
+  assert.ok(joinNotice);
+  assert.equal(Number(joinNotice.target_group.solar_system), 30000142);
+
+  const joinPayload = JoinNotice.decode(joinNotice.payload.value);
+  assert.equal(Number(joinPayload.member.character.sequential), 140000001);
+  assert.equal(Number(joinPayload.solar_system.sequential), 30000142);
+});
+
+test("destroyed sessions are removed from Local immediately even before session registry unregister finishes", () => {
+  const observingSession = registerSession(buildSession(140000001));
+  const departingSession = registerSession(buildSession(140000002));
+
+  const observingStream = new FakeGatewayStream();
+  assert.equal(
+    publicGatewayLocal.handleGatewayStream(observingStream, {
+      ":path": "/eve_public.gateway.Notices/Consume",
+    }),
+    true,
+  );
+
+  observingStream.emit(
+    "data",
+    publicGatewayLocal.createGrpcFrame(
+      buildGatewayEnvelope(
+        "eve_public.chat.local.api.GetMembershipListRequest",
+        Buffer.alloc(0),
+        observingSession.characterID,
+      ),
+    ),
+  );
+
+  observingStream.frames = [];
+  departingSession.socket.destroyed = true;
+  chatRuntime.unregisterSession(departingSession);
+
+  const notices = decodeNotices(observingStream);
+  const leaveNotice = notices.find(
+    (notice) =>
+      notice.payload.type_url ===
+      "type.googleapis.com/eve_public.chat.local.api.LeaveNotice",
+  );
+  assert.ok(leaveNotice);
+
+  const leavePayload = LeaveNotice.decode(leaveNotice.payload.value);
+  assert.equal(Number(leavePayload.character.sequential), 140000002);
+  assert.equal(Number(leavePayload.solar_system.sequential), 30000142);
+
+  const response = decodeGatewayResponse(
+    publicGatewayLocal.buildGatewayResponseForRequest(
+      buildGatewayEnvelope(
+        "eve_public.chat.local.api.GetMembershipListRequest",
+        Buffer.alloc(0),
+        observingSession.characterID,
+      ),
+    ),
+  );
+  assert.equal(response.status_code, 200);
+
+  const membershipPayload = GetMembershipListResponse.decode(
+    response.payload.value,
+  );
+  assert.deepEqual(
+    membershipPayload.members.map((member) => Number(member.character.sequential)),
+    [140000001],
+  );
 });

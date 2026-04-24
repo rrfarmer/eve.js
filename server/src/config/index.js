@@ -1,5 +1,5 @@
 /**
- * EVE.js Server Configuration
+ * EveJS Elysian Server Configuration
  *
  * Default values live here. Optional local overrides can be supplied in
  * evejs.config.local.json at the repository root, or with EVEJS_* env vars.
@@ -16,16 +16,195 @@ const sharedConfigPath = path.join(rootDir, "evejs.config.json");
 const REMOVED_CONFIG_KEYS = new Set([
   "clientPath",
   "autoLaunch",
+  "devMode",
 ]);
 
 const CONFIG_ENTRY_DEFINITIONS = [
   {
-    key: "devMode",
+    key: "devAutoCreateAccounts",
     defaultValue: false,
-    envVar: "EVEJS_DEV_MODE",
+    envVar: "EVEJS_DEV_AUTO_CREATE_ACCOUNTS",
     envType: "boolean",
     description:
-      "Enables local development shortcuts such as auto-creating accounts and skipping password validation.",
+      "Automatically creates a missing account record on login using the hash the client just supplied.",
+    validValues: "true or false.",
+  },
+  {
+    key: "devSkipPasswordValidation",
+    defaultValue: false,
+    envVar: "EVEJS_DEV_SKIP_PASSWORD_VALIDATION",
+    envType: "boolean",
+    description:
+      "Skips password-hash validation during login so any password can access an existing non-banned account.",
+    validValues: "true or false.",
+  },
+  {
+    key: "devBootstrapPublishedSkills",
+    defaultValue: false,
+    envVar: "EVEJS_DEV_BOOTSTRAP_PUBLISHED_SKILLS",
+    envType: "boolean",
+    description:
+      "Seeds empty/new characters with all published skills at level V instead of the normal racial starter skill bundle.",
+    validValues: "true or false.",
+  },
+  {
+    key: "newCharacterTutorialEnabled",
+    defaultValue: false,
+    envVar: "EVEJS_NEW_CHARACTER_TUTORIAL_ENABLED",
+    envType: "boolean",
+    description: [
+      "Enables the AIR NPE / new-character tutorial gate for freshly created characters.",
+      "When enabled, brand-new characters start with tutorial-active AIR NPE state and character selection respects skipTutorial for those new characters.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "newCharacterIntroCinematicEnabled",
+    defaultValue: false,
+    envVar: "EVEJS_NEW_CHARACTER_INTRO_CINEMATIC_ENABLED",
+    envType: "boolean",
+    description: [
+      "Enables the AIR NPE intro-movie entry path for newly created characters without activating the full tutorial runtime.",
+      "Use this when you want the cinematic handoff but still land in the normal station or hangar UI because full tutorial parity is not implemented yet.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "characterDeletionDelayMinutes",
+    defaultValue: 5,
+    envVar: "EVEJS_CHARACTER_DELETION_DELAY_MINUTES",
+    envType: "number",
+    minValue: 1,
+    description: [
+      "How long a character must remain queued before biomass can finalize.",
+      "Use 600 for retail parity; the default 5-minute value keeps local deletion testing fast.",
+    ],
+    validValues: "Integer minutes greater than or equal to 1.",
+  },
+  {
+    key: "devHandshakeSeedSkillExtractorAccessToken",
+    defaultValue: true,
+    envVar: "EVEJS_DEV_HANDSHAKE_SEED_SKILL_EXTRACTOR_ACCESS_TOKEN",
+    envType: "boolean",
+    description: [
+      "Seeds the packaged client connection service with a local access token during the signed login-handshake patch.",
+      "This bypasses the client-side launcher-token gate for skill extraction when using EveJS Elysian launch scripts instead of the official CCP launcher.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "skillTrainingSpeed",
+    defaultValue: 1,
+    envVar: "EVEJS_SKILL_TRAINING_SPEED",
+    envType: "number",
+    minValue: 0,
+    exclusiveMinValue: true,
+    description: [
+      "Global multiplier applied after the official CCP skill-training SP-per-minute formula is calculated.",
+      "1 = retail training speed, 2 = 2x speed, 10 = 10x speed.",
+    ],
+    validValues: "Positive number greater than 0.",
+  },
+  {
+    key: "skillPurchaseEnabled",
+    defaultValue: true,
+    envVar: "EVEJS_SKILL_PURCHASE_ENABLED",
+    envType: "boolean",
+    description: [
+      "Enables client direct skillbook purchase through skillHandler.PurchaseSkills.",
+      "Keep this enabled for TQ-style skill plan Buy Skill / Buy and Train flows.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "expertSystemsEnabled",
+    defaultValue: true,
+    envVar: "EVEJS_EXPERT_SYSTEMS_ENABLED",
+    envType: "boolean",
+    description: [
+      "Enables Expert System item activation, active Expert System overlays, and the client expert_system_feature_enabled flag.",
+      "Disable only when testing no-Expert-System retail edge cases; GM force installs still require explicit command/runtime force options.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "wormholesEnabled",
+    defaultValue: true,
+    envVar: "EVEJS_WORMHOLES_ENABLED",
+    envType: "boolean",
+    description: [
+      "Enables the live wormhole runtime, wormholeMgr jump service, and automatic static wormhole seeding for eligible systems.",
+      "Disable only when isolating unrelated space-runtime regressions.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "wormholeLifetimeScale",
+    defaultValue: 1,
+    envVar: "EVEJS_WORMHOLE_LIFETIME_SCALE",
+    envType: "number",
+    minValue: 0,
+    exclusiveMinValue: true,
+    description: [
+      "Global multiplier applied to authoritative wormhole lifetimes after static data is loaded.",
+      "1 = retail lifetime, 0.5 = half lifetime, 2 = double lifetime.",
+    ],
+    validValues: "Positive number greater than 0.",
+  },
+  {
+    key: "wormholeStaticRespawnDelaySeconds",
+    defaultValue: 60,
+    envVar: "EVEJS_WORMHOLE_STATIC_RESPAWN_DELAY_SECONDS",
+    envType: "number",
+    minValue: 0,
+    description: [
+      "Delay before a collapsed static wormhole slot reseeds a fresh connection.",
+      "Use 60 for quick dev parity iteration; increase only when calibrating live collapse/respawn behavior.",
+    ],
+    validValues: "Non-negative number of seconds.",
+  },
+  {
+    key: "wormholeWanderingEnabled",
+    defaultValue: true,
+    envVar: "EVEJS_WORMHOLE_WANDERING_ENABLED",
+    envType: "boolean",
+    description: [
+      "Enables automatic maintenance of repo-owned wandering wormhole families during startup and runtime reconciliation.",
+      "Disable only when isolating static-only wormhole behavior or tuning wandering-family authority.",
+    ],
+    validValues: "true or false.",
+  },
+  {
+    key: "wormholeWanderingCountScale",
+    defaultValue: 1,
+    envVar: "EVEJS_WORMHOLE_WANDERING_COUNT_SCALE",
+    envType: "number",
+    minValue: 0,
+    description: [
+      "Global multiplier applied to repo-owned wandering wormhole profile counts after authority is loaded.",
+      "1 = authored wandering volume, 0 = no automatic wandering connections, 2 = double authored volume.",
+    ],
+    validValues: "Non-negative number.",
+  },
+  {
+    key: "wormholeWanderingRespawnDelaySeconds",
+    defaultValue: 60,
+    envVar: "EVEJS_WORMHOLE_WANDERING_RESPAWN_DELAY_SECONDS",
+    envType: "number",
+    minValue: 0,
+    description: [
+      "Delay before a collapsed wandering wormhole profile is eligible to replenish its global active count.",
+      "Use 60 for quick parity iteration; raise only when calibrating live wandering replacement cadence.",
+    ],
+    validValues: "Non-negative number of seconds.",
+  },
+  {
+    key: "devBypassAssetSafetyWrapAccess",
+    defaultValue: false,
+    envVar: "EVEJS_DEV_BYPASS_ASSET_SAFETY_WRAP_ACCESS",
+    envType: "boolean",
+    description:
+      "Lets any session manage and deliver asset-safety wraps without ownership or corporation access checks.",
     validValues: "true or false.",
   },
   {
@@ -476,6 +655,51 @@ const CONFIG_ENTRY_DEFINITIONS = [
     validValues: "Non-negative integer.",
   },
   {
+    key: "miningIceTargetSystemsHighSec",
+    defaultValue: 36,
+    envVar: "EVEJS_MINING_ICE_TARGET_SYSTEMS_HIGHSEC",
+    envType: "number",
+    description:
+      "Number of high-security systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.",
+    validValues: "Non-negative integer.",
+  },
+  {
+    key: "miningIceTargetSystemsLowSec",
+    defaultValue: 18,
+    envVar: "EVEJS_MINING_ICE_TARGET_SYSTEMS_LOWSEC",
+    envType: "number",
+    description:
+      "Number of low-security systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.",
+    validValues: "Non-negative integer.",
+  },
+  {
+    key: "miningIceTargetSystemsNullSec",
+    defaultValue: 84,
+    envVar: "EVEJS_MINING_ICE_TARGET_SYSTEMS_NULLSEC",
+    envType: "number",
+    description:
+      "Number of null-security systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.",
+    validValues: "Non-negative integer.",
+  },
+  {
+    key: "miningIceTargetSystemsWormhole",
+    defaultValue: 0,
+    envVar: "EVEJS_MINING_ICE_TARGET_SYSTEMS_WORMHOLE",
+    envType: "number",
+    description:
+      "Number of wormhole systems that should carry generated ice fields in the universe-seeded Phase 3 mining pool.",
+    validValues: "Non-negative integer.",
+  },
+  {
+    key: "miningGeneratedIceSiteLifetimeMinutes",
+    defaultValue: 1440,
+    envVar: "EVEJS_MINING_GENERATED_ICE_SITE_LIFETIME_MINUTES",
+    envType: "number",
+    description:
+      "Lifetime in minutes for universe-seeded generated ice site slots before they rotate in place to the next deterministic field definition.",
+    validValues: "Positive integer minutes.",
+  },
+  {
     key: "miningGasSitesHighSecPerSystem",
     defaultValue: 0,
     envVar: "EVEJS_MINING_GAS_SITES_HIGHSEC_PER_SYSTEM",
@@ -822,9 +1046,11 @@ const CONFIG_ENTRY_DEFINITIONS = [
   {
     key: "projectCodename",
     defaultValue: "EvEJS",
+    defaultComment: "client compatibility codename",
     description:
       "Project codename reported to the client during startup.",
-    validValues: 'String. For the current client keep this as "EvEJS".',
+    validValues:
+      "String matching the client boot codename; leave the default unless your client build requires another value.",
   },
   {
     key: "projectRegion",
@@ -840,6 +1066,60 @@ const CONFIG_ENTRY_DEFINITIONS = [
       "Full project version string reported to the client during startup.",
     validValues:
       'String matching your client boot version, for example "V23.02@ccp".',
+  },
+  {
+    key: "serverStatusLabel",
+    defaultValue: "/Carbon/MachoNet/ServerStatus/OK",
+    envVar: "EVEJS_SERVER_STATUS_LABEL",
+    envType: "string",
+    description: [
+      "Login-screen server status label returned by machoNet.GetServerStatus.",
+      "Use CCP-style labels such as /Carbon/MachoNet/ServerStatus/OK, /Carbon/MachoNet/ServerStatus/StartingUp, /Carbon/MachoNet/ServerStatus/ShuttingDown, or /Carbon/MachoNet/ServerStatus/NotAcceptingConnections.",
+    ],
+    validValues:
+      'A known Carbon login-status label such as "/Carbon/MachoNet/ServerStatus/OK" or "/Carbon/MachoNet/ServerStatus/StartingUp".',
+  },
+  {
+    key: "serverStatusProgressSeconds",
+    defaultValue: 0,
+    envVar: "EVEJS_SERVER_STATUS_PROGRESS_SECONDS",
+    envType: "number",
+    minValue: 0,
+    description:
+      "Progress/countdown value injected when serverStatusLabel is /Carbon/MachoNet/ServerStatus/StartingUp.",
+    validValues: "Non-negative integer seconds.",
+  },
+  {
+    key: "serverStatusProxyLimit",
+    defaultValue: 0,
+    envVar: "EVEJS_SERVER_STATUS_PROXY_LIMIT",
+    envType: "number",
+    minValue: 0,
+    description:
+      "Limit value injected when serverStatusLabel is /Carbon/MachoNet/ServerStatus/ProxyFullWithLimit.",
+    validValues: "Non-negative integer.",
+  },
+  {
+    key: "serverStatusClusterUserCount",
+    defaultValue: 1,
+    envVar: "EVEJS_SERVER_STATUS_CLUSTER_USER_COUNT",
+    envType: "number",
+    minValue: 0,
+    description:
+      "Cluster user count reported during login-status and handshake flows.",
+    validValues: "Non-negative integer.",
+  },
+  {
+    key: "serverStatusQueuePosition",
+    defaultValue: 1,
+    envVar: "EVEJS_SERVER_STATUS_QUEUE_POSITION",
+    envType: "number",
+    minValue: 0,
+    description: [
+      "Logon queue position exposed during handshake.",
+      "Values of 2 or greater trigger the retail client queue flow.",
+    ],
+    validValues: "Non-negative integer.",
   },
   {
     key: "defaultCountryCode",
@@ -960,6 +1240,15 @@ const CONFIG_ENTRY_DEFINITIONS = [
       "0 = silent, 1 = normal server logging, 2 = verbose debug logging.",
   },
   {
+    key: "logPacketPayloadDetails",
+    defaultValue: false,
+    envVar: "EVEJS_LOG_PACKET_PAYLOAD_DETAILS",
+    envType: "boolean",
+    description:
+      "When verbose debug logging is enabled, also dumps decoded packet payload previews and outgoing packet hex summaries on hot network paths.",
+    validValues: "true or false.",
+  },
+  {
     key: "serverPort",
     defaultValue: 26000,
     envVar: "EVEJS_SERVER_PORT",
@@ -967,6 +1256,15 @@ const CONFIG_ENTRY_DEFINITIONS = [
     description:
       "TCP port used by the main game server listener.",
     validValues: "Available TCP port number.",
+  },
+  {
+    key: "gameServerHost",
+    defaultValue: "127.0.0.1",
+    envVar: "EVEJS_GAME_SERVER_HOST",
+    envType: "string",
+    description:
+      "Host name or IP address the client should use when connecting to the main game TCP listener.",
+    validValues: 'Host name or IP string such as "127.0.0.1" or "203.0.113.10".',
   },
   {
     key: "marketDaemonHost",
@@ -1023,6 +1321,15 @@ const CONFIG_ENTRY_DEFINITIONS = [
     validValues: 'Absolute URL string ending with a slash, for example "http://127.0.0.1:26001/".',
   },
   {
+    key: "imageServerBindHost",
+    defaultValue: "127.0.0.1",
+    envVar: "EVEJS_IMAGE_SERVER_BIND_HOST",
+    envType: "string",
+    description:
+      "Host or bind address the local image HTTP server listens on.",
+    validValues: 'Host name or IP string such as "127.0.0.1" or "0.0.0.0".',
+  },
+  {
     key: "microservicesRedirectUrl",
     defaultValue: "http://localhost:26002/",
     envVar: "EVEJS_MICROSERVICES_REDIRECT_URL",
@@ -1032,14 +1339,70 @@ const CONFIG_ENTRY_DEFINITIONS = [
     validValues: 'Absolute URL string ending with a slash, for example "http://localhost:26002/".',
   },
   {
+    key: "microservicesPublicBaseUrl",
+    defaultValue: "http://127.0.0.1:26002/",
+    envVar: "EVEJS_MICROSERVICES_PUBLIC_BASE_URL",
+    envType: "string",
+    description:
+      "Server-side HTTP base URL where the EveJS microservice and public-gateway bridge listens for forwarded helper traffic.",
+    validValues: 'Absolute URL string ending with a slash, for example "http://127.0.0.1:26002/".',
+  },
+  {
+    key: "microservicesBindHost",
+    defaultValue: "127.0.0.1",
+    envVar: "EVEJS_MICROSERVICES_BIND_HOST",
+    envType: "string",
+    description:
+      "Host or bind address the EveJS microservice and public-gateway bridge listens on.",
+    validValues: 'Host name or IP string such as "127.0.0.1" or "0.0.0.0".',
+  },
+  {
+    key: "redshiftMonitorHost",
+    defaultValue: "127.0.0.1",
+    envVar: "EVEJS_REDSHIFT_MONITOR_HOST",
+    envType: "string",
+    description:
+      "Host or bind address the Redshift TiDi monitor API listens on.",
+    validValues: 'Host name or IP string such as "127.0.0.1" or "0.0.0.0".',
+  },
+  {
+    key: "redshiftMonitorPort",
+    defaultValue: 26400,
+    envVar: "EVEJS_REDSHIFT_MONITOR_PORT",
+    envType: "number",
+    description:
+      "TCP port used by the Redshift TiDi monitor API.",
+    validValues: "Available TCP port number.",
+  },
+  {
     key: "proxyBlockedHosts",
-    defaultValue: "api.ipify.org,sentry.io,.sentry.io",
+    defaultValue:
+      "api.ipify.org,sentry.io,.sentry.io,google-analytics.com,.google-analytics.com,launchdarkly.com,.launchdarkly.com",
     envVar: "EVEJS_PROXY_BLOCKED_HOSTS",
     envType: "string",
     description:
       "Comma-separated hostnames or dot-prefix suffixes the local HTTP proxy should block instead of forwarding off-box.",
     validValues:
-      'Comma-separated host patterns, for example "api.ipify.org,sentry.io,.sentry.io".',
+      'Comma-separated host patterns, for example "api.ipify.org,sentry.io,.sentry.io,google-analytics.com,.google-analytics.com,launchdarkly.com,.launchdarkly.com".',
+  },
+  {
+    key: "proxyAllowedHosts",
+    defaultValue: "",
+    envVar: "EVEJS_PROXY_ALLOWED_HOSTS",
+    envType: "string",
+    description:
+      "Comma-separated extra hostnames or suffix patterns the local HTTP proxy may forward off-box when they are not handled by the built-in EveJS gateway intercepts.",
+    validValues:
+      'Comma-separated host patterns, for example "images.example.com,.examplecdn.net", or blank to allow only EveJS-handled endpoints.',
+  },
+  {
+    key: "proxyUnhandledHostPolicy",
+    defaultValue: "block",
+    envVar: "EVEJS_PROXY_UNHANDLED_HOST_POLICY",
+    envType: "string",
+    description:
+      'Controls what the local HTTP proxy does with proxied hosts that are neither EveJS-intercepted nor explicitly allow-listed. "block" is the safe default that suppresses telemetry and stray outbound traffic; "forward" restores the old transparent pass-through behavior.',
+    validValues: '"block" or "forward".',
   },
   {
     key: "xmppServerPort",
@@ -1049,6 +1412,33 @@ const CONFIG_ENTRY_DEFINITIONS = [
     description:
       "TCP port used by the local XMPP chat stub server.",
     validValues: "Available TCP port number.",
+  },
+  {
+    key: "xmppConnectHost",
+    defaultValue: "localhost",
+    envVar: "EVEJS_XMPP_CONNECT_HOST",
+    envType: "string",
+    description:
+      "Host name or IP address returned to the client for the XMPP chat connection target.",
+    validValues: 'Host name or IP string such as "localhost" or "chat.example.com".',
+  },
+  {
+    key: "xmppDomain",
+    defaultValue: "localhost",
+    envVar: "EVEJS_XMPP_DOMAIN",
+    envType: "string",
+    description:
+      "XMPP domain used for bare JIDs and chat identity values.",
+    validValues: 'Domain or host string such as "localhost" or "chat.example.com".',
+  },
+  {
+    key: "xmppConferenceDomain",
+    defaultValue: "conference.localhost",
+    envVar: "EVEJS_XMPP_CONFERENCE_DOMAIN",
+    envType: "string",
+    description:
+      "XMPP conference domain used for chat room JIDs.",
+    validValues: 'Domain or host string such as "conference.localhost" or "conference.chat.example.com".',
   },
   {
     key: "omegaLicenseEnabled",
@@ -1185,10 +1575,10 @@ const CONFIG_ENTRY_DEFINITIONS = [
     description:
       [
         "Controls which solar-system scenes are created during server startup.",
-        "1 = current lazy/default boot: only Jita and New Caldari are preloaded so the existing startup behavior stays the same.",
+        "1 = current lazy/default boot: only Jita, New Caldari, and Manifest are preloaded so the existing startup behavior stays the same.",
         "2 = preload every high-security system by checking the solar-system security data for displayed security `0.5+` at startup, so newly added systems are picked up automatically.",
         "3 = preload every solar system in New Eden at startup.",
-        "4 = OnGoingLazy: preload only Jita and New Caldari, but keep every stargate active so destination systems load on demand when a player jumps through.",
+        "4 = OnGoingLazy: preload only Jita, New Caldari, and Manifest, but keep every stargate active so destination systems load on demand when a player jumps through.",
       ],
     validValues: "1, 2, 3, or 4. Any other value falls back to 1.",
   },
@@ -1450,6 +1840,29 @@ function inferConfigEntryType(entry) {
 
 function validateAllowedValue(entry, value) {
   if (
+    typeof entry?.minValue === "number" &&
+    typeof value === "number" &&
+    (
+      value < entry.minValue ||
+      (entry.exclusiveMinValue === true && value === entry.minValue)
+    )
+  ) {
+    throw new Error(
+      `${entry.key} must be ${
+        entry.exclusiveMinValue === true ? "greater than" : "at least"
+      } ${entry.minValue}.`,
+    );
+  }
+
+  if (
+    typeof entry?.maxValue === "number" &&
+    typeof value === "number" &&
+    value > entry.maxValue
+  ) {
+    throw new Error(`${entry.key} must be at most ${entry.maxValue}.`);
+  }
+
+  if (
     Array.isArray(entry?.allowedValues) &&
     !entry.allowedValues.includes(value)
   ) {
@@ -1569,10 +1982,11 @@ function buildDocumentedCommentLines(entry) {
   const descriptionLines = Array.isArray(entry.description)
     ? entry.description
     : [entry.description];
+  const defaultComment = entry.defaultComment || formatInlineConfigValue(entry.defaultValue);
   return [
     ...descriptionLines,
     `Valid values: ${entry.validValues}`,
-    `Default: ${formatInlineConfigValue(entry.defaultValue)}.`,
+    `Default: ${defaultComment}.`,
   ];
 }
 
@@ -1618,7 +2032,7 @@ function buildConfigPropertyLines(key, value, isLastEntry) {
 function buildCommentedConfigText(nextConfig = {}) {
   const entries = Object.entries(nextConfig);
   const lines = [
-    "// EvEJS server config.",
+    "// EveJS Elysian server config.",
     "// This file supports // comments.",
     "// Missing keys are re-added with defaults when the server loads it.",
     "{",
@@ -1667,13 +2081,15 @@ function syncConfigFileDefaults(filePath, rawConfig = {}, options = {}) {
 
 const sharedConfigExists = fs.existsSync(sharedConfigPath);
 const localConfigExists = fs.existsSync(localConfigPath);
+const sharedRawConfig = normalizePersistedConfig(readJsonConfig(sharedConfigPath));
+const localRawConfig = normalizePersistedConfig(readJsonConfig(localConfigPath));
 const sharedConfig = syncConfigFileDefaults(
   sharedConfigPath,
-  readJsonConfig(sharedConfigPath),
+  sharedRawConfig,
 );
 const localConfig = syncConfigFileDefaults(
   localConfigPath,
-  readJsonConfig(localConfigPath),
+  localRawConfig,
   {
     createIfMissing: !sharedConfigExists && !localConfigExists,
   },

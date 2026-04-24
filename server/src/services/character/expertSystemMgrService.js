@@ -2,11 +2,19 @@ const path = require("path");
 
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
-const { getCharacterRecord } = require(path.join(__dirname, "./characterState"));
 const {
-  buildDict,
-  buildFiletimeLong,
-} = require(path.join(__dirname, "../_shared/serviceHelpers"));
+  buildExpertSystemsPayload,
+} = require(path.join(
+  __dirname,
+  "../skills/expertSystems/expertSystemSerializer",
+));
+const {
+  consumeExpertSystemItem,
+  removeExpertSystemFromCharacter,
+} = require(path.join(
+  __dirname,
+  "../skills/expertSystems/expertSystemRuntime",
+));
 
 function resolveSessionCharacterID(session) {
   return Number(
@@ -15,87 +23,26 @@ function resolveSessionCharacterID(session) {
   ) || 0;
 }
 
+function unwrapValue(value) {
+  if (Buffer.isBuffer(value)) {
+    return value.toString("utf8");
+  }
+  if (value && typeof value === "object") {
+    if (Object.prototype.hasOwnProperty.call(value, "value")) {
+      return unwrapValue(value.value);
+    }
+    if (value.type === "int" || value.type === "long") {
+      return unwrapValue(value.value);
+    }
+  }
+  return value;
+}
+
 function normalizePositiveInteger(value, fallback = 0) {
-  const numericValue = Number(value);
+  const numericValue = Number(unwrapValue(value));
   return Number.isInteger(numericValue) && numericValue > 0
     ? numericValue
     : fallback;
-}
-
-function normalizeExpertSystems(charData = {}) {
-  const sourceCandidates = [
-    charData.expertSystems,
-    charData.expertSystemData,
-    charData.myExpertSystems,
-  ];
-
-  const source = sourceCandidates.find(
-    (candidate) => candidate && typeof candidate === "object",
-  );
-
-  if (!source) {
-    return [];
-  }
-
-  const entries = [];
-
-  if (Array.isArray(source)) {
-    for (const entry of source) {
-      if (!entry || typeof entry !== "object") {
-        continue;
-      }
-
-      const typeID = normalizePositiveInteger(
-        entry.typeID ?? entry.expertSystemTypeID ?? entry.id,
-      );
-      if (!typeID) {
-        continue;
-      }
-
-      entries.push([
-        typeID,
-        {
-          installedAt: entry.installedAt ?? entry.installed ?? entry.startTime ?? 0,
-          expiresAt: entry.expiresAt ?? entry.expires ?? entry.endTime ?? 0,
-        },
-      ]);
-    }
-  } else {
-    for (const [rawKey, rawValue] of Object.entries(source)) {
-      const typeID = normalizePositiveInteger(rawKey);
-      if (!typeID) {
-        continue;
-      }
-
-      if (Array.isArray(rawValue)) {
-        entries.push([
-          typeID,
-          {
-            installedAt: rawValue[0] ?? 0,
-            expiresAt: rawValue[1] ?? 0,
-          },
-        ]);
-        continue;
-      }
-
-      if (rawValue && typeof rawValue === "object") {
-        entries.push([
-          typeID,
-          {
-            installedAt:
-              rawValue.installedAt ??
-              rawValue.installed ??
-              rawValue.startTime ??
-              0,
-            expiresAt:
-              rawValue.expiresAt ?? rawValue.expires ?? rawValue.endTime ?? 0,
-          },
-        ]);
-      }
-    }
-  }
-
-  return entries.sort((left, right) => left[0] - right[0]);
 }
 
 class ExpertSystemMgrService extends BaseService {
@@ -105,34 +52,35 @@ class ExpertSystemMgrService extends BaseService {
 
   Handle_GetMyExpertSystems(args, session) {
     const characterID = resolveSessionCharacterID(session);
-    const charData = characterID ? getCharacterRecord(characterID) || {} : {};
-    const expertSystems = normalizeExpertSystems(charData);
-
+    const payload = buildExpertSystemsPayload(characterID);
     log.debug(
-      `[ExpertSystemMgr] GetMyExpertSystems(charID=${characterID}) -> ${expertSystems.length}`,
+      `[ExpertSystemMgr] GetMyExpertSystems(charID=${characterID}) -> ${
+        payload && Array.isArray(payload.entries) ? payload.entries.length : 0
+      }`,
     );
-
-    return buildDict(
-      expertSystems.map(([typeID, timing]) => [
-        typeID,
-        {
-          type: "list",
-          items: [
-            buildFiletimeLong(timing.installedAt),
-            buildFiletimeLong(timing.expiresAt),
-          ],
-        },
-      ]),
-    );
+    return payload;
   }
 
-  Handle_ConsumeExpertSystem() {
-    log.debug("[ExpertSystemMgr] ConsumeExpertSystem called");
+  Handle_ConsumeExpertSystem(args, session) {
+    const characterID = resolveSessionCharacterID(session);
+    const itemID = normalizePositiveInteger(args && args[0]);
+    log.debug(
+      `[ExpertSystemMgr] ConsumeExpertSystem(charID=${characterID}, itemID=${itemID})`,
+    );
+    consumeExpertSystemItem(characterID, itemID, session, { throwOnError: true });
     return null;
   }
 
-  Handle_RemoveMyExpertSystem() {
-    log.debug("[ExpertSystemMgr] RemoveMyExpertSystem called");
+  Handle_RemoveMyExpertSystem(args, session) {
+    const characterID = resolveSessionCharacterID(session);
+    const expertSystemTypeID = normalizePositiveInteger(args && args[0]);
+    log.debug(
+      `[ExpertSystemMgr] RemoveMyExpertSystem(charID=${characterID}, typeID=${expertSystemTypeID})`,
+    );
+    removeExpertSystemFromCharacter(characterID, expertSystemTypeID, {
+      session,
+      throwOnError: true,
+    });
     return null;
   }
 }

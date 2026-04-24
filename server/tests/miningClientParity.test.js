@@ -143,6 +143,12 @@ function flattenDestinyUpdates(notifications = []) {
   return updates;
 }
 
+function flushDirectDestinyNotifications(scene) {
+  if (scene && typeof scene.flushDirectDestinyNotificationBatch === "function") {
+    scene.flushDirectDestinyNotificationBatch();
+  }
+}
+
 function getRemoveBallsEntityIDs(update) {
   if (!update || update.name !== "RemoveBalls" || !Array.isArray(update.args)) {
     return [];
@@ -292,6 +298,7 @@ test("moving into an asteroid belt bubble streams bubble-scoped asteroid balls t
     },
   );
   assert.equal(teleportResult.success, true, "expected ship teleport into belt bubble to succeed");
+  flushDirectDestinyNotifications(scene);
 
   const expectedAsteroidIDs = scene
     .getVisibleBubbleScopedStaticEntitiesForSession(session)
@@ -327,6 +334,74 @@ test("moving into an asteroid belt bubble streams bubble-scoped asteroid balls t
       "expected asteroid slim typeID to match the mineable ore type",
     );
   }
+});
+
+test("same-scene teleport into an asteroid belt bubble streams visibility without an owner SetState rebuild", () => {
+  const systemID = 30000145;
+  resetScene(systemID);
+
+  const scene = runtime.ensureScene(systemID);
+  const belt = scene.getEntityByID(40009258);
+  assert.ok(belt, "expected New Caldari asteroid belt anchor");
+
+  const shipEntity = runtime._testing.buildRuntimeShipEntityForTesting({
+    itemID: 9800001503,
+    typeID: 32880,
+    position: {
+      x: belt.position.x + 2_000_000,
+      y: belt.position.y,
+      z: belt.position.z + 2_000_000,
+    },
+  }, systemID);
+  const { session, notifications } = attachSessionToShip(scene, shipEntity, 407);
+  session._space.initialBallparkVisualsSent = true;
+  session._space.initialBallparkClockSynced = true;
+  notifications.length = 0;
+
+  const teleportResult = scene.teleportDynamicEntityToPoint(
+    shipEntity,
+    {
+      x: belt.position.x + 1_000,
+      y: belt.position.y,
+      z: belt.position.z + 1_000,
+    },
+    {
+      direction: { x: 1, y: 0, z: 0 },
+      refreshOwnerSession: true,
+    },
+  );
+  assert.equal(
+    teleportResult.success,
+    true,
+    "expected same-scene teleport into belt bubble to succeed",
+  );
+  flushDirectDestinyNotifications(scene);
+
+  const flattened = flattenDestinyUpdates(notifications);
+  const expectedAsteroidIDs = scene
+    .getVisibleBubbleScopedStaticEntitiesForSession(session)
+    .filter((entity) => entity.kind === "asteroid")
+    .map((entity) => Number(entity.itemID));
+  assert.ok(expectedAsteroidIDs.length > 0, "expected asteroid entities in the destination bubble");
+
+  const addBallsAsteroidIDs = flattened
+    .flatMap((update) => getAddBallsSlimItemIDs(update));
+  assert.ok(
+    expectedAsteroidIDs.some((itemID) => addBallsAsteroidIDs.includes(itemID)),
+    "expected same-scene teleport to stream asteroid AddBalls2 into the owner session",
+  );
+  assert.equal(
+    flattened.some((update) => update.name === "SetState"),
+    false,
+    "expected same-scene teleport visibility refresh not to rebuild the owner ballpark",
+  );
+  assert.ok(
+    flattened.some((update) => (
+      update.name === "SetBallPosition" &&
+      Number(update.args[0]) === Number(shipEntity.itemID)
+    )),
+    "expected same-scene teleport to still emit authoritative owner position correction",
+  );
 });
 
 test("pilot warp handoff preacquires destination belt asteroids before landing reconciliation", () => {
@@ -449,6 +524,7 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
     { targetID: gasCloud.itemID },
   );
   assert.equal(activationResult.success, true, "expected gas harvester activation to succeed");
+  flushDirectDestinyNotifications(scene);
 
   const startFx = flattenDestinyUpdates(notifications).find((update) => (
     update.name === "OnSpecialFX" &&
@@ -480,6 +556,7 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
   );
   assert.equal(cycleResult.success, true, "expected gas harvester cycle to complete");
   assert.equal(cycleResult.data.depleted, true, "expected single-unit gas cloud to deplete");
+  flushDirectDestinyNotifications(scene);
 
   const updates = flattenDestinyUpdates(notifications);
   const removeUpdate = updates.find((update) =>
@@ -505,6 +582,67 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
     Number(notification.payload[3]) === 0
   ));
   assert.ok(godmaStop, "expected gas harvester stop to emit OnGodmaShipEffect");
+});
+
+test("mining beam FX ignores repeat=1 so observer beams do not expire after one cycle", (t) => {
+  disableGeneratedMiningSites(t);
+  const systemID = 39_990_004;
+  resetScene(systemID);
+  t.after(() => resetScene(systemID));
+
+  const stripMiner = resolveItemByName("Modulated Strip Miner II").match;
+  const scene = runtime.ensureScene(systemID);
+  const shipEntity = runtime._testing.buildRuntimeShipEntityForTesting({
+    itemID: 9800004001,
+    typeID: 22544,
+    position: { x: 0, y: 0, z: 0 },
+  }, systemID);
+  shipEntity.fittedItems = [
+    buildModuleItem(stripMiner, 9800004101, shipEntity.itemID, 11),
+  ];
+  shipEntity.nativeCargoItems = [];
+  const { session, notifications } = attachSessionToShip(scene, shipEntity, 404);
+
+  const veldspar = addMineableEntity(
+    scene,
+    "Veldspar",
+    550000004,
+    "asteroid",
+    { x: 500, y: 0, z: 0 },
+    500,
+  );
+  clearPersistedSystemState(systemID);
+  scene._miningRuntimeState = null;
+  scene.finalizeTargetLock(shipEntity, veldspar, {
+    nowMs: scene.getCurrentSimTimeMs(),
+  });
+
+  const stripEffect = getMiningEffect(stripMiner, "miningLaser");
+  const activationResult = scene.activateGenericModule(
+    session,
+    shipEntity.fittedItems[0],
+    stripEffect.name,
+    {
+      targetID: veldspar.itemID,
+      repeat: 1,
+    },
+  );
+  assert.equal(activationResult.success, true, "expected strip miner activation to succeed");
+  flushDirectDestinyNotifications(scene);
+
+  const startFx = flattenDestinyUpdates(notifications).find((update) => (
+    update.name === "OnSpecialFX" &&
+    String(update.args[5]) === "effects.Laser" &&
+    Number(update.args[1]) === Number(shipEntity.fittedItems[0].itemID) &&
+    Number(update.args[3]) === Number(veldspar.itemID) &&
+    Number(update.args[7]) === 1 &&
+    Number(update.args[8]) === 1
+  ));
+  assert.ok(startFx, "expected strip miner activation to emit OnSpecialFX");
+  assert.ok(
+    Number(startFx.args[10]) > 1,
+    "expected mining beam FX repeat to ignore the client repeat=1 override",
+  );
 });
 
 test("mining modules reject incompatible targets and mismatched crystals", (t) => {

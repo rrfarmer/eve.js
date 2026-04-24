@@ -15,11 +15,15 @@ const {
   getAllItems,
   getCharacterHangarShipItems,
   ITEM_FLAGS,
+  CLIENT_INVENTORY_STACK_LIMIT,
   listContainerItems,
+  listOwnedItems,
   createSpaceItemForCharacter,
   grantItemsToCharacterStationHangar,
   moveItemTypeFromCharacterLocation,
   normalizeShipConditionState,
+  removeInventoryItem,
+  updateInventoryItem,
   updateShipItem,
 } = require("../inventory/itemStore");
 const {
@@ -82,7 +86,9 @@ const {
   buildShipResourceState,
   getTypeAttributeValue,
   isChargeCompatibleWithModule,
+  isFittedModuleItem,
   listFittedItems,
+  normalizeModuleState,
   selectAutoFitFlagForType,
   typeHasEffectName,
   validateFitForShip,
@@ -99,8 +105,32 @@ const {
   removeCharacterSkillTypes,
 } = require("../skills/skillState");
 const {
+  reconcileQueueForSkillMutation,
+  resetCharacterSkillsToStarterProfile,
+} = require("../skills/skillAdminRuntime");
+const {
+  emitSkillSessionState,
+} = require("../skills/training/skillQueueNotifications");
+const {
+  getQueueSnapshot,
+} = require("../skills/training/skillQueueRuntime");
+const {
+  getExpertSystemByTypeID,
+  listExpertSystems,
+  resolveExpertSystemQuery: resolveExpertSystemCatalogQuery,
+} = require("../skills/expertSystems/expertSystemCatalog");
+const {
+  clearExpertSystemsForCharacter,
+  consumeExpertSystemItem,
+  getExpertSystemStatus,
+  installExpertSystemForCharacter,
+  removeExpertSystemFromCharacter,
+} = require("../skills/expertSystems/expertSystemRuntime");
+const {
   createCustomAllianceForCorporation,
   createCustomCorporation,
+  findCorporationByName,
+  getOwnerLookupRecord,
   joinCorporationToAllianceByName,
   getCorporationRecord,
 } = require("../corporation/corporationState");
@@ -127,6 +157,21 @@ const {
 } = require("./specialFxRegistry");
 const npcService = require("../../space/npc");
 const {
+  CAPITAL_NPC_CHAT_COMMANDS,
+  CAPITAL_NPC_HELP_LINES,
+  executeCapitalNpcCommand,
+} = require("./capitalNpc");
+const {
+  WORMHOLE_CHAT_COMMANDS,
+  WORMHOLE_HELP_LINES,
+  executeWormholeCommand,
+} = require("./wormhole");
+const {
+  TRIG_DRIFTER_CHAT_COMMANDS,
+  TRIG_DRIFTER_HELP_LINES,
+  executeTrigDrifterCommand,
+} = require("./trigDrifter");
+const {
   NPCTEST_DEFAULT_AMOUNT,
   spawnNpcTestForSession,
 } = require("../../space/npc/npcTestService");
@@ -145,6 +190,7 @@ const {
   DEFAULT_CHAT_ROLE,
   MAX_ACCOUNT_ROLE,
   buildPersistedAccountRoleRecord,
+  composeSessionRoleMask,
   getChatRoleProfile,
   normalizeRoleValue,
   roleToString,
@@ -184,18 +230,66 @@ const {
   handleMiningStateStatusCommand: executeMiningStateStatusCommand,
   handleMiningStateResetCommand: executeMiningStateResetCommand,
 } = require(path.join(__dirname, "../mining/miningCommandService"));
+const {
+  handleOrcaCommand: executeOrcaCommand,
+  handleProbeCommand: executeProbeCommand,
+  handleProbe2Command: executeProbe2Command,
+  handleCburstCommand: executeCburstCommand,
+  handleGuardianCommand: executeGuardianCommand,
+  handleBasiliskCommand: executeBasiliskCommand,
+  handleEwarCommand: executeEwarCommand,
+  handleTrigCommand: executeTrigCommand,
+} = require(path.join(__dirname, "../ship/devCommandShipRuntime"));
+const ScanMgrService = require(path.join(
+  __dirname,
+  "../exploration/scanMgrService",
+));
+const signatureRuntime = require(path.join(
+  __dirname,
+  "../exploration/signatures/signatureRuntime",
+));
+const {
+  markMissionObjectiveComplete,
+} = require(path.join(__dirname, "../agent/agentMissionRuntime"));
+const {
+  listAgents,
+} = require(path.join(__dirname, "../agent/agentAuthority"));
+const standingRuntime = require(path.join(
+  __dirname,
+  "../character/standingRuntime",
+));
+const {
+  handleRemoteRepairFleetCommand: executeRemoteRepairFleetCommand,
+} = require(path.join(__dirname, "../../RemoteRepShow/remoteRepairFleetCommands"));
+const {
+  executeBlueprintAutoCommand,
+  executeBlueprintCommand,
+} = require(path.join(__dirname, "../industry/industryChatCommands"));
+const {
+  executeBookmarkAutoCommand,
+} = require(path.join(__dirname, "../bookmark/bookmarkChatCommands"));
+const {
+  executeCalendarAutoCommand,
+} = require(path.join(__dirname, "../calendar/calendarChatCommands"));
+const {
+  executeReprocessingSmokeCommand,
+} = require(path.join(__dirname, "../reprocessing/reprocessingChatCommands"));
+const {
+  resolveWelcomeSenderID,
+  sendMail,
+} = require(path.join(__dirname, "../mail/mailState"));
 
 const DEFAULT_MOTD_MESSAGE = [
-  "<b><color=0xfff4d35e>Welcome to EvE JS Elysian.</color></b><br>",
+  "<b><color=0xfff4d35e>Welcome to EveJS Elysian.</color></b><br>",
   "A lot already works, but you <color=0xffff8080>will</color> still find bugs.<br><br>",
   "<b><color=0xff80d8ff>@Icey</color></b> founded this project. Without him, none of this exists.<br><br>",
   "<b><color=0xffffc266>@John Elysian</color></b> is the reason you can undock, warp, fire missiles, use the market, experience time dilation, and touch a long list of other core systems. A lot of this took weeks of 24/7 work to get running against the latest client, and some of it simply had not been done properly before.<br><br>",
   "Big respect as well to <b><color=0xffd7bde2>EvE-MU</color></b> for proving this path was possible long before AI tools existed.<br><br>",
   "<b><color=0xff9be564>@Deer_Hunter</color></b> helped keep development alive when the costs were make-or-break. Thank you.<br><br>",
-  "<color=0xffff8080>If you hit a bug, please report it in the Discord linked on the EvE JS GitHub and include exact steps to reproduce it.</color>",
+  "<color=0xffff8080>If you hit a bug, please report it in the Discord linked on the EveJS Elysian GitHub and include exact steps to reproduce it.</color>",
 ].join(" ");
 const DEER_HUNTER_MESSAGE =
-  "Thank you, Deer_Hunter on Discord, for helping make EvEJS possible with your contribution to rising AI development costs.";
+  "Thank you, Deer_Hunter on Discord, for helping make EveJS Elysian possible with your contribution to rising AI development costs.";
 const DEER_HUNTER_EFFECT_NAME = "microjump";
 const AVAILABLE_SLASH_COMMANDS = [
   "addisk",
@@ -209,12 +303,15 @@ const AVAILABLE_SLASH_COMMANDS = [
   "commandlist",
   "commands",
   "deer_hunter",
+  "expertsystem",
+  "expertsystems",
   "giveme",
   "giveskill",
   "grantshipemblem",
   "grantcorplogo",
   "grantalliancelogo",
   "hangar",
+  "dmg",
   "heal",
   "help",
   "item",
@@ -222,6 +319,11 @@ const AVAILABLE_SLASH_COMMANDS = [
   "keepstar",
   "upwell",
   "upwellauto",
+  "bpauto",
+  "bp",
+  "bookmarkauto",
+  "calauto",
+  "reprocesssmoke",
   "laser",
   "lasers",
   "hybrids",
@@ -235,19 +337,41 @@ const AVAILABLE_SLASH_COMMANDS = [
   "torp",
   "lesmis",
   "miner",
+  "orca",
+  "probe",
+  "probe2",
+  "trig",
+  "setstanding",
+  "maxagentstandings",
+  "fullstandings",
+  "sigs",
+  "sigscan",
+  "missioncomplete",
+  "overlayrefresh",
+  "cburst",
+  "guardian",
+  "basilisk",
+  "ewar",
+  "backintime",
   "dock",
   "effect",
   "fire",
   "fire2",
+  "rr",
   "supertitan",
   "supertitanshow",
+  "titansupershow",
   "giveitem",
+  "create",
+  "createitem",
+  "minerals",
   "gmweapons",
   "gmships",
   "gmskills",
   "container",
   "jetcan",
   "motd",
+  "mailme",
   "npc",
   "mnpc",
   "npctest",
@@ -267,6 +391,7 @@ const AVAILABLE_SLASH_COMMANDS = [
   "loadallsys",
   "loadsys",
   "solar",
+  "tele",
   "tr",
   "prop",
   "npcw",
@@ -296,6 +421,9 @@ const AVAILABLE_SLASH_COMMANDS = [
   "corpevermarks",
   "where",
   "who",
+  ...CAPITAL_NPC_CHAT_COMMANDS,
+  ...WORMHOLE_CHAT_COMMANDS,
+  ...TRIG_DRIFTER_CHAT_COMMANDS,
   "wreck",
   "concord",
   "cwatch",
@@ -311,9 +439,13 @@ const COMMANDS_HELP_TEXT = [
   "Commands:",
   "/help",
   "/motd",
+  "/mailme",
   "/allskills",
   "/npc [amount] [faction|profile|pool]",
   "/mnpc [amount] [faction|profile|pool]",
+  ...CAPITAL_NPC_HELP_LINES,
+  ...WORMHOLE_HELP_LINES,
+  ...TRIG_DRIFTER_HELP_LINES,
   "/npcminer [amount] [profile|pool|group]",
   "/npcmineraggro [amount] [profile|pool|group]",
   "/npcminerpanic [amount] [profile|pool|group]",
@@ -327,19 +459,32 @@ const COMMANDS_HELP_TEXT = [
   "/npcw [amount] [profile|pool]",
   "/npcclear <system [npc|concord|all]|radius <meters> [npc|concord|all]>",
   "/dock",
+  "/dmg [light|medium|heavy]",
   "/heal",
   "/deer_hunter",
   "/effect <name>",
   "/keepstar",
   "/upwell <subcommand>",
   "/upwellauto <type|structureID>",
+  "/upwellauto undock <structureID> [count] [all|unpublished|published]",
+  "/bpauto <subcommand>",
+  "/bp <subcommand>",
+  "/bookmarkauto <subcommand>",
+  "/calauto <subcommand>",
+  "/reprocesssmoke <subcommand>",
+  "/backintime [me|characterID|character name]",
+  "/expertsystem <list|inspect|status|add|remove|clear|giveitem|consume>",
   "/sov <subcommand>",
   "/sovauto <subcommand>",
   "/fire [ship name|typeID]",
   "/fire2 [count]",
   "/supertitan",
   "/supertitanshow [count]",
+  "/titansupershow [count]",
   "/giveitem <item name|typeID> [amount]",
+  "/create <item name|typeID> [amount]",
+  "/createitem <item name|typeID> [amount]",
+  "/minerals",
   "/giveskill <target> <skill|all|super> [level]",
   "/removeskill <target> <skill|all>",
   "/laser",
@@ -354,6 +499,21 @@ const COMMANDS_HELP_TEXT = [
   "/torp",
   "/lesmis",
   "/miner",
+  "/orca",
+  "/probe",
+  "/probe2",
+  "/trig [hull|family]",
+  "/setstanding <value> <owner name|id> [target]",
+  "/maxagentstandings [target]",
+  "/fullstandings [target]",
+  "/sigs",
+  "/sigscan",
+  "/missioncomplete [agentID|all]",
+  "/overlayrefresh",
+  "/cburst",
+  "/guardian",
+  "/basilisk",
+  "/ewar",
   "/gmweapons",
   "/container [container type] [count]",
   "/jetcan <item name|typeID> [amount]",
@@ -381,6 +541,7 @@ const COMMANDS_HELP_TEXT = [
   "/tidi [0.1-1.0]",
   "/prop",
   "/solar <system name>",
+  "/tele <character name|characterID>",
   "/tr <me|characterID|entityID> <destination|pos=x,y,z|offset=x,y,z>",
   "/suicide",
   "/sysjunkclear",
@@ -410,9 +571,62 @@ const COMMANDS_HELP_TEXT = [
   "/teal",
   "/yellow",
 ].join("\n");
+
+const DAMAGE_TEST_PRESETS = Object.freeze({
+  light: {
+    label: "light",
+    ship: {
+      damage: 0.1,
+      charge: 0.65,
+      armorDamage: 0.18,
+      shieldCharge: 0.7,
+    },
+    module: {
+      damage: 0.08,
+      charge: 0,
+      armorDamage: 0.04,
+      shieldCharge: 0.8,
+      incapacitated: false,
+    },
+  },
+  medium: {
+    label: "medium",
+    ship: {
+      damage: 0.2,
+      charge: 0.35,
+      armorDamage: 0.35,
+      shieldCharge: 0.45,
+    },
+    module: {
+      damage: 0.18,
+      charge: 0,
+      armorDamage: 0.1,
+      shieldCharge: 0.6,
+      incapacitated: false,
+    },
+  },
+  heavy: {
+    label: "heavy",
+    ship: {
+      damage: 0.35,
+      charge: 0.18,
+      armorDamage: 0.6,
+      shieldCharge: 0.22,
+    },
+    module: {
+      damage: 0.3,
+      charge: 0,
+      armorDamage: 0.18,
+      shieldCharge: 0.42,
+      incapacitated: false,
+    },
+  },
+});
 const DEFAULT_SPACE_CONTAINER_NAME = "Cargo Container";
 const DEFAULT_SPACE_WRECK_NAME = "Wreck";
 const DEFAULT_FIRE_TARGET_NAME = "Drake";
+const COMBAT_DUMMY_OWNER_ID = 1000006;
+const COMBAT_DUMMY_CORPORATION_ID = 1000006;
 const PALATINE_KEEPSTAR_TYPE_ID = 40340;
 const KEEPSTAR_DEFAULT_SPAWN_DISTANCE_METERS = 400000;
 const KEEPSTAR_DEFAULT_RADIUS_METERS = 150000;
@@ -600,11 +814,13 @@ const SINGLE_RACK_COMMAND_PRESETS = Object.freeze({
 let cachedPropulsionCommandTypes = null;
 let cachedLesmisHeavyMissileTypes = null;
 let cachedGmWeaponsSeedPlan = null;
+let cachedMineralsSeedPlan = null;
 const activeGmWeaponsJobs = new Map();
 
 const GM_WEAPONS_BATCH_SIZE = 96;
 const GM_WEAPONS_MODULE_QUANTITY = 100;
 const GM_WEAPONS_AMMO_QUANTITY = 5000;
+const MINERALS_SEED_QUANTITY = 5_000_000;
 
 function normalizeCommandName(value) {
   return String(value || "").trim().toLowerCase();
@@ -1013,6 +1229,133 @@ function formatCharacterTargetLabel(targetDescriptor) {
   return "character";
 }
 
+function resolveDefaultCharacterTargetDescriptor(requestSession) {
+  return resolveCharacterTargetDescriptor(requestSession, "me");
+}
+
+function resolveTrailingCharacterTargetDescriptor(requestSession, tokens = [], ownerStartIndex = 0) {
+  const tokenList = Array.isArray(tokens) ? tokens : [];
+  const ownerTokens = tokenList.slice(ownerStartIndex);
+  if (ownerTokens.length >= 2) {
+    const trailingToken = ownerTokens[ownerTokens.length - 1];
+    const targetResult = resolveCharacterTargetDescriptor(requestSession, trailingToken);
+    if (targetResult.success) {
+      return {
+        success: true,
+        data: {
+          ownerToken: ownerTokens.slice(0, -1).join(" ").trim(),
+          targetDescriptor: targetResult.data,
+          explicitTarget: true,
+        },
+      };
+    }
+  }
+
+  const fallbackTarget = resolveDefaultCharacterTargetDescriptor(requestSession);
+  if (!fallbackTarget.success) {
+    return fallbackTarget;
+  }
+
+  return {
+    success: true,
+    data: {
+      ownerToken: ownerTokens.join(" ").trim(),
+      targetDescriptor: fallbackTarget.data,
+      explicitTarget: false,
+    },
+  };
+}
+
+function resolveStandingOwnerDescriptor(ownerToken) {
+  const normalizedToken = String(ownerToken || "").trim();
+  if (!normalizedToken) {
+    return {
+      success: false,
+      errorMsg: "OWNER_REQUIRED",
+    };
+  }
+
+  const numericOwnerID = normalizePositiveInteger(normalizedToken);
+  if (numericOwnerID) {
+    const ownerRecord = getOwnerLookupRecord(numericOwnerID);
+    if (ownerRecord) {
+      return {
+        success: true,
+        data: {
+          ownerID: numericOwnerID,
+          ownerRecord,
+          ownerKind: "owner",
+        },
+      };
+    }
+  }
+
+  const normalizedName = normalizeCommandName(normalizedToken);
+  const corporationRecord = findCorporationByName(normalizedToken);
+  if (corporationRecord) {
+    return {
+      success: true,
+      data: {
+        ownerID: normalizePositiveInteger(corporationRecord.corporationID),
+        ownerRecord: getOwnerLookupRecord(corporationRecord.corporationID),
+        ownerKind: "corporation",
+      },
+    };
+  }
+
+  const factionRecord = standingRuntime.getFactionRecordsByName().get(normalizedName);
+  if (factionRecord) {
+    return {
+      success: true,
+      data: {
+        ownerID: normalizePositiveInteger(factionRecord.factionID),
+        ownerRecord: getOwnerLookupRecord(factionRecord.factionID),
+        ownerKind: "faction",
+      },
+    };
+  }
+
+  const agentRecord = listAgents().find(
+    (entry) => normalizeCommandName(entry && entry.ownerName) === normalizedName,
+  );
+  if (agentRecord) {
+    return {
+      success: true,
+      data: {
+        ownerID: normalizePositiveInteger(agentRecord.agentID),
+        ownerRecord: getOwnerLookupRecord(agentRecord.agentID),
+        ownerKind: "agent",
+      },
+    };
+  }
+
+  return {
+    success: false,
+    errorMsg: "OWNER_NOT_FOUND",
+  };
+}
+
+function formatStandingOwnerLabel(ownerDescriptor) {
+  if (!ownerDescriptor) {
+    return "owner";
+  }
+
+  const ownerID = normalizePositiveInteger(ownerDescriptor.ownerID);
+  const ownerName =
+    (ownerDescriptor.ownerRecord && ownerDescriptor.ownerRecord.ownerName) ||
+    null;
+  if (ownerName && ownerID) {
+    return `${ownerName}(${ownerID})`;
+  }
+  if (ownerName) {
+    return ownerName;
+  }
+  if (ownerID) {
+    return `owner ${ownerID}`;
+  }
+  return "owner";
+}
+
 function suggestSkillNames(skillTypes, query) {
   const normalizedQuery = normalizeCommandName(query);
   if (!normalizedQuery) {
@@ -1266,6 +1609,25 @@ function parseRemoveSkillArguments(argumentText) {
   };
 }
 
+function parseBackInTimeArguments(argumentText) {
+  const tokens = tokenizeQuotedArguments(argumentText);
+  if (tokens.length === 0) {
+    return {
+      success: true,
+      data: {
+        targetToken: "me",
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      targetToken: tokens.join(" ").trim() || "me",
+    },
+  };
+}
+
 function dedupeSkillRecords(skillRecords = []) {
   const recordsByTypeID = new Map();
   for (const skillRecord of Array.isArray(skillRecords) ? skillRecords : []) {
@@ -1294,6 +1656,77 @@ function filterChangedSkillRecords(skillRecords = [], previousSkillMap = null) {
     const previousSkillRecord = previousSkillMap.get(typeID) || null;
     return JSON.stringify(previousSkillRecord) !== JSON.stringify(skillRecord);
   });
+}
+
+function skillMutationLowersExistingLevels(skillRecords = [], previousSkillMap = null) {
+  if (!(previousSkillMap instanceof Map)) {
+    return false;
+  }
+
+  return dedupeSkillRecords(skillRecords).some((skillRecord) => {
+    const typeID = normalizePositiveInteger(skillRecord && skillRecord.typeID);
+    if (!typeID) {
+      return false;
+    }
+
+    const previousSkillRecord = previousSkillMap.get(typeID);
+    if (!previousSkillRecord) {
+      return false;
+    }
+
+    const previousPoints = Number(
+      previousSkillRecord.trainedSkillPoints ?? previousSkillRecord.skillPoints ?? 0,
+    ) || 0;
+    const nextPoints = Number(
+      skillRecord.trainedSkillPoints ?? skillRecord.skillPoints ?? 0,
+    ) || 0;
+    if (nextPoints < previousPoints) {
+      return true;
+    }
+
+    const previousLevel = Number(
+      previousSkillRecord.trainedSkillLevel ?? previousSkillRecord.skillLevel ?? 0,
+    ) || 0;
+    const nextLevel = Number(
+      skillRecord.trainedSkillLevel ?? skillRecord.skillLevel ?? 0,
+    ) || 0;
+    return nextLevel < previousLevel;
+  });
+}
+
+function queueSnapshotChanged(previousSnapshot = null, nextSnapshot = null) {
+  const previousActive = Boolean(previousSnapshot && previousSnapshot.active);
+  const nextActive = Boolean(nextSnapshot && nextSnapshot.active);
+  if (previousActive !== nextActive) {
+    return true;
+  }
+
+  const previousEntries =
+    previousSnapshot && Array.isArray(previousSnapshot.queueEntries)
+      ? previousSnapshot.queueEntries
+      : [];
+  const nextEntries =
+    nextSnapshot && Array.isArray(nextSnapshot.queueEntries)
+      ? nextSnapshot.queueEntries
+      : [];
+  if (previousEntries.length !== nextEntries.length) {
+    return true;
+  }
+
+  for (let index = 0; index < previousEntries.length; index += 1) {
+    const previousEntry = previousEntries[index];
+    const nextEntry = nextEntries[index];
+    if (
+      normalizePositiveInteger(previousEntry && previousEntry.trainingTypeID) !==
+        normalizePositiveInteger(nextEntry && nextEntry.trainingTypeID) ||
+      normalizePositiveInteger(previousEntry && previousEntry.trainingToLevel) !==
+        normalizePositiveInteger(nextEntry && nextEntry.trainingToLevel)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function normalizeSkillInventoryItem(skillRecord) {
@@ -1402,104 +1835,46 @@ function refreshLiveCharacterSkillSession(
   previousSkillMap = null,
   options = {},
 ) {
-  if (
-    !targetSession ||
-    !targetDescriptor ||
-    typeof targetSession.sendNotification !== "function"
-  ) {
-    return;
-  }
-
   const characterID = normalizePositiveInteger(targetDescriptor.characterID);
   if (!characterID) {
     return;
   }
 
   const changedSkills = dedupeSkillRecords(changedSkillRecords);
-  if (changedSkills.length === 0) {
+  const removedSkills = dedupeSkillRecords(options && options.removedSkillRecords);
+  const queueSnapshot =
+    options && options.queueSnapshot && typeof options.queueSnapshot === "object"
+      ? options.queueSnapshot
+      : null;
+  const hasQueueState =
+    queueSnapshot &&
+    Array.isArray(queueSnapshot.queueEntries);
+  const hasFreeSkillPoints =
+    options &&
+    Object.prototype.hasOwnProperty.call(options, "freeSkillPoints");
+  if (
+    changedSkills.length === 0 &&
+    removedSkills.length === 0 &&
+    !hasQueueState &&
+    !hasFreeSkillPoints
+  ) {
     return;
   }
-  const removalMode = options && options.removed === true;
-  const notificationSkills = removalMode
-    ? changedSkills
-      .map((skillRecord) => buildRemovedSkillNotificationRecord(skillRecord))
-      .filter(Boolean)
-    : changedSkills;
 
-  applyCharacterToSession(targetSession, characterID, {
-    emitNotifications: false,
-    logSelection: false,
-    selectionEvent: false,
+  emitSkillSessionState(targetSession, characterID, changedSkills, {
+    removedSkillRecords: removedSkills,
+    previousSkillMap,
+    emitSkillLevelsTrained:
+      options && Object.prototype.hasOwnProperty.call(options, "emitSkillLevelsTrained")
+        ? Boolean(options.emitSkillLevelsTrained)
+        : !(options && options.removed === true),
+    queueEntries: hasQueueState ? queueSnapshot.queueEntries : undefined,
+    emitQueuePaused: Boolean(
+      hasQueueState &&
+      (!queueSnapshot.active || queueSnapshot.queueEntries.length === 0),
+    ),
+    freeSkillPoints: hasFreeSkillPoints ? options.freeSkillPoints : undefined,
   });
-
-  const changedTypeIDs = changedSkills
-    .map((skillRecord) => normalizePositiveInteger(skillRecord && skillRecord.typeID))
-    .filter(Boolean);
-  if (changedTypeIDs.length === 0) {
-    return;
-  }
-
-  targetSession.sendNotification("OnSkillsChanged", "clientID", [
-    buildSkillNotificationDict(notificationSkills),
-  ]);
-  if (!removalMode) {
-    targetSession.sendNotification("OnSkillLevelsTrained", "clientID", [
-      {
-        type: "list",
-        items: changedTypeIDs,
-      },
-    ]);
-  }
-
-  for (const skillRecord of changedSkills) {
-    const normalizedSkillItem = removalMode
-      ? buildRemovedSkillInventoryItem(skillRecord)
-      : normalizeSkillInventoryItem(skillRecord);
-    if (!normalizedSkillItem) {
-      continue;
-    }
-
-    const previousSkillRecord =
-      previousSkillMap instanceof Map
-        ? previousSkillMap.get(Number(skillRecord.typeID) || 0) || null
-        : null;
-    const previousState = previousSkillRecord
-      ? {
-          locationID: previousSkillRecord.locationID,
-          flagID: previousSkillRecord.flagID,
-          quantity: 1,
-          singleton: 1,
-          stacksize: 1,
-        }
-      : {
-          locationID: 0,
-          flagID: 0,
-          quantity: 0,
-          singleton: 0,
-          stacksize: 0,
-        };
-
-    syncInventoryItemForSession(
-      targetSession,
-      normalizedSkillItem,
-      previousState,
-      {
-        emitCfgLocation: false,
-      },
-    );
-  }
-
-  const activeShipID = normalizePositiveInteger(
-    targetSession.activeShipID || targetSession.shipID || targetSession.shipid,
-  );
-  if (activeShipID) {
-    syncShipFittingStateForSession(targetSession, activeShipID, {
-      includeOfflineModules: true,
-      includeCharges: true,
-      emitChargeInventoryRows: true,
-      emitOnlineEffects: true,
-    });
-  }
 }
 
 function applySkillGrantToCharacter(
@@ -2030,17 +2405,24 @@ function updateSessionRole(session, nextRole) {
   }
 
   const normalizedNextRole = normalizeRoleValue(nextRole, DEFAULT_CHAT_ROLE);
-  const previousRole = normalizeRoleValue(session.role, DEFAULT_CHAT_ROLE);
-  if (previousRole === normalizedNextRole) {
+  const previousRole = composeSessionRoleMask(
+    session.accountRole ?? session.role,
+    session.chatRole ?? session.role,
+  );
+  const nextSessionRole = composeSessionRoleMask(
+    session.accountRole ?? session.role,
+    normalizedNextRole,
+  );
+  if (previousRole === nextSessionRole) {
     return false;
   }
 
   session.chatRole = roleToString(normalizedNextRole);
-  session.role = roleToString(normalizedNextRole);
+  session.role = roleToString(nextSessionRole);
 
   if (typeof session.sendSessionChange === "function") {
     session.sendSessionChange({
-      role: [previousRole, normalizedNextRole],
+      role: [previousRole, nextSessionRole],
     });
   }
 
@@ -2086,6 +2468,60 @@ function handleDeerHunterCommand(session, chatHub, options) {
     ? `${DEER_HUNTER_MESSAGE} Your ship celebrates with a brief micro-jump flash.`
     : DEER_HUNTER_MESSAGE;
   return handledResult(chatHub, session, options, message);
+}
+
+function handleMailMeCommand(session, argumentText, chatHub, options) {
+  const characterID = normalizePositiveInteger(
+    session && (session.characterID || session.charID || session.charid),
+    0,
+  );
+  if (!characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /mailme.",
+    );
+  }
+
+  const extraNote = String(argumentText || "").trim();
+  const senderID = resolveWelcomeSenderID();
+  const subject = "EveJS Elysian live mail test";
+  const bodyLines = [
+    "This is a live Eve Mail generated by /mailme.",
+    "",
+    "If this popped up and landed in your mailbox, the live notify path and the stored mailbox path are both working.",
+  ];
+  if (extraNote) {
+    bodyLines.push("");
+    bodyLines.push(`Note: ${extraNote}`);
+  }
+  bodyLines.push("");
+  bodyLines.push(`Generated at: ${new Date().toISOString()}`);
+
+  const sendResult = sendMail({
+    senderID,
+    toCharacterIDs: [characterID],
+    title: subject,
+    body: bodyLines.join("<br>"),
+    saveSenderCopy: false,
+    excludeSession: null,
+  });
+  if (!sendResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Test mail failed: ${sendResult.errorMsg || "unknown error"}.`,
+    );
+  }
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Live Eve Mail sent to your mailbox: "${subject}".`,
+  );
 }
 
 function syncInventoryChangesToSession(session, changes = []) {
@@ -2195,6 +2631,116 @@ function healDockedShipForSession(session) {
   );
 
   return updateResult;
+}
+
+function formatCountLabel(count, singular, plural) {
+  const numericCount = Number(count) || 0;
+  return `${numericCount} ${numericCount === 1 ? singular : plural}`;
+}
+
+function resolveDamageTestPreset(argumentText) {
+  const normalized = String(argumentText || "").trim().toLowerCase();
+  if (!normalized) {
+    return {
+      success: true,
+      preset: DAMAGE_TEST_PRESETS.medium,
+    };
+  }
+
+  const preset = DAMAGE_TEST_PRESETS[normalized];
+  if (!preset) {
+    return {
+      success: false,
+      errorMsg: "INVALID_DAMAGE_PRESET",
+    };
+  }
+
+  return {
+    success: true,
+    preset,
+  };
+}
+
+function damageDockedShipForSession(session, preset) {
+  if (!session || !session.characterID) {
+    return {
+      success: false,
+      errorMsg: "CHARACTER_NOT_SELECTED",
+    };
+  }
+
+  if (!isDockedSession(session)) {
+    return {
+      success: false,
+      errorMsg: "NOT_DOCKED",
+    };
+  }
+
+  const activeShip = getActiveShipRecord(session.characterID);
+  if (!activeShip || !activeShip.itemID) {
+    return {
+      success: false,
+      errorMsg: "SHIP_NOT_FOUND",
+    };
+  }
+
+  const updateResult = updateShipItem(activeShip.itemID, (currentShip) => ({
+    ...currentShip,
+    conditionState: normalizeShipConditionState({
+      ...(currentShip.conditionState || {}),
+      ...((preset && preset.ship) || {}),
+    }),
+  }));
+  if (!updateResult.success) {
+    return updateResult;
+  }
+
+  const changedModuleIDs = [];
+  const fittedModules = listFittedItems(
+    session.characterID,
+    activeShip.itemID,
+  ).filter((item) => isFittedModuleItem(item));
+
+  for (const fittedModule of fittedModules) {
+    const moduleUpdateResult = updateInventoryItem(
+      fittedModule.itemID,
+      (currentItem) => ({
+        ...currentItem,
+        moduleState: normalizeModuleState({
+          ...(currentItem.moduleState || {}),
+          ...((preset && preset.module) || {}),
+        }),
+      }),
+    );
+    if (!moduleUpdateResult.success) {
+      return moduleUpdateResult;
+    }
+    changedModuleIDs.push(fittedModule.itemID);
+  }
+
+  syncInventoryItemForSession(
+    session,
+    updateResult.data,
+    updateResult.previousData || {},
+    { emitCfgLocation: true },
+  );
+
+  if (changedModuleIDs.length > 0) {
+    syncShipFittingStateForSession(session, activeShip.itemID, {
+      includeOfflineModules: true,
+      includeCharges: false,
+      restrictToItemIDs: changedModuleIDs,
+    });
+  }
+
+  return {
+    success: true,
+    data: {
+      shipID: activeShip.itemID,
+      presetLabel: String((preset && preset.label) || "medium"),
+      moduleCount: changedModuleIDs.length,
+    },
+  };
 }
 
 function parseToggleCommandArgument(argumentText) {
@@ -2965,6 +3511,179 @@ function formatTransportTransitionError(result, fallback) {
   return fallback;
 }
 
+function buildTransportDestinationFromSession(session) {
+  if (!session || !session.characterID) {
+    return null;
+  }
+
+  const anchor = getSessionTransportAnchor(session);
+  if (anchor) {
+    return anchor;
+  }
+
+  const solarSystemID = getSessionCurrentSolarSystemID(session);
+  if (!solarSystemID) {
+    return null;
+  }
+
+  const solarSystem = worldData.getSolarSystemByID(solarSystemID);
+  return {
+    kind: "solarSystem",
+    solarSystemID,
+    label:
+      (solarSystem && solarSystem.solarSystemName) ||
+      `solar system ${solarSystemID}`,
+  };
+}
+
+function executeSessionTransportTarget(
+  requestSession,
+  targetDescriptor,
+  destination,
+  chatHub,
+  options,
+) {
+  const targetLabel = formatTransportTargetLabel(targetDescriptor);
+  const destinationLabel = formatTransportDestinationLabel(destination);
+  const targetSession = targetDescriptor && targetDescriptor.session;
+  if (!targetSession || !targetSession.characterID) {
+    return handledResult(
+      chatHub,
+      requestSession,
+      options,
+      "Transport target session is not available.",
+    );
+  }
+
+  let crossedLocationBoundary = false;
+
+  if (destination.kind === "solarSystem") {
+    const result = jumpSessionToSolarSystem(
+      targetSession,
+      destination.solarSystemID,
+    );
+    if (!result.success) {
+      return handledResult(
+        chatHub,
+        requestSession,
+        options,
+        formatTransportTransitionError(
+          result,
+          `Failed to transport ${targetLabel} to ${destinationLabel}.`,
+        ),
+      );
+    }
+    crossedLocationBoundary = true;
+  } else if (destination.kind === "station") {
+    const result = jumpSessionToStation(
+      targetSession,
+      destination.stationID,
+    );
+    if (!result.success) {
+      return handledResult(
+        chatHub,
+        requestSession,
+        options,
+        formatTransportTransitionError(
+          result,
+          `Failed to transport ${targetLabel} to ${destinationLabel}.`,
+        ),
+      );
+    }
+    crossedLocationBoundary = true;
+  } else if (destination.kind === "point") {
+    const destinationSystemID = normalizePositiveInteger(destination.systemID);
+    if (!destinationSystemID || !destination.point) {
+      return handledResult(
+        chatHub,
+        requestSession,
+        options,
+        "Point transport is missing a valid solar-system location.",
+      );
+    }
+
+    const currentTargetSystemID = getSessionCurrentSolarSystemID(targetSession);
+    const currentTargetStationID = getSessionDockedStationID(targetSession);
+    if (
+      currentTargetStationID ||
+      !targetSession._space ||
+      currentTargetSystemID !== destinationSystemID
+    ) {
+      const jumpResult = jumpSessionToSolarSystem(
+        targetSession,
+        destinationSystemID,
+      );
+      if (!jumpResult.success) {
+        return handledResult(
+          chatHub,
+          requestSession,
+          options,
+          formatTransportTransitionError(
+            jumpResult,
+            `Failed to transport ${targetLabel} to ${destinationLabel}.`,
+          ),
+        );
+      }
+      crossedLocationBoundary = true;
+    }
+
+    const teleportResult = spaceRuntime.teleportSessionShipToPoint(
+      targetSession,
+      destination.point,
+      {
+        direction: destination.direction,
+        refreshOwnerSession: true,
+      },
+    );
+    if (!teleportResult.success) {
+      return handledResult(
+        chatHub,
+        requestSession,
+        options,
+        teleportResult.errorMsg === "NOT_IN_SPACE"
+          ? `Failed to transport ${targetLabel}: target is not in space.`
+          : `Failed to teleport ${targetLabel} in space.`,
+      );
+    }
+  } else {
+    return handledResult(
+      chatHub,
+      requestSession,
+      options,
+      `Unsupported /tr destination: ${destination.kind}.`,
+    );
+  }
+
+  if (targetSession === requestSession && crossedLocationBoundary) {
+    if (destination.kind !== "station") {
+      const destinationSystemID =
+        destination.kind === "solarSystem"
+          ? destination.solarSystemID
+          : destination.kind === "point"
+            ? destination.systemID
+            : normalizePositiveInteger(
+              (worldData.getStationByID(destination.stationID) || {}).solarSystemID,
+            );
+      const destinationSystem = worldData.getSolarSystemByID(destinationSystemID);
+      reconcileSolarTargetSessionIdentity(requestSession, destinationSystem);
+    }
+    flushPendingLocalChannelSync(chatHub, requestSession);
+    return handledResult(
+      chatHub,
+      requestSession,
+      getPostLocalMoveFeedbackOptions(options),
+      `Transported ${targetLabel} to ${destinationLabel}.`,
+    );
+  }
+
+  return handledResult(
+    chatHub,
+    requestSession,
+    options,
+    `Transported ${targetLabel} to ${destinationLabel}.`,
+  );
+}
+
 function buildNearbySpaceSpawnState(shipEntity, distanceMeters = 250) {
   const position = {
     x: Number(shipEntity && shipEntity.position && shipEntity.position.x || 0),
@@ -3435,6 +4154,78 @@ function sortItemTypesByName(left, right) {
   return (Number(left && left.typeID) || 0) - (Number(right && right.typeID) || 0);
 }
 
+function isPublishedMineralRow(row) {
+  const typeID = Number(row && row.typeID) || 0;
+  const groupID = Number(row && row.groupID) || 0;
+  const name = String(row && row.name || "").trim();
+  if (typeID <= 0 || groupID !== 18 || row.published === false) {
+    return false;
+  }
+
+  return !/\bunused\b/i.test(name);
+}
+
+function isPublishedOreRow(row) {
+  const typeID = Number(row && row.typeID) || 0;
+  const categoryID = Number(row && row.categoryID) || 0;
+  const groupName = String(row && row.groupName || "").trim().toLowerCase();
+  const name = String(row && row.name || "").trim().toLowerCase();
+  if (typeID <= 0 || categoryID !== 25 || row.published === false) {
+    return false;
+  }
+
+  if (
+    groupName.includes("ice") ||
+    groupName.includes("decorative") ||
+    groupName.includes("non-interactable") ||
+    /\bunused\b/i.test(name)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function getMineralsSeedPlan() {
+  if (cachedMineralsSeedPlan) {
+    return cachedMineralsSeedPlan;
+  }
+
+  const rows = readStaticRows(TABLE.ITEM_TYPES) || [];
+  const mineralTypes = dedupeItemTypes(
+    rows
+      .filter(isPublishedMineralRow)
+      .map((row) => resolveItemByTypeID(row.typeID))
+      .filter(Boolean),
+  ).sort(sortItemTypesByName);
+  const oreTypes = dedupeItemTypes(
+    rows
+      .filter(isPublishedOreRow)
+      .map((row) => resolveItemByTypeID(row.typeID))
+      .filter(Boolean),
+  ).sort(sortItemTypesByName);
+
+  cachedMineralsSeedPlan = {
+    mineralTypes,
+    oreTypes,
+    allTypeIDs: new Set([
+      ...mineralTypes.map((itemType) => Number(itemType.typeID) || 0),
+      ...oreTypes.map((itemType) => Number(itemType.typeID) || 0),
+    ]),
+    entries: [
+      ...mineralTypes.map((itemType) => ({
+        itemType,
+        quantity: MINERALS_SEED_QUANTITY,
+      })),
+      ...oreTypes.map((itemType) => ({
+        itemType,
+        quantity: MINERALS_SEED_QUANTITY,
+      })),
+    ],
+  };
+  return cachedMineralsSeedPlan;
+}
+
 function getGmWeaponsSeedPlan() {
   if (cachedGmWeaponsSeedPlan) {
     return cachedGmWeaponsSeedPlan;
@@ -3533,6 +4324,34 @@ function grantStationHangarBatchAndSyncSession(session, stationID, entries = [])
     );
   }
   return result;
+}
+
+function removeStationHangarBatchAndSyncSession(session, stationID, itemIDs = []) {
+  const changes = [];
+  for (const rawItemID of Array.isArray(itemIDs) ? itemIDs : []) {
+    const itemID = Number(rawItemID) || 0;
+    if (itemID <= 0) {
+      continue;
+    }
+    const removeResult = removeInventoryItem(itemID, {
+      removeContents: true,
+    });
+    if (!removeResult.success) {
+      return removeResult;
+    }
+    changes.push(...((removeResult.data && removeResult.data.changes) || []));
+  }
+
+  if (changes.length > 0) {
+    syncStationHangarChangesToSession(session, stationID, changes);
+  }
+
+  return {
+    success: true,
+    data: {
+      changes,
+    },
+  };
 }
 
 function continueGmWeaponsSeedJob(job, chatHub) {
@@ -4624,21 +5443,62 @@ function formatTimeDilationFactor(value) {
   return `${factor.toFixed(3)} (${Math.round(factor * 1000) / 10}%)`;
 }
 
+function formatConnectedCharacterLocation(session) {
+  const currentSystemID = getSessionCurrentSolarSystemID(session);
+  const currentSystem = worldData.getSolarSystemByID(currentSystemID);
+  const systemLabel =
+    (currentSystem && currentSystem.solarSystemName) ||
+    (currentSystemID ? `system ${currentSystemID}` : "unknown system");
+
+  const dockedLocationID = getSessionDockedStationID(session);
+  if (!dockedLocationID) {
+    return systemLabel;
+  }
+
+  const station = worldData.getStationByID(dockedLocationID);
+  const structure = station ? null : worldData.getStructureByID(dockedLocationID);
+  const dockedLocationLabel =
+    (station && station.stationName) ||
+    (structure && (structure.itemName || structure.name)) ||
+    `${getDockedLocationKind(session)} ${dockedLocationID}`;
+
+  return `${systemLabel} | Docked: ${dockedLocationLabel}`;
+}
 
 function getConnectedCharacterSummary() {
-  const connected = sessionRegistry
-    .getSessions()
-    .filter((session) => Number(session.characterID || 0) > 0)
-    .map(
-      (session) =>
-        `${session.characterName || session.userName || "Unknown"}(${session.characterID})`,
-    );
+  const preferredSessionsByCharacterID = new Map();
+  for (const session of sessionRegistry.getSessions()) {
+    const characterID = Number(session && (session.characterID || session.charID || session.charid || 0));
+    if (!Number.isInteger(characterID) || characterID <= 0) {
+      continue;
+    }
+
+    const current = preferredSessionsByCharacterID.get(characterID) || null;
+    if (sessionRegistry.isPreferredCharacterSession(session, current)) {
+      preferredSessionsByCharacterID.set(characterID, session);
+    }
+  }
+
+  const connected = Array.from(preferredSessionsByCharacterID.values())
+    .sort((left, right) => {
+      const leftName = String(left.characterName || left.userName || "Unknown").toLowerCase();
+      const rightName = String(right.characterName || right.userName || "Unknown").toLowerCase();
+      if (leftName !== rightName) {
+        return leftName.localeCompare(rightName);
+      }
+      return Number(left.characterID || 0) - Number(right.characterID || 0);
+    })
+    .map((session) => {
+      const characterName = session.characterName || session.userName || "Unknown";
+      const characterID = Number(session.characterID || session.charID || session.charid || 0) || 0;
+      return `${characterName}(${characterID}) - ${formatConnectedCharacterLocation(session)}`;
+    });
 
   if (connected.length === 0) {
     return "No active characters are connected.";
   }
 
-  return `Connected characters (${connected.length}): ${connected.join(", ")}`;
+  return `Connected characters (${connected.length}):\n${connected.join("\n")}`;
 }
 
 function getSessionSummary(session) {
@@ -4784,6 +5644,15 @@ function handleGiveItemCommand(session, argumentText, chatHub, options) {
     );
   }
 
+  if (!Number.isSafeInteger(normalizedAmount)) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Item amount is too large. Use a positive whole number up to 9,007,199,254,740,991.",
+    );
+  }
+
   if (!itemLookup.success) {
     const message =
       itemLookup.errorMsg === "ITEM_NOT_FOUND"
@@ -4805,6 +5674,9 @@ function handleGiveItemCommand(session, argumentText, chatHub, options) {
       message = "Select a character before using /giveitem.";
     } else if (giveResult.errorMsg === "ITEM_TYPE_NOT_FOUND") {
       message = `Item type not found: ${trimmedArgument}.`;
+    } else if (giveResult.errorMsg === "ITEM_QUANTITY_OUT_OF_RANGE") {
+      message =
+        "Item amount is too large for a safe inventory operation. Use a positive whole number up to 9,007,199,254,740,991.";
     }
     return handledResult(chatHub, session, options, message);
   }
@@ -4815,12 +5687,180 @@ function handleGiveItemCommand(session, argumentText, chatHub, options) {
   const summary = stackMode
     ? `${normalizedAmount.toLocaleString("en-US")}x ${itemLookup.match.name}`
     : `${itemLookup.match.name} x${normalizedAmount.toLocaleString("en-US")}`;
+  const splitNote =
+    giveResult.data &&
+    giveResult.data.stackSplitApplied === true &&
+    changedItems.length > 1
+      ? ` Split across ${changedItems.length.toLocaleString("en-US")} client-safe stacks to respect the inventory wire limit.`
+      : "";
 
   return handledResult(
     chatHub,
     session,
     options,
-    `${summary}${itemLookup.match.published === false ? " [unpublished]" : ""} was added to your station hangar.`,
+    `${summary}${itemLookup.match.published === false ? " [unpublished]" : ""} was added to your station hangar.${splitNote}`,
+  );
+}
+
+function handleCreateItemCommand(session, argumentText, chatHub, options, commandName = "createitem") {
+  const slashCommand = `/${String(commandName || "createitem").trim() || "createitem"}`;
+  const trimmedArgument = String(argumentText || "").trim();
+  if (!trimmedArgument) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Usage: ${slashCommand} <item name|typeID> [amount]`,
+    );
+  }
+
+  let itemLookup = resolveItemByName(trimmedArgument);
+  let normalizedAmount = 1;
+
+  if (!itemLookup.success) {
+    const splitLookup = splitTrailingAmount(trimmedArgument);
+    if (splitLookup.lookupText && splitLookup.amount !== null) {
+      const splitMatch = resolveItemByName(splitLookup.lookupText);
+      if (splitMatch.success) {
+        itemLookup = splitMatch;
+        normalizedAmount = normalizePositiveInteger(Math.trunc(splitLookup.amount));
+      }
+    }
+  }
+
+  if (!normalizedAmount) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Item amount must be a positive whole number.",
+    );
+  }
+
+  if (!Number.isSafeInteger(normalizedAmount)) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Item amount is too large. Use a positive whole number up to 9,007,199,254,740,991.",
+    );
+  }
+
+  if (!itemLookup.success) {
+    const message =
+      itemLookup.errorMsg === "ITEM_NOT_FOUND"
+        ? `Item not found: ${trimmedArgument}.${formatSuggestions(itemLookup.suggestions)}`
+        : `Item name is ambiguous: ${trimmedArgument}.${formatSuggestions(itemLookup.suggestions)}`;
+    return handledResult(chatHub, session, options, message.trim());
+  }
+
+  const giveResult = giveItemToHangarForSession(
+    session,
+    itemLookup.match,
+    normalizedAmount,
+  );
+  if (!giveResult.success) {
+    let message = "Item creation failed.";
+    if (giveResult.errorMsg === "DOCK_REQUIRED") {
+      message = `You must be docked before using ${slashCommand}.`;
+    } else if (giveResult.errorMsg === "CHARACTER_NOT_SELECTED") {
+      message = `Select a character before using ${slashCommand}.`;
+    } else if (giveResult.errorMsg === "ITEM_TYPE_NOT_FOUND") {
+      message = `Item type not found: ${trimmedArgument}.`;
+    } else if (giveResult.errorMsg === "ITEM_QUANTITY_OUT_OF_RANGE") {
+      message =
+        "Item amount is too large for a safe inventory operation. Use a positive whole number up to 9,007,199,254,740,991.";
+    }
+    return handledResult(chatHub, session, options, message);
+  }
+
+  const changedItems = Array.isArray(giveResult.data.items) ? giveResult.data.items : [];
+  const firstItemID = Number(changedItems[0] && changedItems[0].itemID) || 0;
+  if (!firstItemID) {
+    return handledResult(chatHub, session, options, "Item creation failed.");
+  }
+
+  return {
+    handled: true,
+    message: firstItemID,
+  };
+}
+
+function handleMineralsCommand(session, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /minerals.",
+    );
+  }
+
+  const stationID = Number(getDockedLocationID(session) || 0) || 0;
+  if (stationID <= 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "You must be docked before using /minerals.",
+    );
+  }
+
+  const plan = getMineralsSeedPlan();
+  if (!plan.entries.length) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "No published mineral or ore types matched the /minerals filter in local reference data.",
+    );
+  }
+
+  const existingItemIDs = listOwnedItems(Number(session.characterID) || 0, {
+    locationID: stationID,
+    flagID: ITEM_FLAGS.HANGAR,
+  })
+    .filter((item) => plan.allTypeIDs.has(Number(item && item.typeID) || 0))
+    .map((item) => Number(item && item.itemID) || 0)
+    .filter((itemID) => itemID > 0);
+
+  const clearResult = removeStationHangarBatchAndSyncSession(
+    session,
+    stationID,
+    existingItemIDs,
+  );
+  if (!clearResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Mineral and ore reset failed while clearing existing test stocks.",
+    );
+  }
+
+  const grantResult = grantStationHangarBatchAndSyncSession(
+    session,
+    stationID,
+    plan.entries,
+  );
+  if (!grantResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Mineral and ore grant failed.",
+    );
+  }
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    [
+      `Re-seeded ${plan.mineralTypes.length.toLocaleString("en-US")} mineral stacks and ${plan.oreTypes.length.toLocaleString("en-US")} ore stacks in your station hangar.`,
+      `Each stack now uses ${MINERALS_SEED_QUANTITY.toLocaleString("en-US")} units so the retail reprocessing UI stays stable.`,
+      "Existing mineral/ore test stocks in the current station hangar were replaced. Includes published raw/compressed ore families and excludes ice plus decorative/non-interactable asteroid rows.",
+    ].join(" "),
   );
 }
 
@@ -5538,6 +6578,12 @@ function handleNpcCommand(session, argumentText, chatHub, options) {
       message = `NPC profile or pool is ambiguous: ${parsedArguments.query}.${suggestions}`;
     } else if (result.errorMsg === "NPC_DEFINITION_INCOMPLETE") {
       message = "The selected NPC profile is missing authored loadout or behavior data.";
+    } else if (result.errorMsg === "NPC_NATIVE_NO_FREE_SLOT") {
+      message = "The selected NPC profile has an authored module loadout that does not fit the hull under the current slot resolver.";
+    } else if (result.errorMsg === "NPC_NATIVE_MODULE_TYPE_NOT_FOUND") {
+      message = "The selected NPC profile references a module type that is missing from local item data.";
+    } else if (result.errorMsg === "NPC_NATIVE_CAPABILITY_TYPE_NOT_FOUND") {
+      message = "The selected NPC profile references an NPC capability module type that is missing from local item data.";
     } else if (result.errorMsg === "POOL_EMPTY") {
       message = `The selected NPC pool has no spawnable authored entries.${suggestions}`.trim();
     } else {
@@ -5599,6 +6645,12 @@ function handleMissileNpcCommand(session, argumentText, chatHub, options) {
       message = "The selected /mnpc profile is not missile-capable.";
     } else if (result.errorMsg === "NPC_DEFINITION_INCOMPLETE") {
       message = "The selected missile NPC profile is missing authored loadout or behavior data.";
+    } else if (result.errorMsg === "NPC_NATIVE_NO_FREE_SLOT") {
+      message = "The selected missile NPC profile has an authored module loadout that does not fit the hull under the current slot resolver.";
+    } else if (result.errorMsg === "NPC_NATIVE_MODULE_TYPE_NOT_FOUND") {
+      message = "The selected missile NPC profile references a module type that is missing from local item data.";
+    } else if (result.errorMsg === "NPC_NATIVE_CAPABILITY_TYPE_NOT_FOUND") {
+      message = "The selected missile NPC profile references an NPC capability module type that is missing from local item data.";
     } else if (result.errorMsg === "POOL_EMPTY") {
       message = `The selected missile NPC pool has no spawnable authored entries.${suggestions}`.trim();
     } else {
@@ -5612,6 +6664,16 @@ function handleMissileNpcCommand(session, argumentText, chatHub, options) {
     session,
     options,
     formatNpcSpawnSummary(result, "/mnpc"),
+  );
+}
+
+function handleCapitalNpcCommand(session, argumentText, chatHub, options, commandName = "capnpc") {
+  const result = executeCapitalNpcCommand(session, commandName, argumentText);
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    result && result.message ? result.message : `${commandName} completed.`,
   );
 }
 
@@ -6119,6 +7181,50 @@ function handleHealCommand(session, chatHub, options) {
   );
 }
 
+function handleDamageCommand(session, argumentText, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /dmg.",
+    );
+  }
+
+  const presetResult = resolveDamageTestPreset(argumentText);
+  if (!presetResult.success || !presetResult.preset) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Usage: /dmg [light|medium|heavy]",
+    );
+  }
+
+  const damageResult = damageDockedShipForSession(session, presetResult.preset);
+  if (!damageResult || !damageResult.success || !damageResult.data) {
+    const message =
+      damageResult && damageResult.errorMsg === "NOT_DOCKED"
+        ? "Dock first before using /dmg so the repair flow stays easy to test."
+        : "Active docked ship not found.";
+    return handledResult(chatHub, session, options, message);
+  }
+
+  const moduleCount = Number(damageResult.data.moduleCount || 0);
+  const presetLabel = damageResult.data.presetLabel || "medium";
+  const moduleText =
+    moduleCount > 0
+      ? ` and ${formatCountLabel(moduleCount, "fitted module", "fitted modules")}`
+      : "";
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Applied ${presetLabel} test damage to your active ship${moduleText}.`,
+  );
+}
+
 function buildCrimewatchStatusMessage(session) {
   const characterID = session && session.characterID ? session.characterID : 0;
   const now = getCrimewatchReferenceMsForSession(session);
@@ -6533,11 +7639,12 @@ function handleFireCommand(session, argumentText, chatHub, options) {
       groupID: shipLookup.match.groupID,
       categoryID: shipLookup.match.categoryID || 6,
       itemName: `${shipLookup.match.name} Dummy`,
-      ownerID: Number(session.characterID || session.charid || 0) || 0,
+      ownerID: COMBAT_DUMMY_OWNER_ID,
       characterID: 0,
-      corporationID: Number(session.corporationID || 0) || 0,
-      allianceID: Number(session.allianceID || 0) || 0,
-      warFactionID: Number(session.warFactionID || 0) || 0,
+      corporationID: COMBAT_DUMMY_CORPORATION_ID,
+      allianceID: 0,
+      warFactionID: 0,
+      npcEntityType: "npc",
       ...buildOffsetSpaceSpawnState(anchorEntity, 20_000),
       conditionState: {
         damage: 0,
@@ -6652,11 +7759,12 @@ function handleFire2Command(session, argumentText, chatHub, options) {
         groupID: shipType.groupID,
         categoryID: shipType.categoryID || 6,
         itemName: `${shipType.name} Fleet Dummy`,
-        ownerID: Number(session.characterID || session.charid || 0) || 0,
+        ownerID: COMBAT_DUMMY_OWNER_ID,
         characterID: 0,
-        corporationID: Number(session.corporationID || 0) || 0,
-        allianceID: Number(session.allianceID || 0) || 0,
-        warFactionID: Number(session.warFactionID || 0) || 0,
+        corporationID: COMBAT_DUMMY_CORPORATION_ID,
+        allianceID: 0,
+        warFactionID: 0,
+        npcEntityType: "npc",
         ...entry.spawnState,
         conditionState: {
           damage: 0,
@@ -6714,8 +7822,14 @@ function handleGmSkillsCommand(session, chatHub, options) {
     );
   }
 
+  const previousQueueSnapshot = getQueueSnapshot(session.characterID);
   const previousSkillMap = getCharacterSkillMap(session.characterID);
   const grantedSkills = ensureCharacterUnpublishedSkills(session.characterID);
+  reconcileQueueForSkillMutation(
+    session.characterID,
+    "prune_satisfied",
+  );
+  const nextQueueSnapshot = getQueueSnapshot(session.characterID);
   const targetDescriptor = {
     characterID: session.characterID,
     record: getCharacterRecord(session.characterID),
@@ -6726,6 +7840,11 @@ function handleGmSkillsCommand(session, chatHub, options) {
     targetDescriptor,
     grantedSkills,
     previousSkillMap,
+    {
+      queueSnapshot: queueSnapshotChanged(previousQueueSnapshot, nextQueueSnapshot)
+        ? nextQueueSnapshot
+        : undefined,
+    },
   );
   const polarisSkill = unpublishedSkillTypes.find((skillType) => Number(skillType.typeID) === 9955);
   const sampleNames = grantedSkills
@@ -6767,8 +7886,14 @@ function handleAllSkillsCommand(session, chatHub, options) {
     );
   }
 
+  const previousQueueSnapshot = getQueueSnapshot(session.characterID);
   const previousSkillMap = getCharacterSkillMap(session.characterID);
   const grantedSkills = ensureCharacterPublishedSkills(session.characterID);
+  reconcileQueueForSkillMutation(
+    session.characterID,
+    "prune_satisfied",
+  );
+  const nextQueueSnapshot = getQueueSnapshot(session.characterID);
   const targetDescriptor = {
     characterID: session.characterID,
     record: getCharacterRecord(session.characterID),
@@ -6779,6 +7904,11 @@ function handleAllSkillsCommand(session, chatHub, options) {
     targetDescriptor,
     grantedSkills,
     previousSkillMap,
+    {
+      queueSnapshot: queueSnapshotChanged(previousQueueSnapshot, nextQueueSnapshot)
+        ? nextQueueSnapshot
+        : undefined,
+    },
   );
   const sampleNames = grantedSkills
     .slice(0, 5)
@@ -6795,6 +7925,439 @@ function handleAllSkillsCommand(session, chatHub, options) {
         : `No published skills needed changes. You already have ${publishedSkillTypes.length}/${publishedSkillTypes.length}.`,
       sampleNames ? `Updated: ${sampleNames}.` : null,
     ].filter(Boolean).join(" "),
+  );
+}
+
+function handleBackInTimeCommand(session, argumentText, chatHub, options) {
+  const parsed = parseBackInTimeArguments(argumentText);
+  if (!parsed.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Usage: /backintime [me|characterID|character name]",
+    );
+  }
+
+  const targetResult = resolveCharacterTargetDescriptor(
+    session,
+    parsed.data.targetToken,
+  );
+  if (!targetResult.success) {
+    const message =
+      targetResult.errorMsg === "CHARACTER_NOT_SELECTED"
+        ? "Select a character before using /backintime me."
+        : `Character not found: ${parsed.data.targetToken}. Use me, a character ID, or an exact character name.`;
+    return handledResult(chatHub, session, options, message);
+  }
+
+  const targetDescriptor = targetResult.data;
+  const resetResult = resetCharacterSkillsToStarterProfile(
+    targetDescriptor.characterID,
+  );
+  if (!resetResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      resetResult.errorMsg === "STARTER_PROFILE_NOT_FOUND"
+        ? "No starter skill profile exists for that character's bloodline/race."
+        : "Failed to restore starter skills.",
+    );
+  }
+
+  const starterReset = resetResult.data;
+  refreshLiveCharacterSkillSession(
+    targetDescriptor.session,
+    targetDescriptor,
+    starterReset.changedSkillRecords,
+    starterReset.previousSkillMap,
+    {
+      removedSkillRecords: starterReset.removedSkillRecords,
+      emitSkillLevelsTrained: false,
+      queueSnapshot: starterReset.queueSnapshot,
+      freeSkillPoints: starterReset.freeSkillPoints,
+    },
+  );
+
+  const targetLabel = formatCharacterTargetLabel(targetDescriptor);
+  const starterProfile = starterReset.starterProfile;
+  const queueCleared =
+    starterReset.queueSnapshot &&
+    Array.isArray(starterReset.queueSnapshot.queueEntries) &&
+    starterReset.queueSnapshot.queueEntries.length === 0;
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    [
+      `Reset ${targetLabel} to the ${starterProfile.raceName} starter skill bundle for ${starterProfile.bloodlineName}.`,
+      `Restored ${starterProfile.starterSkills.length} starter skill records.`,
+      starterReset.removedSkillRecords.length > 0
+        ? `Removed ${starterReset.removedSkillRecords.length} non-starter skill records.`
+        : "No non-starter skill records needed removal.",
+      `Total SP is now ${Number(starterReset.totalSkillPoints || 0).toLocaleString()} and free SP is ${Number(starterReset.freeSkillPoints || 0).toLocaleString()}.`,
+      queueCleared ? "Training queue cleared." : null,
+    ].filter(Boolean).join(" "),
+  );
+}
+
+function resolveExpertSystemFromTokens(tokens, startIndex = 0) {
+  const sourceTokens = Array.isArray(tokens) ? tokens : [];
+  for (let endIndex = sourceTokens.length; endIndex > startIndex; endIndex -= 1) {
+    const queryText = sourceTokens.slice(startIndex, endIndex).join(" ").trim();
+    if (!queryText) {
+      continue;
+    }
+    const resolveResult = resolveExpertSystemCatalogQuery(queryText, {
+      includeHidden: true,
+      includeRetired: true,
+    });
+    if (resolveResult.success) {
+      return {
+        success: true,
+        data: {
+          expertSystem: resolveResult.data,
+          consumedTokens: endIndex - startIndex,
+          tailTokens: sourceTokens.slice(endIndex),
+        },
+      };
+    }
+    if (endIndex === startIndex + 1) {
+      return resolveResult;
+    }
+  }
+
+  return {
+    success: false,
+    errorMsg: "EXPERT_SYSTEM_REQUIRED",
+    suggestions: [],
+  };
+}
+
+function parseExpertSystemTail(tailTokens = []) {
+  const targetTokens = [];
+  let durationDays = null;
+  for (const token of Array.isArray(tailTokens) ? tailTokens : []) {
+    const text = String(token || "").trim();
+    if (!text) {
+      continue;
+    }
+    const durationMatch = /^(?:days|duration)=(\d+(?:\.\d+)?)$/i.exec(text);
+    if (durationMatch) {
+      const parsedDays = Number(durationMatch[1]);
+      if (Number.isFinite(parsedDays) && parsedDays > 0) {
+        durationDays = parsedDays;
+      }
+      continue;
+    }
+    targetTokens.push(text);
+  }
+
+  return {
+    targetToken: targetTokens.join(" ").trim() || "me",
+    durationDays,
+  };
+}
+
+function resolveExpertSystemCommandTarget(session, targetToken) {
+  const targetResult = resolveCharacterTargetDescriptor(session, targetToken || "me");
+  if (targetResult.success) {
+    return targetResult;
+  }
+
+  const message =
+    targetResult.errorMsg === "CHARACTER_NOT_SELECTED"
+      ? "Select a character first, or pass an explicit character target."
+      : `Character not found: ${targetToken || "me"}. Use me, a character ID, or an exact character name.`;
+  return {
+    ...targetResult,
+    message,
+  };
+}
+
+function formatExpertSystemSummary(expertSystem) {
+  if (!expertSystem) {
+    return "Expert System";
+  }
+  return `${expertSystem.name}(${expertSystem.typeID})`;
+}
+
+function formatExpertSystemStatusLine(entry) {
+  const expertSystem = entry && entry.expertSystem
+    ? entry.expertSystem
+    : getExpertSystemByTypeID(entry && entry.typeID);
+  const expiresAtMs = Number(entry && entry.expiresAtMs) || 0;
+  const remainingMs = Math.max(0, expiresAtMs - Date.now());
+  const remainingDays = remainingMs / (24 * 60 * 60 * 1000);
+  return [
+    formatExpertSystemSummary(expertSystem || { typeID: entry && entry.typeID }),
+    expiresAtMs > 0 ? `expires ${new Date(expiresAtMs).toISOString()}` : null,
+    expiresAtMs > 0 ? `${remainingDays.toFixed(1)} days left` : null,
+  ].filter(Boolean).join(" - ");
+}
+
+function handleExpertSystemCommand(session, argumentText, chatHub, options) {
+  const tokens = tokenizeQuotedArguments(argumentText);
+  const subcommand = normalizeCommandName(tokens[0] || "status");
+
+  if (subcommand === "help") {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Usage: /expertsystem list | inspect <type|name> | status [me|characterID|name] | add <type|name> [target] [days=N] | remove <type|name|all> [target] | clear [target] | giveitem <type|name> [qty] | consume <itemID>",
+    );
+  }
+
+  if (subcommand === "list") {
+    const expertSystems = listExpertSystems({
+      includeHidden: true,
+      includeRetired: true,
+    });
+    const visibleCount = expertSystems.filter((entry) => !entry.hidden && !entry.retired).length;
+    const sample = expertSystems
+      .slice(0, 16)
+      .map(formatExpertSystemSummary)
+      .join(", ");
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Expert Systems authority contains ${expertSystems.length} systems (${visibleCount} normally activatable). ${sample ? `First entries: ${sample}.` : ""}`,
+    );
+  }
+
+  if (subcommand === "status") {
+    const targetText = tokens.slice(1).join(" ").trim() || "me";
+    const targetResult = resolveExpertSystemCommandTarget(session, targetText);
+    if (!targetResult.success) {
+      return handledResult(chatHub, session, options, targetResult.message);
+    }
+    const targetDescriptor = targetResult.data;
+    const status = getExpertSystemStatus(targetDescriptor.characterID);
+    const activeEntries = Array.isArray(status.activeEntries) ? status.activeEntries : [];
+    const targetLabel = formatCharacterTargetLabel(targetDescriptor);
+    if (activeEntries.length === 0) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `${targetLabel} has no active Expert Systems. Catalog count: ${status.catalogCount}.`,
+      );
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `${targetLabel} has ${activeEntries.length} active Expert Systems: ${activeEntries.map(formatExpertSystemStatusLine).join("; ")}.`,
+    );
+  }
+
+  if (subcommand === "inspect" || subcommand === "info") {
+    const expertResult = resolveExpertSystemFromTokens(tokens, 1);
+    if (!expertResult.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `Expert System not found.${formatSuggestions(expertResult.suggestions)}`,
+      );
+    }
+    const expertSystem = expertResult.data.expertSystem;
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      [
+        `${formatExpertSystemSummary(expertSystem)} lasts ${expertSystem.durationDays} days.`,
+        `Skills granted: ${expertSystem.skillsGranted.length}.`,
+        expertSystem.associatedTypeIDs.length > 0
+          ? `Associated item types: ${expertSystem.associatedTypeIDs.slice(0, 12).join(", ")}${expertSystem.associatedTypeIDs.length > 12 ? ", ..." : ""}.`
+          : null,
+        expertSystem.hidden ? "Hidden." : null,
+        expertSystem.retired ? "Retired." : null,
+      ].filter(Boolean).join(" "),
+    );
+  }
+
+  if (subcommand === "add" || subcommand === "install") {
+    const expertResult = resolveExpertSystemFromTokens(tokens, 1);
+    if (!expertResult.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `Expert System not found.${formatSuggestions(expertResult.suggestions)}`,
+      );
+    }
+    const tail = parseExpertSystemTail(expertResult.data.tailTokens);
+    const targetResult = resolveExpertSystemCommandTarget(session, tail.targetToken);
+    if (!targetResult.success) {
+      return handledResult(chatHub, session, options, targetResult.message);
+    }
+    const expertSystem = expertResult.data.expertSystem;
+    const targetDescriptor = targetResult.data;
+    const installResult = installExpertSystemForCharacter(
+      targetDescriptor.characterID,
+      expertSystem.typeID,
+      {
+        session: targetDescriptor.session,
+        force: true,
+        grantReason: "gm",
+        durationDays: tail.durationDays || undefined,
+      },
+    );
+    if (!installResult.success) {
+      return handledResult(chatHub, session, options, installResult.message || "Expert System install failed.");
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Installed ${formatExpertSystemSummary(expertSystem)} for ${formatCharacterTargetLabel(targetDescriptor)}${installResult.data.isTopUp ? " as a top-up" : ""}.`,
+    );
+  }
+
+  if (subcommand === "remove" || subcommand === "uninstall") {
+    if (normalizeCommandName(tokens[1] || "") === "all") {
+      const targetText = tokens.slice(2).join(" ").trim() || "me";
+      const targetResult = resolveExpertSystemCommandTarget(session, targetText);
+      if (!targetResult.success) {
+        return handledResult(chatHub, session, options, targetResult.message);
+      }
+      const clearResult = clearExpertSystemsForCharacter(targetResult.data.characterID, {
+        session: targetResult.data.session,
+      });
+      if (!clearResult.success) {
+        return handledResult(chatHub, session, options, clearResult.message || "Expert System clear failed.");
+      }
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `Removed ${Array.isArray(clearResult.data) ? clearResult.data.length : 0} Expert Systems from ${formatCharacterTargetLabel(targetResult.data)}.`,
+      );
+    }
+
+    const expertResult = resolveExpertSystemFromTokens(tokens, 1);
+    if (!expertResult.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `Expert System not found.${formatSuggestions(expertResult.suggestions)}`,
+      );
+    }
+    const tail = parseExpertSystemTail(expertResult.data.tailTokens);
+    const targetResult = resolveExpertSystemCommandTarget(session, tail.targetToken);
+    if (!targetResult.success) {
+      return handledResult(chatHub, session, options, targetResult.message);
+    }
+    const expertSystem = expertResult.data.expertSystem;
+    const removeResult = removeExpertSystemFromCharacter(
+      targetResult.data.characterID,
+      expertSystem.typeID,
+      { session: targetResult.data.session },
+    );
+    if (!removeResult.success) {
+      return handledResult(chatHub, session, options, removeResult.message || "Expert System removal failed.");
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      removeResult.removed
+        ? `Removed ${formatExpertSystemSummary(expertSystem)} from ${formatCharacterTargetLabel(targetResult.data)}.`
+        : `${formatCharacterTargetLabel(targetResult.data)} did not have ${formatExpertSystemSummary(expertSystem)} installed.`,
+    );
+  }
+
+  if (subcommand === "clear") {
+    const targetText = tokens.slice(1).join(" ").trim() || "me";
+    const targetResult = resolveExpertSystemCommandTarget(session, targetText);
+    if (!targetResult.success) {
+      return handledResult(chatHub, session, options, targetResult.message);
+    }
+    const clearResult = clearExpertSystemsForCharacter(targetResult.data.characterID, {
+      session: targetResult.data.session,
+    });
+    if (!clearResult.success) {
+      return handledResult(chatHub, session, options, clearResult.message || "Expert System clear failed.");
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Cleared ${Array.isArray(clearResult.data) ? clearResult.data.length : 0} Expert Systems from ${formatCharacterTargetLabel(targetResult.data)}.`,
+    );
+  }
+
+  if (subcommand === "giveitem") {
+    const expertResult = resolveExpertSystemFromTokens(tokens, 1);
+    if (!expertResult.success) {
+      return handledResult(
+        chatHub,
+        session,
+        options,
+        `Expert System not found.${formatSuggestions(expertResult.suggestions)}`,
+      );
+    }
+    const quantityToken = expertResult.data.tailTokens.find((token) => parseStrictInteger(token) !== null);
+    const quantity = Math.max(1, parseStrictInteger(quantityToken) || 1);
+    const expertSystem = expertResult.data.expertSystem;
+    const itemType = resolveItemByTypeID(expertSystem.typeID) || expertSystem;
+    const giveResult = giveItemToHangarForSession(
+      session,
+      itemType,
+      quantity,
+    );
+    if (!giveResult.success) {
+      const message =
+        giveResult.errorMsg === "DOCK_REQUIRED"
+          ? "You must be docked before using /expertsystem giveitem."
+          : giveResult.errorMsg === "CHARACTER_NOT_SELECTED"
+            ? "Select a character before using /expertsystem giveitem."
+            : "Expert System item grant failed.";
+      return handledResult(chatHub, session, options, message);
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Placed ${quantity}x ${formatExpertSystemSummary(expertSystem)} item in your hangar.`,
+    );
+  }
+
+  if (subcommand === "consume") {
+    const itemID = normalizePositiveInteger(tokens[1]);
+    if (!itemID) {
+      return handledResult(chatHub, session, options, "Usage: /expertsystem consume <itemID>");
+    }
+    const characterID = normalizePositiveInteger(session && session.characterID);
+    if (!characterID) {
+      return handledResult(chatHub, session, options, "Select a character before consuming an Expert System.");
+    }
+    const consumeResult = consumeExpertSystemItem(characterID, itemID, session, {
+      throwOnError: false,
+    });
+    if (!consumeResult.success) {
+      return handledResult(chatHub, session, options, consumeResult.message || "Expert System consume failed.");
+    }
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Consumed ${formatExpertSystemSummary(consumeResult.data.expertSystem)} and installed it on your character.`,
+    );
+  }
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    "Usage: /expertsystem list | inspect <type|name> | status [target] | add <type|name> [target] [days=N] | remove <type|name|all> [target] | clear [target] | giveitem <type|name> [qty] | consume <itemID>",
   );
 }
 
@@ -6833,6 +8396,7 @@ function handleGiveSkillCommand(session, argumentText, chatHub, options) {
 
   const targetDescriptor = targetResult.data;
   const skillDescriptor = skillResult.data;
+  const previousQueueSnapshot = getQueueSnapshot(targetDescriptor.characterID);
   const previousSkillMap = getCharacterSkillMap(targetDescriptor.characterID);
   const grantResult = applySkillGrantToCharacter(
     targetDescriptor,
@@ -6850,11 +8414,26 @@ function handleGiveSkillCommand(session, argumentText, chatHub, options) {
   }
 
   const changedSkills = dedupeSkillRecords(grantResult.data.changedSkills);
+  const clearQueueForMutation = skillMutationLowersExistingLevels(
+    changedSkills,
+    previousSkillMap,
+  );
+  const queueResult = reconcileQueueForSkillMutation(
+    targetDescriptor.characterID,
+    clearQueueForMutation ? "clear" : "prune_satisfied",
+  );
+  const nextQueueSnapshot = queueResult.snapshot || getQueueSnapshot(targetDescriptor.characterID);
   refreshLiveCharacterSkillSession(
     targetDescriptor.session,
     targetDescriptor,
     changedSkills,
     previousSkillMap,
+    {
+      emitSkillLevelsTrained: !clearQueueForMutation,
+      queueSnapshot: queueSnapshotChanged(previousQueueSnapshot, nextQueueSnapshot)
+        ? nextQueueSnapshot
+        : undefined,
+    },
   );
 
   const targetLabel = formatCharacterTargetLabel(targetDescriptor);
@@ -6943,6 +8522,7 @@ function handleRemoveSkillCommand(session, argumentText, chatHub, options) {
 
   const targetDescriptor = targetResult.data;
   const skillDescriptor = skillResult.data;
+  const previousQueueSnapshot = getQueueSnapshot(targetDescriptor.characterID);
   const previousSkillMap = getCharacterSkillMap(targetDescriptor.characterID);
   const removalResult = applySkillRemovalToCharacter(targetDescriptor, skillDescriptor);
   if (!removalResult.success) {
@@ -6955,13 +8535,22 @@ function handleRemoveSkillCommand(session, argumentText, chatHub, options) {
   }
 
   const changedSkills = dedupeSkillRecords(removalResult.data.changedSkills);
+  const queueResult = reconcileQueueForSkillMutation(
+    targetDescriptor.characterID,
+    "clear",
+  );
+  const nextQueueSnapshot = queueResult.snapshot || getQueueSnapshot(targetDescriptor.characterID);
   refreshLiveCharacterSkillSession(
     targetDescriptor.session,
     targetDescriptor,
-    changedSkills,
+    [],
     previousSkillMap,
     {
       removed: true,
+      removedSkillRecords: changedSkills,
+      queueSnapshot: queueSnapshotChanged(previousQueueSnapshot, nextQueueSnapshot)
+        ? nextQueueSnapshot
+        : undefined,
     },
   );
 
@@ -7392,146 +8981,12 @@ function handleTransportCommand(session, argumentText, chatHub, options) {
   const destinationLabel = formatTransportDestinationLabel(destination);
 
   if (targetDescriptor.kind === "session") {
-    const targetSession = targetDescriptor.session;
-    if (!targetSession || !targetSession.characterID) {
-      return handledResult(
-        chatHub,
-        session,
-        options,
-        "Transport target session is not available.",
-      );
-    }
-
-    let crossedLocationBoundary = false;
-
-    if (destination.kind === "solarSystem") {
-      const result = jumpSessionToSolarSystem(
-        targetSession,
-        destination.solarSystemID,
-      );
-      if (!result.success) {
-        return handledResult(
-          chatHub,
-          session,
-          options,
-          formatTransportTransitionError(
-            result,
-            `Failed to transport ${targetLabel} to ${destinationLabel}.`,
-          ),
-        );
-      }
-      crossedLocationBoundary = true;
-    } else if (destination.kind === "station") {
-      const result = jumpSessionToStation(
-        targetSession,
-        destination.stationID,
-      );
-      if (!result.success) {
-        return handledResult(
-          chatHub,
-          session,
-          options,
-          formatTransportTransitionError(
-            result,
-            `Failed to transport ${targetLabel} to ${destinationLabel}.`,
-          ),
-        );
-      }
-      crossedLocationBoundary = true;
-    } else if (destination.kind === "point") {
-      const destinationSystemID = normalizePositiveInteger(destination.systemID);
-      if (!destinationSystemID || !destination.point) {
-        return handledResult(
-          chatHub,
-          session,
-          options,
-          "Point transport is missing a valid solar-system location.",
-        );
-      }
-
-      const currentTargetSystemID = getSessionCurrentSolarSystemID(targetSession);
-      const currentTargetStationID = getSessionDockedStationID(targetSession);
-      if (
-        currentTargetStationID ||
-        !targetSession._space ||
-        currentTargetSystemID !== destinationSystemID
-      ) {
-        const jumpResult = jumpSessionToSolarSystem(
-          targetSession,
-          destinationSystemID,
-        );
-        if (!jumpResult.success) {
-          return handledResult(
-            chatHub,
-            session,
-            options,
-            formatTransportTransitionError(
-              jumpResult,
-              `Failed to transport ${targetLabel} to ${destinationLabel}.`,
-            ),
-          );
-        }
-        crossedLocationBoundary = true;
-      }
-
-      const teleportResult = spaceRuntime.teleportSessionShipToPoint(
-        targetSession,
-        destination.point,
-        {
-          direction: destination.direction,
-          refreshOwnerSession: true,
-        },
-      );
-      if (!teleportResult.success) {
-        return handledResult(
-          chatHub,
-          session,
-          options,
-          teleportResult.errorMsg === "NOT_IN_SPACE"
-            ? `Failed to transport ${targetLabel}: target is not in space.`
-            : `Failed to teleport ${targetLabel} in space.`,
-        );
-      }
-    } else {
-      return handledResult(
-        chatHub,
-        session,
-        options,
-        `Unsupported /tr destination: ${destination.kind}.`,
-      );
-    }
-
-    if (targetSession === session && crossedLocationBoundary) {
-      // Keep self-targeted /tr parity with the native transition we just used.
-      // Station moves should stop at the dock session identity that
-      // `jumpSessionToStation()` already applied; pushing a follow-up solar
-      // identity change leaves the client half-docked/half-in-space.
-      if (destination.kind !== "station") {
-        const destinationSystemID =
-          destination.kind === "solarSystem"
-            ? destination.solarSystemID
-            : destination.kind === "point"
-              ? destination.systemID
-              : normalizePositiveInteger(
-                (worldData.getStationByID(destination.stationID) || {}).solarSystemID,
-              );
-        const destinationSystem = worldData.getSolarSystemByID(destinationSystemID);
-        reconcileSolarTargetSessionIdentity(session, destinationSystem);
-      }
-      flushPendingLocalChannelSync(chatHub, session);
-      return handledResult(
-        chatHub,
-        session,
-        getPostLocalMoveFeedbackOptions(options),
-        `Transported ${targetLabel} to ${destinationLabel}.`,
-      );
-    }
-
-    return handledResult(
-      chatHub,
+    return executeSessionTransportTarget(
       session,
+      targetDescriptor,
+      destination,
+      chatHub,
       options,
-      `Transported ${targetLabel} to ${destinationLabel}.`,
     );
   }
 
@@ -7579,6 +9034,402 @@ function handleTransportCommand(session, argumentText, chatHub, options) {
     session,
     options,
     `Transported ${targetLabel} to ${destinationLabel}.`,
+  );
+}
+
+function handleTeleCommand(session, argumentText, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /tele.",
+    );
+  }
+
+  const targetToken = String(argumentText || "").trim();
+  if (!targetToken) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Usage: /tele <character name|characterID>",
+    );
+  }
+
+  const targetResult = resolveCharacterTargetDescriptor(session, targetToken);
+  if (!targetResult.success || !targetResult.data) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      targetResult.errorMsg === "CHARACTER_NOT_SELECTED"
+        ? "Select a character before using /tele."
+        : `Character not found: ${targetToken}.`,
+    );
+  }
+
+  const targetDescriptor = targetResult.data;
+  if (!targetDescriptor.session || !targetDescriptor.session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `${formatCharacterTargetLabel(targetDescriptor)} is not currently connected.`,
+    );
+  }
+
+  const destination = buildTransportDestinationFromSession(targetDescriptor.session);
+  if (!destination) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Could not resolve a live location for ${formatCharacterTargetLabel(targetDescriptor)}.`,
+    );
+  }
+
+  return executeSessionTransportTarget(
+    session,
+    {
+      kind: "session",
+      session,
+      label: "me",
+    },
+    destination,
+    chatHub,
+    options,
+  );
+}
+
+function handleSetStandingCommand(session, argumentText, chatHub, options) {
+  const usage = "Usage: /setstanding <value> <owner name|id> [target]";
+  const tokens = tokenizeQuotedArguments(argumentText);
+  if (tokens.length < 2) {
+    return handledResult(chatHub, session, options, usage);
+  }
+
+  const standingValue = Number(tokens[0]);
+  if (!Number.isFinite(standingValue) || standingValue < -10 || standingValue > 10) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Standing value must be a number between -10.0 and 10.0.",
+    );
+  }
+
+  const targetResolution = resolveTrailingCharacterTargetDescriptor(
+    session,
+    tokens,
+    1,
+  );
+  if (!targetResolution.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      targetResolution.errorMsg === "CHARACTER_NOT_SELECTED"
+        ? "Select a character before using /setstanding."
+        : usage,
+    );
+  }
+
+  const { ownerToken, targetDescriptor } = targetResolution.data;
+  if (!ownerToken) {
+    return handledResult(chatHub, session, options, usage);
+  }
+
+  const ownerResolution = resolveStandingOwnerDescriptor(ownerToken);
+  if (!ownerResolution.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `Could not resolve a standing owner from "${ownerToken}".`,
+    );
+  }
+
+  const ownerDescriptor = ownerResolution.data;
+  const writeResult = standingRuntime.setCharacterStanding(
+    targetDescriptor.characterID,
+    ownerDescriptor.ownerID,
+    standingValue,
+    {
+      eventTypeID: standingRuntime.EVENT_STANDING_SLASH_SET,
+      message: `GM /setstanding ${standingValue} ${ownerToken}`,
+    },
+  );
+  if (!writeResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Could not update the requested standing.",
+    );
+  }
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Set standing with ${formatStandingOwnerLabel(ownerDescriptor)} to ${Number(standingValue).toFixed(2)} for ${formatCharacterTargetLabel(targetDescriptor)}.`,
+  );
+}
+
+function handleMaxAgentStandingsCommand(session, argumentText, chatHub, options) {
+  const targetToken = String(argumentText || "").trim() || "me";
+  const targetResolution = resolveCharacterTargetDescriptor(session, targetToken);
+  if (!targetResolution.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      targetResolution.errorMsg === "CHARACTER_NOT_SELECTED"
+        ? "Select a character before using /maxagentstandings."
+        : `Character not found: ${targetToken}.`,
+    );
+  }
+
+  const targetDescriptor = targetResolution.data;
+  const standingOwners = standingRuntime.getAllAgentStandingOwners();
+  const corporationIDs = Array.isArray(standingOwners && standingOwners.corporationIDs)
+    ? standingOwners.corporationIDs.filter((ownerID) => Number(ownerID) > 0)
+    : [];
+  const factionIDs = Array.isArray(standingOwners && standingOwners.factionIDs)
+    ? standingOwners.factionIDs.filter((ownerID) => Number(ownerID) > 0)
+    : [];
+  const entries = [
+    ...corporationIDs.map((ownerID) => ({ ownerID, standing: 10.0 })),
+    ...factionIDs.map((ownerID) => ({ ownerID, standing: 10.0 })),
+  ];
+  if (entries.length <= 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "No agent corporations or factions were available to update.",
+    );
+  }
+
+  const writeResult = standingRuntime.setCharacterStandings(
+    targetDescriptor.characterID,
+    entries,
+    {
+      eventTypeID: standingRuntime.EVENT_STANDING_SLASH_SET,
+      message: "GM /maxagentstandings",
+    },
+  );
+  if (!writeResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Could not max the agent standings set.",
+    );
+  }
+
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Set ${corporationIDs.length} agent corporation standings and ${factionIDs.length} agent faction standings to 10.00 for ${formatCharacterTargetLabel(targetDescriptor)}.`,
+  );
+}
+
+function handleSigscanCommand(session, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /sigscan.",
+    );
+  }
+
+  const scanMgr = new ScanMgrService();
+  const result = scanMgr.resolveAllSystemSignaturesForSession(session, {
+    durationMs: 1,
+  });
+  if (!result.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Could not resolve signatures for the current system.",
+    );
+  }
+
+  const systemID = Number(result.data && result.data.systemID) || 0;
+  const signatureCount = Number(result.data && result.data.signatureCount) || 0;
+  const system = worldData.getSolarSystemByID(systemID);
+  const systemLabel =
+    (system && system.solarSystemName) ||
+    (systemID > 0 ? `system ${systemID}` : "the current system");
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    signatureCount > 0
+      ? `Resolved ${signatureCount} signature${signatureCount === 1 ? "" : "s"} to 100% in ${systemLabel}.`
+      : `No scannable signatures are currently present in ${systemLabel}.`,
+  );
+}
+
+function handleSigsCommand(session, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /sigs.",
+    );
+  }
+
+  const systemID = Number(
+    (session._space && session._space.systemID) ||
+    session.solarsystemid2 ||
+    session.solarsystemid ||
+    0
+  ) || 0;
+  if (systemID <= 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "You must be in space to inspect live signatures.",
+    );
+  }
+
+  const sites = signatureRuntime.buildSystemScannableViews(systemID);
+  const system = worldData.getSolarSystemByID(systemID);
+  const systemLabel =
+    (system && system.solarSystemName) ||
+    (systemID > 0 ? `system ${systemID}` : "the current system");
+  if (sites.length <= 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      `No scannable sites are currently present in ${systemLabel}.`,
+    );
+  }
+
+  const lines = sites.map((entry) => (
+    `${entry.targetID} | ${entry.siteKind} | ${entry.family} | ${entry.label}` +
+    `${entry.pairKind ? ` | ${entry.pairKind}` : ""} | site ${entry.siteID}`
+  ));
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    [
+      `Scannable sites in ${systemLabel} (${sites.length}):`,
+      ...lines,
+    ].join("\n"),
+  );
+}
+
+function handleMissionCompleteCommand(session, argumentText, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /missioncomplete.",
+    );
+  }
+
+  const targetToken = String(argumentText || "").trim();
+  const agentTarget = targetToken.length > 0 ? targetToken : "all";
+  const result = markMissionObjectiveComplete(session.characterID, {
+    agentID: agentTarget,
+  });
+  if (!result.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      result.errorMsg === "MISSION_NOT_FOUND"
+        ? "No accepted placeholder mission objectives were found to mark complete."
+        : "Placeholder mission completion failed.",
+    );
+  }
+
+  const markedAgentIDs = Array.isArray(result.data && result.data.markedAgentIDs)
+    ? result.data.markedAgentIDs.filter((agentID) => Number(agentID) > 0)
+    : [];
+  const missionCount = markedAgentIDs.length;
+  if (missionCount <= 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "No accepted placeholder mission objectives were found to mark complete.",
+    );
+  }
+
+  const suffix = missionCount === 1 ? "" : "s";
+  const agentSuffix = missionCount === 1 ? "" : "s";
+  const details =
+    missionCount === 1
+      ? ` Agent ${markedAgentIDs[0]} is now ready to hand in.`
+      : ` Agents: ${markedAgentIDs.join(", ")}.`;
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Marked ${missionCount} placeholder mission objective${suffix} complete.${details} Talk to the agent${agentSuffix} and click Complete Mission.`,
+  );
+}
+
+function handleOverlayRefreshCommand(session, chatHub, options) {
+  if (!session || !session.characterID) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Select a character before using /overlayrefresh.",
+    );
+  }
+
+  const systemID = Number(
+    (session._space && session._space.systemID) ||
+    session.solarsystemid2 ||
+    session.solarsystemid ||
+    0
+  ) || 0;
+  if (systemID <= 0) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "You must be in space to refresh the sensor overlay.",
+    );
+  }
+
+  const scanMgr = new ScanMgrService();
+  const refreshResult = scanMgr.refreshSignalTrackerForSession(session, {
+    shouldRemoveOldSites: true,
+  });
+  if (!refreshResult.success) {
+    return handledResult(
+      chatHub,
+      session,
+      options,
+      "Could not refresh the sensor overlay for the current system.",
+    );
+  }
+
+  const system = worldData.getSolarSystemByID(systemID);
+  const systemLabel =
+    (system && system.solarSystemName) ||
+    (systemID > 0 ? `system ${systemID}` : "the current system");
+  return handledResult(
+    chatHub,
+    session,
+    options,
+    `Refreshed the sensor overlay for ${systemLabel}.`,
   );
 }
 
@@ -8152,6 +10003,10 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     return handledResult(chatHub, session, options, DEFAULT_MOTD_MESSAGE);
   }
 
+  if (command === "mailme") {
+    return handleMailMeCommand(session, argumentText, chatHub, options);
+  }
+
   if (command === "deer_hunter") {
     return handleDeerHunterCommand(session, chatHub, options);
   }
@@ -8173,6 +10028,10 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     return handleHomeDock(session, chatHub, options);
   }
 
+  if (command === "dmg") {
+    return handleDamageCommand(session, argumentText, chatHub, options);
+  }
+
   if (command === "heal") {
     return handleHealCommand(session, chatHub, options);
   }
@@ -8190,6 +10049,31 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
   if (command === "upwellauto") {
     const result = executeUpwellAutoCommand(session, argumentText);
     structureLog.logCommand(session, `/upwellauto ${argumentText}`.trim(), result);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "bpauto") {
+    const result = executeBlueprintAutoCommand(session, argumentText);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "bp") {
+    const result = executeBlueprintCommand(session, argumentText);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "bookmarkauto") {
+    const result = executeBookmarkAutoCommand(session, argumentText);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "calauto") {
+    const result = executeCalendarAutoCommand(session, argumentText);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "reprocesssmoke") {
+    const result = executeReprocessingSmokeCommand(session, argumentText);
     return handledResult(chatHub, session, options, result.message);
   }
 
@@ -8227,6 +10111,14 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
 
   if (command === "allskills") {
     return handleAllSkillsCommand(session, chatHub, options);
+  }
+
+  if (command === "backintime") {
+    return handleBackInTimeCommand(session, argumentText, chatHub, options);
+  }
+
+  if (command === "expertsystem" || command === "expertsystems") {
+    return handleExpertSystemCommand(session, argumentText, chatHub, options);
   }
 
   if (command === "gmskills") {
@@ -8284,6 +10176,20 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
 
   if (command === "mnpc") {
     return handleMissileNpcCommand(session, argumentText, chatHub, options);
+  }
+
+  if (CAPITAL_NPC_CHAT_COMMANDS.includes(command)) {
+    return handleCapitalNpcCommand(session, argumentText, chatHub, options, command);
+  }
+
+  if (WORMHOLE_CHAT_COMMANDS.includes(command)) {
+    const result = executeWormholeCommand(session, command, argumentText);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (TRIG_DRIFTER_CHAT_COMMANDS.includes(command)) {
+    const result = executeTrigDrifterCommand(session, command, argumentText);
+    return handledResult(chatHub, session, options, result.message);
   }
 
   if (command === "npctest") {
@@ -8409,8 +10315,17 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
     return handledResult(chatHub, session, options, result.message);
   }
 
-  if (command === "supertitanshow") {
+  if (command === "supertitanshow" || command === "titansupershow") {
     const result = executeSuperTitanShowCommand(
+      session,
+      argumentText,
+      options,
+    );
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "rr") {
+    const result = executeRemoteRepairFleetCommand(
       session,
       argumentText,
       options,
@@ -8650,6 +10565,44 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
 
   if (command === "solar") {
     return handleSolarTeleport(session, argumentText, chatHub, options);
+  }
+
+  if (command === "tele") {
+    return handleTeleCommand(session, argumentText, chatHub, options);
+  }
+
+  if (command === "setstanding") {
+    return handleSetStandingCommand(session, argumentText, chatHub, options);
+  }
+
+  if (command === "maxagentstandings" || command === "fullstandings") {
+    return handleMaxAgentStandingsCommand(
+      session,
+      argumentText,
+      chatHub,
+      options,
+    );
+  }
+
+  if (command === "sigscan") {
+    return handleSigscanCommand(session, chatHub, options);
+  }
+
+  if (command === "sigs") {
+    return handleSigsCommand(session, chatHub, options);
+  }
+
+  if (command === "missioncomplete") {
+    return handleMissionCompleteCommand(
+      session,
+      argumentText,
+      chatHub,
+      options,
+    );
+  }
+
+  if (command === "overlayrefresh") {
+    return handleOverlayRefreshCommand(session, chatHub, options);
   }
 
   if (command === "tr") {
@@ -9028,6 +10981,54 @@ function executeChatCommand(session, rawMessage, chatHub, options = {}) {
   if (command === "miner") {
     const result = executeMinerCommand(session);
     return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "orca") {
+    const result = executeOrcaCommand(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "probe") {
+    const result = executeProbeCommand(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "probe2") {
+    const result = executeProbe2Command(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "trig") {
+    const result = executeTrigCommand(session, argumentText);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "cburst") {
+    const result = executeCburstCommand(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "guardian") {
+    const result = executeGuardianCommand(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "basilisk") {
+    const result = executeBasiliskCommand(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "ewar") {
+    const result = executeEwarCommand(session);
+    return handledResult(chatHub, session, options, result.message);
+  }
+
+  if (command === "minerals") {
+    return handleMineralsCommand(session, chatHub, options);
+  }
+
+  if (command === "create" || command === "createitem") {
+    return handleCreateItemCommand(session, argumentText, chatHub, options, command);
   }
 
   if (command === "giveitem" || command === "item") {

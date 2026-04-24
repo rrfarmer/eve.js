@@ -33,7 +33,10 @@ function startImageServer() {
 
   const url = new URL(config.imageServerUrl);
   const port = Number.parseInt(url.port, 10);
-  const host = url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
+  const host = String(
+    config.imageServerBindHost ||
+      (url.hostname === "localhost" ? "127.0.0.1" : url.hostname),
+  ).trim();
 
   server.on("error", (err) => {
     log.err(`[ImageServer] listen error: ${err.message}`);

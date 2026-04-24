@@ -2,6 +2,7 @@
 > EVE.js Discord server: https://discord.gg/KMuJrMDEBa, Come and say hey!
 
 > [!IMPORTANT]
+> Thank you to John, as well as many other contributers who kept this project going, and helped development chug along! You will always be appreciated :)\
 > EVE.js is still in its early stages, and not everything works. If you come across and issues, don't hesitate to create an Issue. If you would like to contribute to the project, please create a Pull Request!
 
 **Notes:**

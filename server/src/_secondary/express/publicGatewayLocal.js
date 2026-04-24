@@ -13,10 +13,6 @@ const {
   getAppliedSkinRecordsForOwner,
 } = require(path.join(__dirname, "../../services/ship/shipCosmeticsState"));
 const {
-  getCharacterRecord,
-  DEFAULT_PLEX_BALANCE,
-} = require(path.join(__dirname, "../../services/character/characterState"));
-const {
   resolveCharacterAccountID,
   resolveOmegaLicenseState,
 } = require(path.join(__dirname, "../../services/newEdenStore/storeState"));
@@ -62,7 +58,24 @@ const GRPC_RESPONSE_HEADERS = {
   "grpc-accept-encoding": "identity",
 };
 const EMPTY_PAYLOAD = Buffer.alloc(0);
-const PUBLIC_GATEWAY_ORIGIN = "eve.js local gateway";
+const PUBLIC_GATEWAY_ORIGIN = "EveJS Elysian local gateway";
+
+function getCharacterStateService() {
+  return require(path.join(__dirname, "../../services/character/characterState"));
+}
+
+function getCharacterRecord(characterID) {
+  const characterState = getCharacterStateService();
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
+
+function getDefaultPlexBalance() {
+  const characterState = getCharacterStateService();
+  return Number(characterState && characterState.DEFAULT_PLEX_BALANCE) || 0;
+}
+
 const PROTO_ROOT = protobuf.Root.fromJSON({
   nested: {
     google: {
@@ -1547,7 +1560,7 @@ function buildPlexBalanceResponsePayload(requestEnvelope) {
   const charData = getCharacterRecord(activeCharacterID) || {};
   const plexBalance = Math.max(
     0,
-    Math.trunc(Number(charData.plexBalance ?? DEFAULT_PLEX_BALANCE) || 0),
+    Math.trunc(Number(charData.plexBalance ?? getDefaultPlexBalance()) || 0),
   );
   const totalInCents = plexBalance * PLEX_GATEWAY_CENTS_PER_PLEX;
   log.info(
@@ -2047,7 +2060,7 @@ function buildGatewayResponseForRequest(frameBuffer) {
     logUnknownRequest(context);
     result = {
       statusCode: 404,
-      statusMessage: `eve.js local gateway has no handler for ${requestTypeName || "unknown request"}`,
+      statusMessage: `EveJS Elysian local gateway has no handler for ${requestTypeName || "unknown request"}`,
       responseTypeName: null,
       responsePayloadBuffer: null,
     };

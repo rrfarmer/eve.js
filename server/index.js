@@ -12,6 +12,9 @@ const {
   installProcessLifecycleLogging,
 } = require(path.join(__dirname, "./src/utils/processLifecycle"));
 const config = require(path.join(__dirname, "./src/config"));
+const {
+  installSharedOverviewMotd,
+} = require(path.join(__dirname, "./src/services/overview/overviewMotdBootstrap"));
 
 // Service framework
 const ServiceManager = require(
@@ -82,6 +85,10 @@ function loadServices(dir) {
 
 loadServices(servicesDir);
 
+if (serviceManager.lookup("trademgr") && !serviceManager.lookup("tradeMgr")) {
+  serviceManager.registerAlias("tradeMgr", "trademgr");
+}
+
 log.success(`registered ${serviceManager.count} services`);
 log.line();
 
@@ -127,6 +134,43 @@ function loadSecondaryServices(dir) {
 }
 
 loadSecondaryServices(secondaryServicesDir);
+
+if (config.wormholesEnabled === true) {
+  try {
+    const seedStart = process.hrtime.bigint();
+    const wormholeRuntime = require(path.join(
+      __dirname,
+      "./src/services/exploration/wormholes/wormholeRuntime",
+    ));
+    const seedResult = wormholeRuntime.ensureUniverseStatics(Date.now());
+    const seedDurationMs = Number(process.hrtime.bigint() - seedStart) / 1e6;
+    if (seedResult && seedResult.success === true) {
+      const summary = wormholeRuntime.buildUniverseSummary({
+        includeCollapsed: false,
+        includeUndiscovered: true,
+      });
+      log.info(
+        `[Wormholes] Startup ready: ${summary.activePairCount} pair(s) | static ${summary.staticPairCount} | random ${summary.randomPairCount} | systems ${summary.systemCount} | env ${summary.environmentSystemCount} | revealed ${summary.revealedExitCount} | hidden ${summary.hiddenExitCount} | ${seedDurationMs.toFixed(1)} ms`,
+      );
+    } else {
+      log.warn(
+        `[Wormholes] Universe static seeding reported failure after ${seedDurationMs.toFixed(1)} ms`,
+      );
+    }
+    log.spacer();
+  } catch (err) {
+    log.err(`[Wormholes] Failed startup seeding: ${err.message}`);
+    log.spacer();
+  }
+}
+
+try {
+  installSharedOverviewMotd(serviceManager);
+  log.spacer();
+} catch (err) {
+  log.err(`[OverviewPresetMgr] Failed startup MOTD bootstrap: ${err.message}`);
+  log.spacer();
+}
 
 // Start the TCP server with the service manager
 startTCPServer(serviceManager);

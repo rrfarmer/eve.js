@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "nextMissionSequence": 63,
+  "charactersByID": {
+    "140000003": {
+      "characterID": 140000003,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {
+        "3019356": 1,
+        "3020089": 1
+      },
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000004": {
+      "characterID": 140000004,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000005": {
+      "characterID": 140000005,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000009": {
+      "characterID": 140000009,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000010": {
+      "characterID": 140000010,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000043": {
+      "characterID": 140000043,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000080": {
+      "characterID": 140000080,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000137": {
+      "characterID": 140000137,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000177": {
+      "characterID": 140000177,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000225": {
+      "characterID": 140000225,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000227": {
+      "characterID": 140000227,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000228": {
+      "characterID": 140000228,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    },
+    "140000237": {
+      "characterID": 140000237,
+      "lastUpdatedAtMs": 1777001721853,
+      "missionSelectionCursorByAgentID": {},
+      "missionsByAgentID": {},
+      "declineTimersByAgentID": {},
+      "completedCareerAgentIDs": {},
+      "history": []
+    }
+  }
+}

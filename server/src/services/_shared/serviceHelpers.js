@@ -206,6 +206,28 @@ function buildMarshalReal(value, fallback = 0) {
   };
 }
 
+function buildMarshalRealVectorList(value, fallback = [0, 0, 0]) {
+  const fallbackVector = Array.isArray(fallback)
+    ? fallback
+    : [
+        normalizeNumber(fallback && fallback.x, 0),
+        normalizeNumber(fallback && fallback.y, 0),
+        normalizeNumber(fallback && fallback.z, 0),
+      ];
+
+  const sourceVector = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? [value.x, value.y, value.z]
+      : fallbackVector;
+
+  return [
+    buildMarshalReal(sourceVector[0], fallbackVector[0]),
+    buildMarshalReal(sourceVector[1], fallbackVector[1]),
+    buildMarshalReal(sourceVector[2], fallbackVector[2]),
+  ];
+}
+
 function normalizeText(value, fallback = "") {
   if (value === undefined || value === null) {
     return fallback;
@@ -329,6 +351,25 @@ function extractList(value) {
     Array.isArray(value.items)
   ) {
     return value.items;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    value.type === "objectex1" &&
+    Array.isArray(value.header)
+  ) {
+    const headerName =
+      value.header[0] && typeof value.header[0] === "object"
+        ? normalizeText(value.header[0].value, "")
+        : "";
+    const headerArgs = Array.isArray(value.header[1]) ? value.header[1] : [];
+    if (
+      (headerName === "__builtin__.set" || headerName === "builtins.set") &&
+      headerArgs.length > 0
+    ) {
+      return extractList(headerArgs[0]);
+    }
   }
 
   if (value && typeof value === "object" && value.type === "cpicked") {
@@ -521,17 +562,64 @@ function resolveBoundNodeId() {
   return config.proxyNodeId;
 }
 
+function ensureSessionBoundObjectState(session) {
+  if (!session || typeof session !== "object") {
+    return null;
+  }
+  if (!session._boundObjectIDs || typeof session._boundObjectIDs !== "object") {
+    session._boundObjectIDs = {};
+  }
+  if (!session._boundObjectState || typeof session._boundObjectState !== "object") {
+    session._boundObjectState = {};
+  }
+  return session._boundObjectState;
+}
+
 function buildBoundObjectResponse(service, args, session, kwargs) {
   const nestedCall = args && args.length > 1 ? args[1] : null;
-  const boundId = config.getNextBoundId();
-  const objectId = [`N=${config.proxyNodeId}:${boundId}`, currentFileTime()];
+  const boundObjectState = ensureSessionBoundObjectState(session);
+  const serviceName =
+    service && typeof service.name === "string" && service.name.trim() !== ""
+      ? service.name
+      : null;
+  const existingObjectID =
+    session &&
+    session._boundObjectIDs &&
+    serviceName &&
+    typeof session._boundObjectIDs[serviceName] === "string" &&
+    session._boundObjectIDs[serviceName].trim() !== ""
+      ? session._boundObjectIDs[serviceName]
+      : null;
+  const existingObjectState =
+    boundObjectState && serviceName && boundObjectState[serviceName]
+      ? boundObjectState[serviceName]
+      : null;
+  const shouldReuseBoundObject = Boolean(
+    service &&
+      service.reuseBoundObjectForSession === true &&
+      existingObjectID,
+  );
+  const objectId = shouldReuseBoundObject
+    ? [
+        existingObjectID,
+        existingObjectState && existingObjectState.boundAtFileTime
+          ? existingObjectState.boundAtFileTime
+          : currentFileTime(),
+      ]
+    : [`N=${config.proxyNodeId}:${config.getNextBoundId()}`, currentFileTime()];
 
   if (session) {
     if (!session._boundObjectIDs || typeof session._boundObjectIDs !== "object") {
       session._boundObjectIDs = {};
     }
-    if (service && service.name) {
-      session._boundObjectIDs[service.name] = objectId[0];
+    if (serviceName) {
+      session._boundObjectIDs[serviceName] = objectId[0];
+    }
+    if (boundObjectState && serviceName) {
+      boundObjectState[serviceName] = {
+        objectID: objectId[0],
+        boundAtFileTime: objectId[1],
+      };
     }
     session.lastBoundObjectID = objectId[0];
   }
@@ -580,6 +668,7 @@ module.exports = {
   normalizeBigInt,
   buildFiletimeLong,
   buildMarshalReal,
+  buildMarshalRealVectorList,
   normalizeText,
   normalizeNumber,
   extractList,

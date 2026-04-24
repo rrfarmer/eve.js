@@ -10,9 +10,6 @@ const {
 const {
   normalizeRoleValue,
 } = require(path.join(__dirname, "../account/accountRoleProfiles"));
-const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
 const sessionRegistry = require(path.join(__dirname, "../chat/sessionRegistry"));
 const {
   adjustCorporationWalletLPBalance,
@@ -103,6 +100,16 @@ const DEFAULT_CATALOGUE_PRICE_BY_SIZE = Object.freeze({
 
 let cachedRoot = null;
 let cachedIndexes = null;
+
+function getCharacterRecord(characterID) {
+  const characterState = require(path.join(
+    __dirname,
+    "../character/characterState",
+  ));
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
 
 function cloneValue(value) {
   if (value === undefined || value === null) {

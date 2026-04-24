@@ -1,6 +1,7 @@
 const { startXmppStub } = require("../../services/chat/xmppStubServer");
 const config = require("../../config");
 const log = require("../../utils/logger");
+const { getXmppConnectHost } = require("../../services/chat/xmppConfig");
 
 module.exports = {
   enabled: true,
@@ -8,7 +9,7 @@ module.exports = {
   exec() {
     startXmppStub();
     log.debug(
-      `xmpp chat server running on tls://127.0.0.1:${config.xmppServerPort}`,
+      `xmpp chat server running on tls://${getXmppConnectHost()}:${config.xmppServerPort}`,
     );
   },
 };

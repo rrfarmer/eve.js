@@ -35,6 +35,8 @@ const {
   moveShipToSpace,
   dockShipToLocation,
   dockShipToStation,
+  normalizeShipConditionState,
+  removeInventoryItem,
   setActiveShipForCharacter,
   updateShipItem,
 } = require(path.join(__dirname, "../services/inventory/itemStore"));
@@ -61,6 +63,9 @@ const {
 const crimewatchState = require(path.join(__dirname, "../services/security/crimewatchState"));
 const worldData = require(path.join(__dirname, "./worldData"));
 const spaceRuntime = require(path.join(__dirname, "./runtime"));
+const {
+  snapshotDestinyAuthorityState,
+} = require(path.join(__dirname, "./movement/authority/destinySessionState"));
 const TRANSITION_GUARD_WINDOW_MS = 5000;
 const STARGATE_JUMP_HANDOFF_DELAY_MS = 1250;
 const STARGATE_JUMP_RANGE_METERS = 2500;
@@ -76,18 +81,115 @@ function getCrimewatchReferenceMs(session) {
   return Date.now();
 }
 
-function restoreShipForUndock(shipId) {
+function topOffShipShieldAndCapacitorForDockingTransition(shipId) {
   return updateShipItem(shipId, (currentShip) => ({
     ...currentShip,
-    conditionState: {
+    conditionState: normalizeShipConditionState({
       ...(currentShip.conditionState || {}),
-      damage: 0.0,
       charge: 1.0,
-      armorDamage: 0.0,
       shieldCharge: 1.0,
-      incapacitated: false,
-    },
+    }),
   }));
+}
+
+function deactivateActiveModulesForSpaceTransition(session, reason) {
+  if (!session || !session._space) {
+    return {
+      success: true,
+      data: {
+        stoppedModuleIDs: [],
+        errors: [],
+      },
+    };
+  }
+
+  const result = spaceRuntime.deactivateAllActiveModules(session, {
+    reason,
+    clampToVisibleStamp: true,
+  });
+  if (!result || result.success !== true) {
+    log.warn(
+      `[SpaceTransition] Failed to fully deactivate active modules before ${reason} ` +
+      `for ${session.characterName || session.characterID}: ` +
+      `${result && result.errorMsg ? result.errorMsg : "ACTIVE_MODULE_DEACTIVATION_FAILED"}`,
+    );
+  }
+  return result || {
+    success: false,
+    errorMsg: "ACTIVE_MODULE_DEACTIVATION_FAILED",
+  };
+}
+
+function syncInventoryChangesToSession(session, changes = [], options = {}) {
+  if (!session || typeof session.sendNotification !== "function") {
+    return 0;
+  }
+
+  let syncedCount = 0;
+  for (const change of Array.isArray(changes) ? changes : []) {
+    if (!change || !change.item) {
+      continue;
+    }
+
+    syncInventoryItemForSession(
+      session,
+      change.item,
+      change.previousData || change.previousState || {},
+      {
+        emitCfgLocation: options.emitCfgLocation !== false,
+      },
+    );
+    syncedCount += 1;
+  }
+
+  return syncedCount;
+}
+
+function consumeBoardedCapsule(scene, session, capsuleEntity, options = {}) {
+  if (!scene || !capsuleEntity || capsuleEntity.kind !== "ship") {
+    return {
+      success: false,
+      errorMsg: "CAPSULE_ENTITY_NOT_FOUND",
+    };
+  }
+
+  const removeEntityResult = scene.removeDynamicEntity(capsuleEntity.itemID, {
+    allowSessionOwned: true,
+    forceVisibleSessions: session ? [session] : [],
+    stampOverride:
+      options && Object.prototype.hasOwnProperty.call(options, "stampOverride")
+        ? options.stampOverride
+        : undefined,
+  });
+  if (!removeEntityResult.success) {
+    return removeEntityResult;
+  }
+
+  const removeItemResult = removeInventoryItem(capsuleEntity.itemID, {
+    removeContents: true,
+  });
+  if (!removeItemResult.success) {
+    return removeItemResult;
+  }
+
+  syncInventoryChangesToSession(
+    session,
+    removeItemResult.data && removeItemResult.data.changes,
+    {
+      emitCfgLocation: true,
+    },
+  );
+
+  return {
+    success: true,
+    data: {
+      entityID: capsuleEntity.itemID,
+      changes:
+        removeItemResult.data && Array.isArray(removeItemResult.data.changes)
+          ? removeItemResult.data.changes
+          : [],
+    },
+  };
 }
 
 function buildBoundResult(session) {
@@ -490,6 +592,37 @@ function captureSpaceSessionState(session) {
   };
 }
 
+function toInt(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : fallback;
+}
+
+function resolveSameSceneEgoAddBallsStamp(scene, session, nowMs = null) {
+  if (!scene || !session) {
+    return null;
+  }
+
+  const resolvedNowMs = toFiniteNumber(
+    nowMs,
+    typeof scene.getCurrentSimTimeMs === "function"
+      ? scene.getCurrentSimTimeMs()
+      : 0,
+  );
+  const currentPresentedStamp =
+    typeof scene.getCurrentPresentedSessionDestinyStamp === "function"
+      ? toInt(scene.getCurrentPresentedSessionDestinyStamp(session, resolvedNowMs), 0) >>> 0
+      : 0;
+  const authorityState = snapshotDestinyAuthorityState(session);
+  const lastSentStamp = toInt(
+    authorityState && authorityState.lastPresentedStamp,
+    session && session._space && session._space.lastSentDestinyStamp,
+    0,
+  ) >>> 0;
+  const floorStamp = lastSentStamp > 0 ? ((lastSentStamp + 1) >>> 0) : 0;
+  const resolvedStamp = Math.max(currentPresentedStamp, floorStamp) >>> 0;
+  return resolvedStamp > 0 ? resolvedStamp : null;
+}
+
 function repairSameSceneSessionViewState(session) {
   if (!session || !session._space) {
     return false;
@@ -502,6 +635,52 @@ function repairSameSceneSessionViewState(session) {
   session._space.initialStateSent = true;
   session._space.initialBallparkVisualsSent = true;
   session._space.initialBallparkClockSynced = true;
+  return true;
+}
+
+function ensureSameSceneBoardTargetVisible(session, scene, targetEntity) {
+  if (!session || !session._space || !scene || !targetEntity) {
+    return false;
+  }
+
+  const targetShipID = toInt(targetEntity.itemID, 0);
+  if (targetShipID <= 0) {
+    return false;
+  }
+
+  const visibleDynamicEntityIDs =
+    session._space.visibleDynamicEntityIDs instanceof Set
+      ? session._space.visibleDynamicEntityIDs
+      : new Set();
+  if (visibleDynamicEntityIDs.has(targetShipID)) {
+    return false;
+  }
+
+  const stampOverride = resolveSameSceneEgoAddBallsStamp(scene, session);
+  scene.sendAddBallsToSession(session, [targetEntity], {
+    freshAcquire: true,
+    sessionStampedAddBalls: true,
+    stampOverride: stampOverride === null ? undefined : stampOverride,
+    bypassTickPresentationBatch: true,
+  });
+
+  visibleDynamicEntityIDs.add(targetShipID);
+  session._space.visibleDynamicEntityIDs = visibleDynamicEntityIDs;
+  const freshlyVisibleDynamicEntityIDs =
+    session._space.freshlyVisibleDynamicEntityIDs instanceof Set
+      ? session._space.freshlyVisibleDynamicEntityIDs
+      : new Set();
+  freshlyVisibleDynamicEntityIDs.add(targetShipID);
+  session._space.freshlyVisibleDynamicEntityIDs =
+    freshlyVisibleDynamicEntityIDs;
+
+  if (typeof scene.flushTickDestinyPresentationBatch === "function") {
+    scene.flushTickDestinyPresentationBatch();
+  }
+  if (typeof scene.flushDirectDestinyNotificationBatch === "function") {
+    scene.flushDirectDestinyNotificationBatch();
+  }
+
   return true;
 }
 
@@ -536,7 +715,37 @@ function refreshSameSceneSessionView(
     ...additionalEntities,
   ].filter(Boolean);
   if (refreshEntities.length > 0) {
-    scene.sendAddBallsToSession(session, refreshEntities);
+    scene.sendAddBallsToSession(session, refreshEntities, {
+      sessionStampedAddBalls: options.sessionStampedAddBalls === true,
+      stampOverride:
+        options.stampOverride === undefined || options.stampOverride === null
+          ? undefined
+          : options.stampOverride,
+    });
+    if (session._space) {
+      const visibleDynamicEntityIDs =
+        session._space.visibleDynamicEntityIDs instanceof Set
+          ? session._space.visibleDynamicEntityIDs
+          : new Set();
+      const freshlyVisibleDynamicEntityIDs =
+        session._space.freshlyVisibleDynamicEntityIDs instanceof Set
+          ? session._space.freshlyVisibleDynamicEntityIDs
+          : new Set();
+      for (const entity of refreshEntities) {
+        const entityID = toInt(entity && entity.itemID, 0);
+        if (
+          entityID > 0 &&
+          entityID !== toInt(session._space.shipID, 0) &&
+          entity &&
+          entity.kind === "ship"
+        ) {
+          visibleDynamicEntityIDs.add(entityID);
+          freshlyVisibleDynamicEntityIDs.add(entityID);
+        }
+      }
+      session._space.visibleDynamicEntityIDs = visibleDynamicEntityIDs;
+      session._space.freshlyVisibleDynamicEntityIDs = freshlyVisibleDynamicEntityIDs;
+    }
   }
   scene.syncDynamicVisibilityForSession(session);
   if (shouldSendStateRefresh) {
@@ -554,6 +763,34 @@ function flushSameSceneShipSwapNotificationPlan(session, plan) {
       sessionId: 0n,
     },
   });
+}
+
+function retargetCharacterSessionNotificationPlanShip(plan, oldShipID, shipID) {
+  if (!plan || !plan.sessionChanges) {
+    return false;
+  }
+
+  const normalizeShipID = (value) => {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    const numericValue = Number(value) || 0;
+    return numericValue > 0 ? numericValue : null;
+  };
+
+  const normalizedShipID = normalizeShipID(shipID);
+  const previousShipID =
+    normalizeShipID(oldShipID) ?? normalizeShipID(plan.oldShipID);
+  if (normalizedShipID === null || previousShipID === null) {
+    return false;
+  }
+
+  plan.newShipID = normalizedShipID;
+  plan.sessionChanges.shipid = [previousShipID, normalizedShipID];
+  if (plan.fittingReplay && Number(normalizedShipID) > 0) {
+    plan.fittingReplay.shipID = Number(normalizedShipID);
+  }
+  return true;
 }
 
 function resolveReusableCapsuleForCharacter(
@@ -658,6 +895,7 @@ function completeStargateJump(
     });
   }
 
+  deactivateActiveModulesForSpaceTransition(session, "stargate-jump");
   spaceRuntime.detachSession(session, {
     broadcast: true,
     lifecycleReason: "stargate-jump",
@@ -731,11 +969,22 @@ function completeStargateJump(
     initialBallparkPreviousCapturedAtWallclockMs: sourceClockCapturedAtWallclockMs,
     deferInitialBallparkStateUntilBind: true,
   });
+  const observerArrivalFxResult = spaceRuntime.emitStargateArrivalObserverFx(
+    session,
+    destinationGate.itemID,
+    moveResult.data && moveResult.data.itemID,
+  );
   if (typeof spaceRuntime.recordSessionJumpTimingTrace === "function") {
     spaceRuntime.recordSessionJumpTimingTrace(session, "stargate-jump-attached", {
       destinationSystemID: destinationGate.solarSystemID,
       shipID: moveResult.data && moveResult.data.itemID,
       spawnState,
+      observerArrivalFx: observerArrivalFxResult.success
+        ? observerArrivalFxResult.data
+        : {
+            success: false,
+            errorMsg: observerArrivalFxResult.errorMsg,
+          },
     });
   }
   queuePostSpaceAttachFittingHydration(session, moveResult.data && moveResult.data.itemID, {
@@ -885,7 +1134,9 @@ function undockSession(session) {
       return moveResult;
     }
 
-    const restoreResult = restoreShipForUndock(moveResult.data.itemID);
+    const restoreResult = topOffShipShieldAndCapacitorForDockingTransition(
+      moveResult.data.itemID,
+    );
     if (restoreResult && restoreResult.success) {
       moveResult.data = restoreResult.data;
     }
@@ -1035,6 +1286,7 @@ function dockSession(session, stationID) {
   }
 
   try {
+    deactivateActiveModulesForSpaceTransition(session, "dock");
     spaceRuntime.detachSession(session, {
       broadcast: true,
       lifecycleReason: "dock",
@@ -1044,6 +1296,12 @@ function dockSession(session, stationID) {
     const dockResult = dockShipToLocation(activeShip.itemID, dockable.locationID);
     if (!dockResult.success) {
       return dockResult;
+    }
+    const topOffResult = topOffShipShieldAndCapacitorForDockingTransition(
+      dockResult.data.itemID,
+    );
+    if (topOffResult && topOffResult.success) {
+      dockResult.data = topOffResult.data;
     }
 
     const updateResult = updateCharacterRecord(session.characterID, (record) =>
@@ -1101,11 +1359,26 @@ function restoreSpaceSession(session) {
     return false;
   }
 
+  if (typeof spaceRuntime.beginSessionJumpTimingTrace === "function") {
+    spaceRuntime.beginSessionJumpTimingTrace(session, "space-login", {
+      characterID: session.characterID,
+      systemID: Number(session.solarsystemid2 || session.solarsystemid || 0) || 0,
+      shipID: Number(session.shipid || session.shipID || session.activeShipID || 0) || 0,
+    });
+  }
+  if (typeof spaceRuntime.recordSessionJumpTimingTrace === "function") {
+    spaceRuntime.recordSessionJumpTimingTrace(session, "space-login-restore-enter", {
+      characterID: session.characterID,
+      systemID: Number(session.solarsystemid2 || session.solarsystemid || 0) || 0,
+    });
+  }
+
   const activeShip = getActiveShipRecord(session.characterID);
   if (!activeShip || !activeShip.spaceState) {
     return false;
   }
 
+  const attachStartedAtMs = Date.now();
   const shipEntity = spaceRuntime.attachSession(session, activeShip, {
     systemID:
       activeShip.spaceState.systemID ||
@@ -1115,10 +1388,30 @@ function restoreSpaceSession(session) {
     broadcast: true,
     emitSimClockRebase: false,
   });
+  const attachElapsedMs = Date.now() - attachStartedAtMs;
+  if (typeof spaceRuntime.recordSessionJumpTimingTrace === "function") {
+    spaceRuntime.recordSessionJumpTimingTrace(session, "space-login-restore-attached", {
+      shipID: Number(activeShip.itemID) || 0,
+      systemID:
+        Number(activeShip.spaceState && activeShip.spaceState.systemID) ||
+        Number(session.solarsystemid2 || session.solarsystemid) ||
+        0,
+      attachMs: attachElapsedMs,
+      attached: Boolean(shipEntity),
+    });
+  }
+  if (attachElapsedMs >= 250) {
+    log.info(
+      `[SpaceTransition] restoreSpaceSession attach ship=${Number(activeShip.itemID) || 0} ` +
+      `system=${Number(activeShip.spaceState && activeShip.spaceState.systemID) || Number(session.solarsystemid2 || session.solarsystemid) || 0} ` +
+      `took ${attachElapsedMs}ms`,
+    );
+  }
   if (!shipEntity) {
     return false;
   }
 
+  const hydrationQueuedAtMs = Date.now();
   queuePostSpaceAttachFittingHydration(session, activeShip.itemID, {
     // Direct login-in-space issues one early ship-inventory List(flag=None)
     // before the HUD stabilizes. Let invbroker suppress only that first call;
@@ -1126,6 +1419,13 @@ function restoreSpaceSession(session) {
     inventoryBootstrapPending: session._loginInventoryBootstrapPending === true,
     hydrationProfile: "login",
   });
+  if (typeof spaceRuntime.recordSessionJumpTimingTrace === "function") {
+    spaceRuntime.recordSessionJumpTimingTrace(session, "space-login-restore-hydration-queued", {
+      shipID: Number(activeShip.itemID) || 0,
+      queueLatencyMs: Date.now() - hydrationQueuedAtMs,
+      inventoryBootstrapPending: session._loginInventoryBootstrapPending === true,
+    });
+  }
   // CCP client parity: Michelle creates its local Ballpark only after the
   // inflight/structure view path calls beyonce.GetFormations. Sending the
   // initial destiny bootstrap from restore-time can arrive before
@@ -1141,6 +1441,16 @@ function restoreSpaceSession(session) {
     `${describeSessionHydrationState(session, activeShip.itemID)}`,
   );
   flushPendingCommandSessionEffects(session);
+  if (typeof spaceRuntime.recordSessionJumpTimingTrace === "function") {
+    spaceRuntime.recordSessionJumpTimingTrace(session, "space-login-restore-return", {
+      shipID: Number(activeShip.itemID) || 0,
+      systemID:
+        Number(activeShip.spaceState && activeShip.spaceState.systemID) ||
+        Number(session.solarsystemid2 || session.solarsystemid) ||
+        0,
+      success: true,
+    });
+  }
 
   return true;
 }
@@ -1307,7 +1617,17 @@ function ejectSession(session, options = {}) {
     });
     flushSameSceneShipSwapNotificationPlan(session, applyResult.notificationPlan);
     repairSameSceneSessionViewState(session);
-    scene.sendAddBallsToSession(session, [capsuleEntity]);
+    const egoAddBallsStamp = resolveSameSceneEgoAddBallsStamp(scene, session);
+    scene.sendAddBallsToSession(session, [capsuleEntity], {
+      sessionStampedAddBalls: true,
+      stampOverride: egoAddBallsStamp === null ? undefined : egoAddBallsStamp,
+    });
+    if (typeof scene.flushTickDestinyPresentationBatch === "function") {
+      scene.flushTickDestinyPresentationBatch();
+    }
+    if (typeof scene.flushDirectDestinyNotificationBatch === "function") {
+      scene.flushDirectDestinyNotificationBatch();
+    }
 
     if (sendAbandonedShipSlimToVictim) {
       // CCP parity: After the ejecting player is attached to their capsule,
@@ -1327,6 +1647,9 @@ function ejectSession(session, options = {}) {
         {
           includeEgoEntity: false,
           preserveExistingBallpark: true,
+          sessionStampedAddBalls: true,
+          stampOverride:
+            egoAddBallsStamp === null ? undefined : egoAddBallsStamp,
           // Same-scene ship swaps are not a mini bootstrap. `eject.txt` showed
           // the extra owner SetState landing in the held session-change lane
           // with AddBalls2/FX and re-seeding the stale hull view after the
@@ -1475,6 +1798,14 @@ function boardSpaceShip(session, shipID) {
   try {
     const currentSystemID = Number(scene.systemID || session.solarsystemid2 || session.solarsystemid || 0);
     const preservedSpaceState = captureSpaceSessionState(session);
+    const targetWasPreAcquired = ensureSameSceneBoardTargetVisible(
+      session,
+      scene,
+      targetEntity,
+    );
+    const shouldConsumePreviousCapsule =
+      Number(currentShip.typeID) === CAPSULE_TYPE_ID &&
+      Number(targetShip.typeID) !== CAPSULE_TYPE_ID;
     const abandonedCurrentEntity = spaceRuntime.disembarkSession(session, {
       broadcast: true,
       lifecycleReason: "disembark",
@@ -1535,27 +1866,77 @@ function boardSpaceShip(session, shipID) {
       };
     }
 
+    flushSameSceneShipSwapNotificationPlan(session, applyResult.notificationPlan);
+    repairSameSceneSessionViewState(session);
+    const egoAddBallsStamp = resolveSameSceneEgoAddBallsStamp(scene, session);
+    if (!targetWasPreAcquired) {
+      scene.sendAddBallsToSession(session, [boardedEntity], {
+        sessionStampedAddBalls: true,
+        stampOverride: egoAddBallsStamp === null ? undefined : egoAddBallsStamp,
+      });
+      if (typeof scene.flushTickDestinyPresentationBatch === "function") {
+        scene.flushTickDestinyPresentationBatch();
+      }
+      if (typeof scene.flushDirectDestinyNotificationBatch === "function") {
+        scene.flushDirectDestinyNotificationBatch();
+      }
+    }
+    scene.broadcastSlimItemChanges([boardedEntity]);
+    scene.broadcastBallRefresh([boardedEntity], session);
+
+    let previousCapsuleConsumed = false;
+    if (shouldConsumePreviousCapsule) {
+      const capsuleConsumeResult = consumeBoardedCapsule(
+        scene,
+        session,
+        abandonedCurrentEntity,
+        {
+          stampOverride: resolveSameSceneEgoAddBallsStamp(scene, session),
+        },
+      );
+      if (!capsuleConsumeResult.success) {
+        log.warn(
+          `[SpaceTransition] Failed to consume boarded capsule=${currentShip.itemID} ` +
+          `for ${session.characterName || session.characterID}: ${capsuleConsumeResult.errorMsg}`,
+        );
+      } else {
+        previousCapsuleConsumed = true;
+      }
+    }
+
+    scene.syncDynamicVisibilityForAllSessions();
+    if (!previousCapsuleConsumed) {
+      scene.sendSlimItemChangesToSession(session, [abandonedCurrentEntity]);
+      refreshSameSceneSessionView(
+        scene,
+        session,
+        boardedEntity,
+        [abandonedCurrentEntity],
+        {
+          includeEgoEntity: false,
+          preserveExistingBallpark: true,
+          sessionStampedAddBalls: true,
+          stampOverride:
+            egoAddBallsStamp === null ? undefined : egoAddBallsStamp,
+          // Same-scene boarding should stay on the live ballpark path. A full
+          // owner SetState here is a Michelle reset, not a harmless handoff.
+          sendStateRefresh: false,
+        },
+      );
+    }
+    // Same-scene boarding changes the owner's active ship identity, not just
+    // their visible neighborhood. If the immediate ego AddBalls2 lands on a
+    // rejected bootstrap-acquire lane, the client can stay half-bound to the
+    // old hull and stop updating the new ship HUD/heat state. A targeted owner
+    // SetState here is a controlled ship-swap rebind after the remote-style
+    // shipid session change, not a generic scene bootstrap.
+    scene.sendStateRefresh(session, boardedEntity, null, {
+      reason: "same-scene-boarding",
+    });
     queuePostSpaceAttachFittingHydration(session, targetShipID, {
       inventoryBootstrapPending: false,
       hydrationProfile: "transition",
     });
-    flushSameSceneShipSwapNotificationPlan(session, applyResult.notificationPlan);
-    scene.broadcastSlimItemChanges([boardedEntity]);
-    scene.broadcastBallRefresh([boardedEntity], session);
-    scene.syncDynamicVisibilityForAllSessions();
-    scene.sendSlimItemChangesToSession(session, [abandonedCurrentEntity]);
-    refreshSameSceneSessionView(
-      scene,
-      session,
-      boardedEntity,
-      [abandonedCurrentEntity],
-      {
-        preserveExistingBallpark: true,
-        // Same-scene boarding should stay on the live ballpark path. A full
-        // owner SetState here is a Michelle reset, not a harmless handoff.
-        sendStateRefresh: false,
-      },
-    );
 
     log.info(
       `[SpaceTransition] Boarded ${session.characterName || session.characterID} ship=${targetShipID} from=${currentShip.itemID} system=${currentSystemID}`,
@@ -1707,6 +2088,12 @@ function rebuildDockedSessionAtStation(session, stationID, options = {}) {
     session.stationID ||
     0,
   ) || 0;
+  const preRespawnShipID = Number(
+    session.shipID ||
+    session.shipid ||
+    session.activeShipID ||
+    0,
+  ) || 0;
 
   const capsuleResult = ensureCapsuleForCharacter(
     session.characterID,
@@ -1765,53 +2152,6 @@ function rebuildDockedSessionAtStation(session, stationID, options = {}) {
     return applyResult;
   }
 
-  if (options.emitNotifications !== false) {
-    flushCharacterSessionNotificationPlan(session, applyResult.notificationPlan);
-  }
-
-  const capsuleChanges = Array.isArray(capsuleResult.changes)
-    ? capsuleResult.changes
-    : [];
-  for (const change of capsuleChanges) {
-    if (!change || !change.item) {
-      continue;
-    }
-
-    syncInventoryItemForSession(
-      session,
-      change.item,
-      change.previousState || {
-        locationID: 0,
-        flagID: ITEM_FLAGS.HANGAR,
-      },
-      {
-        emitCfgLocation: true,
-      },
-    );
-  }
-
-  const refreshedCapsule = getActiveShipRecord(session.characterID) || capsuleShip;
-  syncInventoryItemForSession(
-    session,
-    refreshedCapsule,
-    {
-      locationID: refreshedCapsule.locationID,
-      flagID: refreshedCapsule.flagID,
-      quantity: refreshedCapsule.quantity,
-      singleton: refreshedCapsule.singleton,
-      stacksize: refreshedCapsule.stacksize,
-    },
-    {
-      emitCfgLocation: true,
-    },
-  );
-
-  queuePendingSessionEffects(session, {
-    previousLocalChannelID,
-  });
-  flushPendingCommandSessionEffects(session);
-  broadcastOnCharNowInStation(session, station.stationID);
-
   let newbieShipResult = null;
   if (options.boardNewbieShip === true) {
     const DogmaService = require(path.join(
@@ -1820,7 +2160,7 @@ function rebuildDockedSessionAtStation(session, stationID, options = {}) {
     ));
     if (typeof DogmaService.boardNewbieShipForSession === "function") {
       newbieShipResult = DogmaService.boardNewbieShipForSession(session, {
-        emitNotifications: options.emitNotifications !== false,
+        emitNotifications: false,
         logSelection: false,
         repairExistingShip: true,
         logLabel: options.newbieShipLogLabel || "PodRespawn",
@@ -1829,9 +2169,99 @@ function rebuildDockedSessionAtStation(session, stationID, options = {}) {
         log.warn(
           `[SpaceTransition] Failed to auto-board corvette for ${session.characterName || session.characterID} station=${station.stationID} error=${newbieShipResult.errorMsg}`,
         );
+      } else if (
+        newbieShipResult.data &&
+        newbieShipResult.data.ship &&
+        Number(newbieShipResult.data.ship.itemID) > 0
+      ) {
+        retargetCharacterSessionNotificationPlanShip(
+          applyResult.notificationPlan,
+          preRespawnShipID,
+          newbieShipResult.data.ship.itemID,
+        );
       }
     }
   }
+
+  if (options.emitNotifications !== false) {
+    flushCharacterSessionNotificationPlan(session, applyResult.notificationPlan);
+  }
+
+  const refreshedCapsule =
+    Number(capsuleShip && capsuleShip.itemID) > 0
+      ? findCharacterShip(session.characterID, capsuleShip.itemID)
+      : null;
+
+  if (refreshedCapsule) {
+    const capsuleChanges = Array.isArray(capsuleResult.changes)
+      ? capsuleResult.changes
+      : [];
+    for (const change of capsuleChanges) {
+      if (!change || !change.item) {
+        continue;
+      }
+
+      syncInventoryItemForSession(
+        session,
+        change.item,
+        change.previousState || {
+          locationID: 0,
+          flagID: ITEM_FLAGS.HANGAR,
+        },
+        {
+          emitCfgLocation: true,
+        },
+      );
+    }
+
+    // Pod respawn briefly seeds a docked capsule before the corvette board
+    // step runs. If that board consumes the capsule, never replay the stale
+    // capsule row back into the hangar or the client materializes a ghost ship.
+    syncInventoryItemForSession(
+      session,
+      refreshedCapsule,
+      {
+        locationID: refreshedCapsule.locationID,
+        flagID: refreshedCapsule.flagID,
+        quantity: refreshedCapsule.quantity,
+        singleton: refreshedCapsule.singleton,
+        stacksize: refreshedCapsule.stacksize,
+      },
+      {
+        emitCfgLocation: true,
+      },
+    );
+  }
+
+  const refreshedActiveShip =
+    getActiveShipRecord(session.characterID) ||
+    refreshedCapsule ||
+    capsuleShip;
+  if (
+    refreshedCapsule &&
+    Number(refreshedActiveShip.itemID) !== Number(refreshedCapsule.itemID)
+  ) {
+    syncInventoryItemForSession(
+      session,
+      refreshedActiveShip,
+      {
+        locationID: refreshedActiveShip.locationID,
+        flagID: refreshedActiveShip.flagID,
+        quantity: refreshedActiveShip.quantity,
+        singleton: refreshedActiveShip.singleton,
+        stacksize: refreshedActiveShip.stacksize,
+      },
+      {
+        emitCfgLocation: true,
+      },
+    );
+  }
+
+  queuePendingSessionEffects(session, {
+    previousLocalChannelID,
+  });
+  flushPendingCommandSessionEffects(session);
+  broadcastOnCharNowInStation(session, station.stationID);
 
   const activeShip =
     getActiveShipRecord(session.characterID) ||
@@ -1896,6 +2326,7 @@ function jumpSessionToStation(session, stationID) {
     ) || 0;
 
     if (session._space) {
+      deactivateActiveModulesForSpaceTransition(session, "station-jump");
       spaceRuntime.detachSession(session, {
         broadcast: true,
         lifecycleReason: "station-jump",
@@ -1968,7 +2399,7 @@ function jumpSessionToStation(session, stationID) {
   }
 }
 
-function jumpSessionToSolarSystem(session, solarSystemID) {
+function jumpSessionToSolarSystem(session, solarSystemID, options = {}) {
   if (!session || !session.characterID) {
     return {
       success: false,
@@ -2001,6 +2432,11 @@ function jumpSessionToSolarSystem(session, solarSystemID) {
   }
 
   try {
+    const destinationSceneAlreadyLoaded = Boolean(
+      spaceRuntime &&
+        spaceRuntime.scenes instanceof Map &&
+        spaceRuntime.scenes.has(targetSolarSystemID),
+    );
     const sourceStationID = Number(session.stationid || session.stationID || 0);
     const sourceStructureID = Number(session.structureid || session.structureID || 0);
     const wasInSpace = Boolean(session._space);
@@ -2030,7 +2466,7 @@ function jumpSessionToSolarSystem(session, solarSystemID) {
       getDockedLocationID(session) ||
       0,
     ) || 0;
-    const spawnState = buildSolarSystemSpawnState(targetSolarSystemID);
+    const spawnState = options.spawnStateOverride || buildSolarSystemSpawnState(targetSolarSystemID);
     if (!spawnState) {
       return {
         success: false,
@@ -2039,6 +2475,7 @@ function jumpSessionToSolarSystem(session, solarSystemID) {
     }
 
     if (wasInSpace) {
+      deactivateActiveModulesForSpaceTransition(session, "solar-jump");
       spaceRuntime.detachSession(session, {
         broadcast: true,
         lifecycleReason: "solar-jump",
@@ -2127,10 +2564,14 @@ function jumpSessionToSolarSystem(session, solarSystemID) {
         spawnState,
       });
     }
-  queuePostSpaceAttachFittingHydration(session, moveResult.data && moveResult.data.itemID, {
-    inventoryBootstrapPending: false,
-    hydrationProfile: "solar",
-  });
+    queuePostSpaceAttachFittingHydration(
+      session,
+      moveResult.data && moveResult.data.itemID,
+      {
+        inventoryBootstrapPending: false,
+        hydrationProfile: destinationSceneAlreadyLoaded ? "solarWarm" : "solar",
+      },
+    );
     flushCharacterSessionNotificationPlan(session, applyResult.notificationPlan);
     queuePendingSessionEffects(session, {
       awaitBeyonceBoundBallpark: true,
@@ -2139,7 +2580,7 @@ function jumpSessionToSolarSystem(session, solarSystemID) {
     flushPendingCommandSessionEffects(session);
 
     log.info(
-      `[SpaceTransition] Solar jump ${session.characterName || session.characterID} ship=${activeShip.itemID} system=${targetSolarSystemID} anchor=${spawnState.anchorType}:${spawnState.anchorID}`,
+      `[SpaceTransition] Solar jump ${session.characterName || session.characterID} ship=${activeShip.itemID} system=${targetSolarSystemID} anchor=${spawnState.anchorType}:${spawnState.anchorID} warmScene=${destinationSceneAlreadyLoaded}`,
     );
 
     return {
@@ -2168,6 +2609,8 @@ module.exports = {
   rebuildDockedSessionAtStation,
   jumpSessionToStation,
   jumpSessionToSolarSystem,
+  resolveSameSceneEgoAddBallsStamp,
+  repairSameSceneSessionViewState,
 };
 module.exports._testing = {
   buildBoundResultForTesting: buildBoundResult,
@@ -2175,4 +2618,6 @@ module.exports._testing = {
   completeStargateJumpForTesting: completeStargateJump,
   getResolvedStargateForwardDirection,
   getSurfaceDistanceBetweenEntities,
+  resolveSameSceneEgoAddBallsStamp,
+  repairSameSceneSessionViewState,
 };

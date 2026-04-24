@@ -1,7 +1,7 @@
 {
   "source": {
     "provider": "EVE Static Data JSONL",
-    "generatedAt": "2026-04-01T14:59:20.827Z",
+    "generatedAt": "2026-04-09T16:52:02.513Z",
     "jsonlSync": {
       "updatedStationTypeIDs": [
         54,
@@ -48,24 +48,36 @@
         74397,
         78334
       ],
-      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3284752-jsonl",
-      "syncedAt": "2026-04-01T14:59:20.827Z",
-      "buildNumber": 3284752,
-      "releaseDate": "2026-03-31T11:27:11Z"
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
+      "syncedAt": "2026-04-09T16:52:02.513Z",
+      "buildNumber": 3294658,
+      "releaseDate": "2026-04-09T11:29:37Z"
     },
-    "authority": "eve-online-static-data-3284752-jsonl",
-    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3284752-jsonl",
-    "buildNumber": 3284752,
-    "releaseDate": "2026-03-31T11:27:11Z",
+    "authority": "eve-online-static-data-3294658-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
+    "buildNumber": 3294658,
+    "releaseDate": "2026-04-09T11:29:37Z",
     "localExtensions": {
       "preservedFields": [
         "dockEntry",
-        "dockOrientation"
+        "dockOrientation",
+        "graphicLocationID",
+        "directionalLocatorCategories",
+        "undockLocatorCategories"
       ],
-      "note": "These fields are preserved from local station geometry data because the JSONL SDE does not include dock transforms."
+      "note": "dockEntry/dockOrientation now come from client graphicLocations.fsdbinary via the cached stationGraphicLocators table. JSONL SDE rows do not include station dock transforms.",
+      "clientMapObjects": {
+        "syncedAt": "2026-04-14T12:04:07.563Z",
+        "mapObjectsDbPath": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\client\\EVE\\tq\\bin64\\staticdata\\mapObjects.db",
+        "metadataOutputPath": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\generated\\client-map-object-metadata.json",
+        "addedStationTypeIDs": [],
+        "updatedStationTypeIDs": [
+          92885
+        ]
+      }
     }
   },
-  "count": 43,
+  "count": 44,
   "stationTypes": [
     {
       "stationTypeID": 54,
@@ -82,14 +94,21 @@
       "published": false,
       "dockEntry": {
         "x": 36,
-        "y": 6854.262,
-        "z": 7948.467
+        "y": 6854.26221,
+        "z": 7948.4668
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": 1
-      }
+      },
+      "graphicLocationID": 28,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 56,
@@ -106,14 +125,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": -6001.506,
-        "z": -4509.068
+        "y": -6001.50635,
+        "z": -4509.06787
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 2,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 57,
@@ -130,14 +156,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": 5079.086,
-        "z": 5337.785
+        "y": 5079.08594,
+        "z": 5337.78467
       },
       "dockOrientation": {
         "x": 0,
-        "y": 0.195,
-        "z": -0.981
-      }
+        "y": 0.19518,
+        "z": -0.980768
+      },
+      "graphicLocationID": 1,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1529,
@@ -155,13 +188,20 @@
       "dockEntry": {
         "x": -170,
         "y": 3217,
-        "z": 12112.154
+        "z": 12112.1543
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": 1
-      }
+      },
+      "graphicLocationID": 22,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1530,
@@ -177,15 +217,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 11384.429,
-        "y": 7499.128,
-        "z": 270.252
+        "x": 11384.42871,
+        "y": 7499.12793,
+        "z": 270.25189
       },
       "dockOrientation": {
-        "x": 0.981,
-        "y": 0.193,
+        "x": 0.981181,
+        "y": 0.19309,
         "z": 0
-      }
+      },
+      "graphicLocationID": 27,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1531,
@@ -201,15 +248,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 2447.215,
+        "x": 2447.21484,
         "y": -3841,
         "z": 2988
       },
       "dockOrientation": {
-        "x": 0.951,
-        "y": 0.309,
+        "x": 0.951056,
+        "y": 0.309019,
         "z": 0
-      }
+      },
+      "graphicLocationID": 25,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1926,
@@ -226,14 +280,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": 11158.471,
+        "y": 11158.4707,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": 1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 4,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1927,
@@ -250,14 +311,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": -21987.525,
+        "y": -21987.52539,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 5,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1928,
@@ -274,14 +342,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": -21316.451,
+        "y": -21316.45117,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 6,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1929,
@@ -297,15 +372,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 199.788,
-        "y": -12936.939,
-        "z": -51.994
+        "x": 199.78848,
+        "y": -12936.93945,
+        "z": -51.99395
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 7,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1930,
@@ -329,7 +411,14 @@
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 8,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1931,
@@ -346,14 +435,21 @@
       "published": false,
       "dockEntry": {
         "x": -13,
-        "y": -5689.268,
+        "y": -5689.26807,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 9,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 1932,
@@ -369,15 +465,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -1749.89,
-        "y": -9967.829,
+        "x": -1749.89038,
+        "y": -9967.8291,
         "z": -27
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 10,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2496,
@@ -394,14 +497,21 @@
       "published": false,
       "dockEntry": {
         "x": -2909,
-        "y": -1437.88,
+        "y": -1437.88049,
         "z": -20657
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": -1
-      }
+      },
+      "graphicLocationID": 14,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2497,
@@ -418,14 +528,21 @@
       "published": false,
       "dockEntry": {
         "x": 6299,
-        "y": 2654.044,
-        "z": 11165.654
+        "y": 2654.04419,
+        "z": 11165.6543
       },
       "dockOrientation": {
         "x": 0,
-        "y": 0.006,
-        "z": 1
-      }
+        "y": 0.00626,
+        "z": 0.99998
+      },
+      "graphicLocationID": 15,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2498,
@@ -441,15 +558,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 30416.307,
+        "x": 30416.30664,
         "y": -1172,
-        "z": -3099.963
+        "z": -3099.96265
       },
       "dockOrientation": {
         "x": 1,
         "y": 0,
         "z": 0
-      }
+      },
+      "graphicLocationID": 16,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2499,
@@ -465,15 +589,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 11903.649,
-        "y": 8452.423,
-        "z": 9744.415
+        "x": 11903.64941,
+        "y": 8452.42285,
+        "z": 9744.41504
       },
       "dockOrientation": {
-        "x": 1,
-        "y": 0.006,
+        "x": 0.99998,
+        "y": 0.00626,
         "z": 0
-      }
+      },
+      "graphicLocationID": 17,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2500,
@@ -489,15 +620,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 1390.302,
+        "x": 1390.30151,
         "y": 27,
-        "z": -28047.037
+        "z": -28047.03711
       },
       "dockOrientation": {
-        "x": 0.031,
-        "y": 0.006,
-        "z": -0.999
-      }
+        "x": 0.03134,
+        "y": 0.00617,
+        "z": -0.99949
+      },
+      "graphicLocationID": 18,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2501,
@@ -515,13 +653,20 @@
       "dockEntry": {
         "x": 17,
         "y": 3115,
-        "z": -18255.197
+        "z": -18255.19727
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": -1
-      }
+      },
+      "graphicLocationID": 19,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 2502,
@@ -539,13 +684,20 @@
       "dockEntry": {
         "x": 17,
         "y": 10096,
-        "z": -12607.206
+        "z": -12607.20605
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": -1
-      }
+      },
+      "graphicLocationID": 11,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3865,
@@ -561,15 +713,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -1297.714,
-        "y": 4860.295,
-        "z": -6949.293
+        "x": -1297.71375,
+        "y": 4860.29541,
+        "z": -6949.29297
       },
       "dockOrientation": {
-        "x": 0.111,
-        "y": -0.02,
-        "z": -0.994
-      }
+        "x": 0.11059,
+        "y": -0.01975,
+        "z": -0.99367
+      },
+      "graphicLocationID": 3,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3866,
@@ -585,7 +744,7 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 9264.685,
+        "x": 9264.68457,
         "y": 884,
         "z": 0
       },
@@ -593,7 +752,14 @@
         "x": 1,
         "y": 0,
         "z": 0
-      }
+      },
+      "graphicLocationID": 35,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3867,
@@ -609,15 +775,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 7933.668,
-        "y": 208.236,
-        "z": 18212.35
+        "x": 7933.66797,
+        "y": 208.23645,
+        "z": 18212.34961
       },
       "dockOrientation": {
-        "x": 0.281,
-        "y": -0.008,
-        "z": 0.96
-      }
+        "x": 0.2808,
+        "y": -0.00826,
+        "z": 0.959731
+      },
+      "graphicLocationID": 24,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3868,
@@ -633,15 +806,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 9956.192,
-        "y": 1058.911,
+        "x": 9956.19238,
+        "y": 1058.91113,
         "z": 0
       },
       "dockOrientation": {
-        "x": 1,
-        "y": 0.02,
+        "x": 0.999797,
+        "y": 0.02015,
         "z": 0
-      }
+      },
+      "graphicLocationID": 39,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3869,
@@ -657,15 +837,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 10679.884,
-        "y": 1006.773,
-        "z": -14350.235
+        "x": 10679.88379,
+        "y": 1006.77295,
+        "z": -14350.23535
       },
       "dockOrientation": {
-        "x": 0.999,
-        "y": 0.034,
+        "x": 0.999426,
+        "y": 0.03387,
         "z": 0
-      }
+      },
+      "graphicLocationID": 33,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3870,
@@ -681,15 +868,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 9788.605,
+        "x": 9788.60547,
         "y": 938,
         "z": 0
       },
       "dockOrientation": {
-        "x": 1,
-        "y": -0.012,
-        "z": -0.021
-      }
+        "x": 0.999713,
+        "y": -0.01204,
+        "z": -0.0207
+      },
+      "graphicLocationID": 26,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3871,
@@ -705,15 +899,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 123.395,
-        "y": -4043.974,
-        "z": -17010.324
+        "x": 123.39453,
+        "y": -4043.97363,
+        "z": -17010.32422
       },
       "dockOrientation": {
         "x": 0,
-        "y": -0.24,
-        "z": -0.971
-      }
+        "y": -0.239631,
+        "z": -0.970864
+      },
+      "graphicLocationID": 31,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 3872,
@@ -729,15 +930,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -27844.549,
-        "y": -1354.307,
+        "x": -27844.54883,
+        "y": -1354.30688,
         "z": -2399
       },
       "dockOrientation": {
         "x": -1,
         "y": 0,
         "z": 0
-      }
+      },
+      "graphicLocationID": 32,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 4023,
@@ -753,15 +961,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -27844.549,
-        "y": -1354.307,
+        "x": -27844.54883,
+        "y": -1354.30688,
         "z": -2399
       },
       "dockOrientation": {
         "x": -1,
         "y": 0,
         "z": 0
-      }
+      },
+      "graphicLocationID": 32,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 4024,
@@ -777,7 +992,7 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -33431.207,
+        "x": -33431.20703,
         "y": -2574,
         "z": -2477
       },
@@ -785,7 +1000,14 @@
         "x": -1,
         "y": 0,
         "z": 0
-      }
+      },
+      "graphicLocationID": 23,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 9868,
@@ -801,15 +1023,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -3152.709,
-        "y": -39840.254,
-        "z": 8244.798
+        "x": -3152.70874,
+        "y": -39840.25391,
+        "z": 8244.79785
       },
       "dockOrientation": {
         "x": 0,
-        "y": 0,
+        "y": -0.00005,
         "z": 1
-      }
+      },
+      "graphicLocationID": 42,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 10795,
@@ -833,7 +1062,14 @@
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 58,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 29323,
@@ -851,13 +1087,20 @@
       "dockEntry": {
         "x": -170,
         "y": 3217,
-        "z": 12112.154
+        "z": 12112.1543
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": 1
-      }
+      },
+      "graphicLocationID": 22,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 29387,
@@ -874,14 +1117,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": 11158.471,
+        "y": 11158.4707,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": 1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 4,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 29388,
@@ -898,14 +1148,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": -21987.525,
+        "y": -21987.52539,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 5,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 29389,
@@ -921,15 +1178,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -1749.89,
-        "y": -9967.829,
+        "x": -1749.89038,
+        "y": -9967.8291,
         "z": -27
       },
       "dockOrientation": {
         "x": 0,
         "y": -1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 10,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 34325,
@@ -945,15 +1209,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 10679.884,
-        "y": 1006.773,
-        "z": -14350.235
+        "x": 10679.88379,
+        "y": 1006.77295,
+        "z": -14350.23535
       },
       "dockOrientation": {
-        "x": 0.999,
-        "y": 0.034,
+        "x": 0.999426,
+        "y": 0.03387,
         "z": 0
-      }
+      },
+      "graphicLocationID": 33,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 34326,
@@ -969,15 +1240,22 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 7933.668,
-        "y": 208.236,
-        "z": 18212.35
+        "x": 7933.66797,
+        "y": 208.23645,
+        "z": 18212.34961
       },
       "dockOrientation": {
-        "x": 0.281,
-        "y": -0.008,
-        "z": 0.96
-      }
+        "x": 0.2808,
+        "y": -0.00826,
+        "z": 0.959731
+      },
+      "graphicLocationID": 24,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 52678,
@@ -993,15 +1271,28 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": -1821.088,
-        "y": -6383.582,
-        "z": 65056.355
+        "x": -1821.08789,
+        "y": -6383.58154,
+        "z": 65056.35547
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": 1
-      }
+      },
+      "graphicLocationID": 2060,
+      "directionalLocatorCategories": [
+        "undockPointCapital",
+        "undockPointLarge",
+        "undockPointSmall",
+        "undockPointSupercapital"
+      ],
+      "undockLocatorCategories": [
+        "undockPointCapital",
+        "undockPointLarge",
+        "undockPointSmall",
+        "undockPointSupercapital"
+      ]
     },
     {
       "stationTypeID": 59956,
@@ -1017,15 +1308,24 @@
       "portionSize": 1,
       "published": false,
       "dockEntry": {
-        "x": 93.067,
-        "y": 2464.239,
-        "z": -6176.372
+        "x": 93.06725,
+        "y": 2464.23877,
+        "z": -6176.37158
       },
       "dockOrientation": {
         "x": 0,
-        "y": 0,
+        "y": 0.00001,
         "z": 1
-      }
+      },
+      "graphicLocationID": 2063,
+      "directionalLocatorCategories": [
+        "undockPointLarge",
+        "undockPointSmall"
+      ],
+      "undockLocatorCategories": [
+        "undockPointLarge",
+        "undockPointSmall"
+      ]
     },
     {
       "stationTypeID": 71361,
@@ -1042,14 +1342,21 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": -15437.429,
-        "z": -3555.869
+        "y": -15437.42871,
+        "z": -3555.86865
       },
       "dockOrientation": {
         "x": 0,
-        "y": 0.022,
-        "z": -1
-      }
+        "y": 0.02234,
+        "z": -0.99975
+      },
+      "graphicLocationID": 2064,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 74397,
@@ -1067,13 +1374,20 @@
       "dockEntry": {
         "x": 17,
         "y": 10096,
-        "z": -12607.206
+        "z": -12607.20605
       },
       "dockOrientation": {
         "x": 0,
         "y": 0,
         "z": -1
-      }
+      },
+      "graphicLocationID": 2065,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
     },
     {
       "stationTypeID": 78334,
@@ -1090,14 +1404,60 @@
       "published": false,
       "dockEntry": {
         "x": 0,
-        "y": -9946.051,
+        "y": -9946.05078,
         "z": 0
       },
       "dockOrientation": {
         "x": 0,
         "y": 1,
         "z": 0
-      }
+      },
+      "graphicLocationID": 26198,
+      "directionalLocatorCategories": [
+        "undockPoint"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint"
+      ]
+    },
+    {
+      "stationTypeID": 92885,
+      "typeName": "AIR Trade Hub",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 33224,
+      "radius": 70000,
+      "basePrice": 0,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false,
+      "dockEntry": {
+        "x": 8333.92773,
+        "y": -5700.83838,
+        "z": -32857.89844
+      },
+      "dockOrientation": {
+        "x": 0.099504,
+        "y": 0,
+        "z": -0.995037
+      },
+      "graphicLocationID": 2072,
+      "directionalLocatorCategories": [
+        "undockPoint",
+        "undockPointCapital",
+        "undockPointLarge",
+        "undockPointSmall",
+        "undockPointSupercapital"
+      ],
+      "undockLocatorCategories": [
+        "undockPoint",
+        "undockPointCapital",
+        "undockPointLarge",
+        "undockPointSmall",
+        "undockPointSupercapital"
+      ]
     }
   ]
 }

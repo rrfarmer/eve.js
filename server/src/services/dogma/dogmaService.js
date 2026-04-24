@@ -24,9 +24,9 @@ const {
   getActiveShipRecord,
   findCharacterShip,
   activateShipForSession,
-  spawnShipInHangarForSession,
   syncInventoryItemForSession,
   syncChargeSublocationTransitionForSession,
+  syncLoadedChargeDogmaBootstrapForSession,
   syncShipFittingStateForSession,
   syncModuleOnlineEffectForSession,
   flushDeferredDockedFittingReplay,
@@ -37,6 +37,7 @@ const {
   normalizeShipConditionState,
   ITEM_FLAGS,
   SHIP_CATEGORY_ID,
+  getItemMutationVersion,
   findCharacterShipByType,
   findItemById,
   grantItemToCharacterLocation,
@@ -53,8 +54,19 @@ const {
 const {
   getCharacterSkills,
   getCharacterSkillPointTotal,
+  getSkillMutationVersion,
   SKILL_FLAG_ID,
 } = require(path.join(__dirname, "../skills/skillState"));
+const {
+  injectSkillbookItems,
+} = require(path.join(__dirname, "../skills/skillbooks/skillbookRuntime"));
+const {
+  getLocationModifierSourcesForSystem,
+  buildSystemWideEffectsPayloadForSystem,
+} = require(path.join(
+  __dirname,
+  "../exploration/wormholes/wormholeEnvironmentRuntime",
+));
 const {
   getAttributeIDByNames,
   getFittedModuleItems,
@@ -65,21 +77,71 @@ const {
   getModuleChargeCapacity,
   getEffectIDByNames,
   isModuleOnline,
+  isEffectivelyOnlineModule,
   isChargeCompatibleWithModule,
-  listFittedItems,
   buildChargeTupleItemID,
   buildChargeSublocationData,
   buildModuleStatusSnapshot,
   buildCharacterTargetingState,
   buildEffectiveItemAttributeMap,
-  calculateShipDerivedAttributes,
-  buildShipResourceState,
+  getTypeDogmaAttributes,
   getTypeAttributeValue,
   isShipFittingFlag,
+  applyModifierGroups,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
 const {
-  collectCharacterModifierAttributes,
+  getShipFittingSnapshot,
+  refreshShipFittingSnapshot,
+  invalidateShipFittingSnapshot,
+  listShipFittingAttributeChanges,
+} = require(path.join(
+  __dirname,
+  "../../_secondary/fitting/fittingRuntime",
+));
+const {
+  manifestRequiresRealChargeInventoryHudRowsForItemIDs,
+  resolveModuleParityFamily,
+} = require(path.join(
+  __dirname,
+  "../../space/modules/moduleClientParityAuthority",
+));
+const {
+  resolveCharacterIndustryAttributes,
+} = require(path.join(__dirname, "./brain/providers/industryBrainProvider"));
+const probeRuntimeState = require(path.join(
+  __dirname,
+  "../exploration/probes/probeRuntimeState",
+));
+const probeScanRuntime = require(path.join(
+  __dirname,
+  "../exploration/probes/probeScanRuntime",
+));
+const probeSceneRuntime = require(path.join(
+  __dirname,
+  "../exploration/probes/probeSceneRuntime",
+));
+const {
+  buildBootstrapCharacterBrain,
+  buildCharacterBrainDefinitionSet,
+  syncCharacterDogmaState,
+} = require(path.join(__dirname, "./brain/characterBrainRuntime"));
+const {
+  buildWeaponBankStateDict,
+  getShipWeaponBanks,
+  getMasterModuleID: getWeaponBankMasterModuleID,
+  getModulesInBank,
+  linkWeapons: linkWeaponBanks,
+  mergeModuleGroups,
+  peelAndLink,
+  unlinkModuleFromBank,
+  linkAllWeapons: linkAllWeaponBanks,
+  unlinkAllWeaponBanks,
+  destroyWeaponBank,
+  destroyWeaponBankAndNotify,
+} = require(path.join(__dirname, "../moduleGrouping/moduleGroupingRuntime"));
+const {
   buildWeaponDogmaAttributeOverrides,
+  collectCharacterModifierAttributes,
 } = require(path.join(__dirname, "../../space/combat/weaponDogma"));
 const {
   extractDictEntries,
@@ -93,30 +155,71 @@ const {
   unwrapMarshalValue,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const {
+  CHARGE_DOGMA_REPLAY_MODE_PRIME_REPAIR_THEN_QUANTITY,
+} = require(path.join(__dirname, "../../space/modules/moduleLoadParity"));
+const {
   getDockedLocationID,
   isDockedSession,
 } = require(path.join(__dirname, "../structure/structureLocation"));
+const {
+  boardRookieShipForSession,
+  isRookieShipItem,
+  repairShipAndFittedItemsForSession,
+  resolveRookieShipTypeID,
+} = require(path.join(__dirname, "../ship/rookieShipRuntime"));
 const worldData = require(path.join(__dirname, "../../space/worldData"));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
+
+function recordSpaceBootstrapTrace(session, event, details = {}) {
+  if (
+    !session ||
+    !log.isVerboseDebugEnabled() ||
+    !spaceRuntime ||
+    typeof spaceRuntime.recordSessionJumpTimingTrace !== "function"
+  ) {
+    return false;
+  }
+  return (
+    spaceRuntime.recordSessionJumpTimingTrace(session, event, details) === true
+  );
+}
+
 const REMOVED_ITEM_JUNK_LOCATION_ID = 6;
 const ATTRIBUTE_CHARISMA = 164;
 const ATTRIBUTE_INTELLIGENCE = 165;
 const ATTRIBUTE_MEMORY = 166;
 const ATTRIBUTE_PERCEPTION = 167;
 const ATTRIBUTE_WILLPOWER = 168;
+const ATTRIBUTE_MANUFACTURE_SLOT_LIMIT = 196;
+const ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER = 219;
+const ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED = 385;
+const ATTRIBUTE_COPY_SPEED_PERCENT = 387;
+const ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED = 398;
+const ATTRIBUTE_MAX_LABORATORY_SLOTS = 467;
+const ATTRIBUTE_INVENTION_RESEARCH_SPEED = 1959;
+const ATTRIBUTE_REACTION_TIME_MULTIPLIER = 2662;
+const ATTRIBUTE_REACTION_SLOT_LIMIT = 2664;
 const ATTRIBUTE_PILOT_SECURITY_STATUS = 2610;
 const ATTRIBUTE_ITEM_DAMAGE = 3;
 const ATTRIBUTE_MASS = 4;
 const ATTRIBUTE_MAX_VELOCITY = getAttributeIDByNames("maxVelocity") || 37;
+const ATTRIBUTE_MAX_RANGE = getAttributeIDByNames("maxRange") || 54;
 const ATTRIBUTE_MAX_TARGET_RANGE =
   getAttributeIDByNames("maxTargetRange") || 76;
+const ATTRIBUTE_FALLOFF_EFFECTIVENESS =
+  getAttributeIDByNames("falloffEffectiveness") || 2044;
 // CCP parity: attribute 18 ("charge") is the current capacitor energy level in
 // GJ.  The client reads shipItem.charge to display the capacitor gauge.
 const ATTRIBUTE_CHARGE = 18;
 const ATTRIBUTE_CAPACITY = 38;
+const ATTRIBUTE_POWER_LOAD = getAttributeIDByNames("powerLoad") || 15;
+const ATTRIBUTE_CPU_LOAD = getAttributeIDByNames("cpuLoad") || 49;
+const ATTRIBUTE_CAPACITOR_CAPACITY =
+  getAttributeIDByNames("capacitorCapacity") || 482;
 const ATTRIBUTE_MAX_LOCKED_TARGETS =
   getAttributeIDByNames("maxLockedTargets") || 192;
 const ATTRIBUTE_QUANTITY = getAttributeIDByNames("quantity") || 805;
+const ATTRIBUTE_RECHARGE_RATE = getAttributeIDByNames("rechargeRate") || 55;
 const ATTRIBUTE_VOLUME = 161;
 const ATTRIBUTE_RADIUS = 162;
 const ATTRIBUTE_CLOAKING_TARGETING_DELAY =
@@ -128,11 +231,19 @@ const ATTRIBUTE_SIGNATURE_RADIUS =
 const ATTRIBUTE_RELOAD_TIME = getAttributeIDByNames("reloadTime") || 1795;
 const ATTRIBUTE_NEXT_ACTIVATION_TIME =
   getAttributeIDByNames("nextActivationTime") || 1796;
+const ATTRIBUTE_DAMAGE_MULTIPLIER_BONUS_MAX_TIMESTAMP =
+  getAttributeIDByNames("damageMultiplierBonusMaxTimestamp") || 5818;
 const ATTRIBUTE_DRONE_IS_AGGRESSIVE =
   getAttributeIDByNames("droneIsAggressive") || 1275;
 const ATTRIBUTE_DRONE_FOCUS_FIRE =
   getAttributeIDByNames("droneFocusFire") || 1297;
+const INTEGER_NOTIFY_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
 const DRONE_CATEGORY_ID = 18;
+const SCANNER_PROBE_CATEGORY_ID = 8;
+const GROUP_SCAN_PROBE_LAUNCHER = 481;
+const GROUP_SCANNER_PROBE = 479;
 const ATTRIBUTE_SHIELD_CAPACITY = 263;
 const ATTRIBUTE_SHIELD_CHARGE_HELPER = 264;
 const ATTRIBUTE_ARMOR_HP = 265;
@@ -163,15 +274,9 @@ const DBTYPE_I4 = 0x03;
 const DBTYPE_R8 = 0x05;
 const DBTYPE_BOOL = 0x0b;
 const DBTYPE_I8 = 0x14;
-const CORVETTE_GROUP_ID = 237;
-const CORVETTE_TYPE_ID_BY_RACE_ID = Object.freeze({
-  1: 601, // Ibis
-  2: 588, // Reaper
-  4: 596, // Impairor
-  8: 606, // Velator
-});
 const ONLINE_CAPACITOR_CHARGE_RATIO = 95;
 const ONLINE_CAPACITOR_REMAINDER_RATIO = 5;
+const USER_ERROR_TYPE_ID = 4;
 const EFFECT_ONLINE = getEffectIDByNames("online") || 16;
 const EFFECT_AFTERBURNER =
   getEffectIDByNames("moduleBonusAfterburner") || 6731;
@@ -195,168 +300,30 @@ const VALID_DRONE_SETTING_ATTRIBUTE_IDS = new Set([
   ATTRIBUTE_DRONE_FOCUS_FIRE,
 ]);
 function isNewbieShipItem(item) {
-  if (!item) {
-    return false;
-  }
-  const metadata =
-    resolveShipByTypeID(Number(item.typeID || 0)) || item || {};
-  return Number(metadata.groupID || item.groupID || 0) === CORVETTE_GROUP_ID;
+  return isRookieShipItem(item);
 }
 function resolveNewbieShipTypeID(session, characterRecord = null) {
-  const charData = characterRecord || getCharacterRecord(session && session.characterID) || {};
-  const raceID = Number(
-    charData.raceID || (session && (session.raceID || session.raceid)) || 0,
+  return resolveRookieShipTypeID(
+    session,
+    characterRecord || getCharacterRecord(session && session.characterID) || {},
   );
-  return CORVETTE_TYPE_ID_BY_RACE_ID[raceID] || 606;
-}
-function repairShipAndFittedItemsForSession(session, shipItem) {
-  if (!session || !shipItem || !shipItem.itemID) {
-    return;
-  }
-  const shipUpdateResult = updateShipItem(shipItem.itemID, (currentShip) => ({
-    ...currentShip,
-    conditionState: {
-      ...(currentShip.conditionState || {}),
-      damage: 0.0,
-      charge: 1.0,
-      armorDamage: 0.0,
-      shieldCharge: 1.0,
-      incapacitated: false,
-    },
-  }));
-  if (shipUpdateResult.success) {
-    syncInventoryItemForSession(
-      session,
-      shipUpdateResult.data,
-      shipUpdateResult.previousData || {},
-      { emitCfgLocation: true },
-    );
-  }
-  const fittedItems = listFittedItems(
-    Number(session.characterID || 0) || 0,
-    shipItem.itemID,
-  );
-  for (const fittedItem of fittedItems) {
-    const moduleUpdateResult = updateInventoryItem(
-      fittedItem.itemID,
-      (currentItem) => ({
-        ...currentItem,
-        moduleState: {
-          ...(currentItem.moduleState || {}),
-          damage: 0.0,
-          armorDamage: 0.0,
-          incapacitated: false,
-        },
-      }),
-    );
-    if (!moduleUpdateResult.success) {
-      continue;
-    }
-    syncInventoryItemForSession(
-      session,
-      moduleUpdateResult.data,
-      moduleUpdateResult.previousData || {},
-      { emitCfgLocation: false },
-    );
-  }
 }
 function boardNewbieShipForSession(session, options = {}) {
-  if (!session || !session.characterID) {
-    return {
-      success: false,
-      errorMsg: "CHARACTER_NOT_SELECTED",
-    };
-  }
-  const stationID = getDockedLocationID(session) || 0;
-  if (!stationID) {
-    return {
-      success: false,
-      errorMsg: "DOCK_REQUIRED",
-    };
-  }
-  const activeShip = getActiveShipRecord(session.characterID);
-  if (!activeShip) {
-    return {
-      success: false,
-      errorMsg: "SHIP_NOT_FOUND",
-    };
-  }
-  if (isNewbieShipItem(activeShip)) {
-    if (options.allowAlreadyInNewbieShip === true) {
-      return {
-        success: true,
-        data: {
-          ship: activeShip,
-          corvetteTypeID: Number(activeShip.typeID || 0) || 0,
-          reusedExistingShip: true,
-          alreadyInNewbieShip: true,
-        },
-      };
-    }
-    return {
-      success: false,
-      errorMsg: "ALREADY_IN_NEWBIE_SHIP",
-      data: {
-        ship: activeShip,
-      },
-    };
-  }
-  const characterID = Number(session.characterID || 0) || 0;
-  const corvetteTypeID = resolveNewbieShipTypeID(session);
-  let corvetteShip = findCharacterShipByType(characterID, corvetteTypeID, stationID);
-  const reusedExistingShip = Boolean(corvetteShip);
-  const logLabel = String(options.logLabel || "BoardNewbieShip");
-  if (!corvetteShip) {
-    const spawnResult = spawnShipInHangarForSession(session, corvetteTypeID);
-    if (!spawnResult.success || !spawnResult.ship) {
-      log.warn(
-        `[DogmaIM] ${logLabel} failed to create corvette for char=${characterID} typeID=${corvetteTypeID} error=${spawnResult.errorMsg}`,
-      );
-      return {
-        success: false,
-        errorMsg: "CORVETTE_CREATE_FAILED",
-        data: {
-          corvetteTypeID,
-          innerErrorMsg: spawnResult.errorMsg || null,
-        },
-      };
-    }
-    corvetteShip = spawnResult.ship;
-  }
-  const activateResult = activateShipForSession(session, corvetteShip.itemID, {
-    emitNotifications: options.emitNotifications !== false,
-    logSelection: options.logSelection !== false,
+  const boardResult = boardRookieShipForSession(session, {
+    ...options,
+    logLabel: String(options.logLabel || "BoardNewbieShip"),
   });
-  if (!activateResult.success) {
-    log.warn(
-      `[DogmaIM] ${logLabel} failed to activate corvette ship=${corvetteShip.itemID} char=${characterID} error=${activateResult.errorMsg}`,
+  if (
+    boardResult &&
+    boardResult.success &&
+    boardResult.data &&
+    boardResult.data.ship
+  ) {
+    log.info(
+      `[DogmaIM] ${String(options.logLabel || "BoardNewbieShip")} boarded char=${Number(session && session.characterID) || 0} ship=${boardResult.data.ship.itemID} typeID=${boardResult.data.corvetteTypeID} reusedExisting=${boardResult.data.reusedExistingShip === true}`,
     );
-    return {
-      success: false,
-      errorMsg: "SHIP_ACTIVATION_FAILED",
-      data: {
-        corvetteTypeID,
-        ship: corvetteShip,
-        innerErrorMsg: activateResult.errorMsg || null,
-      },
-    };
   }
-  const boardedShip = activateResult.activeShip || corvetteShip;
-  if (reusedExistingShip && options.repairExistingShip !== false) {
-    repairShipAndFittedItemsForSession(session, boardedShip);
-  }
-  log.info(
-    `[DogmaIM] ${logLabel} boarded char=${characterID} ship=${corvetteShip.itemID} typeID=${corvetteTypeID} reusedExisting=${reusedExistingShip}`,
-  );
-  return {
-    success: true,
-    data: {
-      ship: boardedShip,
-      corvetteTypeID,
-      reusedExistingShip,
-      alreadyInNewbieShip: false,
-    },
-  };
+  return boardResult;
 }
 function marshalModuleDurationWireValue(value) {
   if (value === undefined || value === null) {
@@ -381,8 +348,26 @@ function isModuleTimingAttribute(attributeID) {
     numericAttributeID === MODULE_ATTRIBUTE_SPEED
   );
 }
+function isMarshalRealDogmaAttribute(attributeID) {
+  const numericAttributeID = Number(attributeID) || 0;
+  return (
+    isModuleTimingAttribute(numericAttributeID) ||
+    numericAttributeID === ATTRIBUTE_RECHARGE_RATE ||
+    numericAttributeID === ATTRIBUTE_CAPACITOR_CAPACITY
+  );
+}
 function marshalDogmaAttributeValue(attributeID, value) {
-  return isModuleTimingAttribute(attributeID)
+  if ((Number(attributeID) || 0) === ATTRIBUTE_DAMAGE_MULTIPLIER_BONUS_MAX_TIMESTAMP) {
+    if (typeof value === "bigint") {
+      return value;
+    }
+    const numericValue = normalizeNumber(value, Number.NaN);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return 0;
+    }
+    return toFileTimeFromMs(numericValue);
+  }
+  return isMarshalRealDogmaAttribute(attributeID)
     ? marshalModuleDurationWireValue(value)
     : value;
 }
@@ -449,7 +434,7 @@ function summarizeModuleItemForLog(item) {
     flagID: Number(item.flagID) || 0,
     groupID: Number(item.groupID) || 0,
     categoryID: Number(item.categoryID) || 0,
-    online: isModuleOnline(item),
+    online: isEffectivelyOnlineModule(item),
     quantity: Math.max(0, Number(item.stacksize ?? item.quantity ?? 0) || 0),
   };
 }
@@ -688,6 +673,211 @@ class DogmaService extends BaseService {
   constructor() {
     super("dogmaIM");
   }
+  _getDockedItemInfoCache(session, options = {}) {
+    if (!session || !isDockedSession(session)) {
+      return null;
+    }
+    const charID = this._getCharID(session);
+    const shipID = this._getShipID(session);
+    if (charID <= 0 || shipID <= 0) {
+      return null;
+    }
+    const cacheToken = [
+      charID,
+      shipID,
+      getItemMutationVersion(),
+      getSkillMutationVersion(),
+    ].join(":");
+    const allowCreate = options.allowCreate !== false;
+    const cached =
+      session._dockedDogmaItemInfoCache &&
+      typeof session._dockedDogmaItemInfoCache === "object"
+        ? session._dockedDogmaItemInfoCache
+        : null;
+    if (
+      cached &&
+      cached.token === cacheToken &&
+      cached.entries instanceof Map
+    ) {
+      return cached;
+    }
+    if (!allowCreate) {
+      return null;
+    }
+    const nextCache = {
+      token: cacheToken,
+      entries: new Map(),
+    };
+    session._dockedDogmaItemInfoCache = nextCache;
+    return nextCache;
+  }
+  _buildDockedItemInfoCacheKey(requestedItemID, item = null) {
+    if (Array.isArray(requestedItemID)) {
+      return `tuple:${JSON.stringify(
+        requestedItemID.map((value) => Number(value) || 0),
+      )}`;
+    }
+    const numericRequestedItemID =
+      Number.parseInt(String(requestedItemID), 10) || 0;
+    if (numericRequestedItemID > 0) {
+      return `item:${numericRequestedItemID}`;
+    }
+    const numericItemID = Number(item && item.itemID) || 0;
+    return numericItemID > 0 ? `item:${numericItemID}` : null;
+  }
+  _getCachedDockedItemInfoEntry(session, requestedItemID, item = null) {
+    const cache = this._getDockedItemInfoCache(session, {
+      allowCreate: false,
+    });
+    if (!cache) {
+      return null;
+    }
+    const cacheKey = this._buildDockedItemInfoCacheKey(requestedItemID, item);
+    return cacheKey ? cache.entries.get(cacheKey) || null : null;
+  }
+  _cacheDockedItemInfoEntry(session, requestedItemID, item, entry) {
+    if (!entry) {
+      return entry;
+    }
+    const cache = this._getDockedItemInfoCache(session, {
+      allowCreate: true,
+    });
+    if (!cache) {
+      return entry;
+    }
+    const cacheKeys = [];
+    const requestedKey = this._buildDockedItemInfoCacheKey(requestedItemID, item);
+    if (requestedKey) {
+      cacheKeys.push(requestedKey);
+    }
+    const itemKey = this._buildDockedItemInfoCacheKey(
+      Number(item && item.itemID) || 0,
+      item,
+    );
+    if (itemKey && !cacheKeys.includes(itemKey)) {
+      cacheKeys.push(itemKey);
+    }
+    for (const cacheKey of cacheKeys) {
+      cache.entries.set(cacheKey, entry);
+    }
+    return entry;
+  }
+  _consumePendingHardpointActivationBootstrap(session, moduleItem) {
+    if (
+      !session ||
+      !session._space ||
+      !moduleItem ||
+      typeof moduleItem !== "object"
+    ) {
+      return false;
+    }
+
+    const moduleID = Number(moduleItem.itemID) || 0;
+    const shipID = Number(moduleItem.locationID) || this._getShipID(session);
+    const pendingModuleIDs =
+      session._space.pendingHardpointActivationBootstrapModuleIDs;
+    if (
+      moduleID <= 0 ||
+      shipID <= 0 ||
+      !(pendingModuleIDs instanceof Set) ||
+      !pendingModuleIDs.has(moduleID)
+    ) {
+      return false;
+    }
+
+    const loadedCharge = getLoadedChargeByFlag(
+      session.characterID || session.charid || 0,
+      shipID,
+      Number(moduleItem.flagID) || 0,
+    );
+    const family = resolveModuleParityFamily(moduleItem, loadedCharge);
+    if (
+      !family ||
+      family.hardpointBound !== true ||
+      family.requiresOnlineEffectReplay !== true
+    ) {
+      pendingModuleIDs.delete(moduleID);
+      return false;
+    }
+
+    const forceRealChargeInventoryHudRows =
+      manifestRequiresRealChargeInventoryHudRowsForItemIDs(
+        session._space.loginModuleParityManifest,
+        [moduleID],
+      ) ||
+      family.preferRealChargeInventoryHudRows === true;
+
+    pendingModuleIDs.delete(moduleID);
+    syncShipFittingStateForSession(session, shipID, {
+      includeOfflineModules: true,
+      includeCharges: forceRealChargeInventoryHudRows,
+      emitChargeInventoryRows: forceRealChargeInventoryHudRows,
+      allowInSpaceChargeInventoryRows: forceRealChargeInventoryHudRows,
+      emitOnlineEffects: true,
+      syntheticFitTransition: true,
+      restrictToItemIDs: [moduleID],
+    });
+    log.debug(
+      `[hardpoint-activation-bootstrap] shipID=${shipID} moduleID=${moduleID} ` +
+      `typeID=${Number(moduleItem.typeID) || 0} family=${family.familyID} ` +
+      `realChargeRows=${forceRealChargeInventoryHudRows} profile=${
+        session._space.loginChargeHydrationProfile || "unknown"
+      }`,
+    );
+    return true;
+  }
+  _armPendingHardpointActivationBootstrap(
+    session,
+    moduleItem,
+    chargeItem = null,
+    options = {},
+  ) {
+    if (
+      !session ||
+      !session._space ||
+      !moduleItem ||
+      typeof moduleItem !== "object"
+    ) {
+      return false;
+    }
+
+    // Keep the reload-specific hardpoint repair narrow for now: the fresh
+    // login real-HUD lane is the path that still needs a one-shot re-arm after
+    // charge replacement, while undock/solar/stargate are already stable.
+    if (
+      session._space.useRealChargeInventoryHudRows !== true ||
+      String(session._space.loginChargeHydrationProfile || "") !== "login"
+    ) {
+      return false;
+    }
+
+    const moduleID = Number(moduleItem.itemID) || 0;
+    const family = resolveModuleParityFamily(moduleItem, chargeItem);
+    if (
+      moduleID <= 0 ||
+      !family ||
+      family.hardpointBound !== true ||
+      family.requiresOnlineEffectReplay !== true
+    ) {
+      return false;
+    }
+
+    let pendingModuleIDs =
+      session._space.pendingHardpointActivationBootstrapModuleIDs;
+    if (!(pendingModuleIDs instanceof Set)) {
+      pendingModuleIDs = new Set();
+      session._space.pendingHardpointActivationBootstrapModuleIDs =
+        pendingModuleIDs;
+    }
+    pendingModuleIDs.add(moduleID);
+    log.debug(
+      `[hardpoint-activation-bootstrap] re-armed shipID=${
+        Number(moduleItem.locationID) || this._getShipID(session)
+      } moduleID=${moduleID} typeID=${Number(moduleItem.typeID) || 0} ` +
+      `family=${family.familyID} reason=${String(options.reason || "unknown")}`,
+    );
+    return true;
+  }
   _coalesce(value, fallback) {
     return value === undefined || value === null ? fallback : value;
   }
@@ -925,6 +1115,23 @@ class DogmaService extends BaseService {
     stacksize = 1,
     customInfo = "",
   }) {
+    const normalizedQuantity = Number.isFinite(Number(quantity))
+      ? quantity
+      : -1;
+    const normalizedSingleton =
+      singleton === null || singleton === undefined
+        ? (normalizedQuantity === -1 ? 1 : 0)
+        : singleton;
+    const normalizedStacksize =
+      stacksize === null || stacksize === undefined
+        ? (normalizedSingleton === 1
+          ? 1
+          : (normalizedQuantity === -1 ? 0 : normalizedQuantity))
+        : stacksize;
+    const normalizedCustomInfo =
+      customInfo === null || customInfo === undefined
+        ? ""
+        : customInfo;
     return {
       type: "object",
       name: "util.Row",
@@ -955,12 +1162,12 @@ class DogmaService extends BaseService {
               ownerID,
               locationID,
               flagID,
-              quantity,
+              normalizedQuantity,
               groupID,
               categoryID,
-              customInfo,
-              stacksize,
-              singleton,
+              normalizedCustomInfo,
+              normalizedStacksize,
+              normalizedSingleton,
             ],
           ],
         ],
@@ -1078,17 +1285,21 @@ class DogmaService extends BaseService {
       },
     };
   }
-  _buildCharacterAttributes(charData = {}) {
+  _buildCharacterAttributes(charData = {}, characterID = null) {
     const source = charData.characterAttributes || {};
+    const charID = Number(
+      characterID ?? charData.characterID ?? charData.charID ?? charData.charid ?? 0,
+    ) || 0;
     const securityStatus = Number(
       charData.securityStatus ?? charData.securityRating ?? source.securityStatus ?? 0,
     );
     const characterTargetingState = buildCharacterTargetingState(
-      Number(charData.characterID ?? charData.charID ?? charData.charid ?? 0) || 0,
+      charID,
       {
         characterAttributes: source,
       },
     );
+    const industryAttributes = resolveCharacterIndustryAttributes(charID);
     return {
       [ATTRIBUTE_CHARISMA]: Number(source[ATTRIBUTE_CHARISMA] ?? source.charisma ?? 20),
       [ATTRIBUTE_INTELLIGENCE]: Number(
@@ -1102,13 +1313,242 @@ class DogmaService extends BaseService {
       [ATTRIBUTE_MAX_LOCKED_TARGETS]: Number(
         characterTargetingState.maxLockedTargets ?? source[ATTRIBUTE_MAX_LOCKED_TARGETS] ?? 0,
       ),
+      [ATTRIBUTE_MANUFACTURE_SLOT_LIMIT]: Number(
+        source[ATTRIBUTE_MANUFACTURE_SLOT_LIMIT] ??
+          industryAttributes[ATTRIBUTE_MANUFACTURE_SLOT_LIMIT],
+      ),
+      [ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER]: Number(
+        source[ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER] ??
+          industryAttributes[ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER],
+      ),
+      [ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED]: Number(
+        source[ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED] ??
+          industryAttributes[ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED],
+      ),
+      [ATTRIBUTE_COPY_SPEED_PERCENT]: Number(
+        source[ATTRIBUTE_COPY_SPEED_PERCENT] ??
+          industryAttributes[ATTRIBUTE_COPY_SPEED_PERCENT],
+      ),
+      [ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED]: Number(
+        source[ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED] ??
+          industryAttributes[ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED],
+      ),
+      [ATTRIBUTE_MAX_LABORATORY_SLOTS]: Number(
+        source[ATTRIBUTE_MAX_LABORATORY_SLOTS] ??
+          industryAttributes[ATTRIBUTE_MAX_LABORATORY_SLOTS],
+      ),
+      [ATTRIBUTE_INVENTION_RESEARCH_SPEED]: Number(
+        source[ATTRIBUTE_INVENTION_RESEARCH_SPEED] ??
+          industryAttributes[ATTRIBUTE_INVENTION_RESEARCH_SPEED],
+      ),
+      [ATTRIBUTE_REACTION_TIME_MULTIPLIER]: Number(
+        source[ATTRIBUTE_REACTION_TIME_MULTIPLIER] ??
+          industryAttributes[ATTRIBUTE_REACTION_TIME_MULTIPLIER],
+      ),
+      [ATTRIBUTE_REACTION_SLOT_LIMIT]: Number(
+        source[ATTRIBUTE_REACTION_SLOT_LIMIT] ??
+          industryAttributes[ATTRIBUTE_REACTION_SLOT_LIMIT],
+      ),
       [ATTRIBUTE_PILOT_SECURITY_STATUS]: Number.isFinite(securityStatus)
         ? securityStatus
         : 0,
     };
   }
-  _buildCharacterAttributeDict(charData = {}) {
-    const attributes = this._buildCharacterAttributes(charData);
+  _buildCharacterBaseAttributes(charData = {}) {
+    const typeID = Number(charData.typeID || CHARACTER_TYPE_ID) || CHARACTER_TYPE_ID;
+    const source =
+      charData.characterAttributes && typeof charData.characterAttributes === "object"
+        ? charData.characterAttributes
+        : {};
+    const attributes = Object.fromEntries(
+      Object.entries(getTypeDogmaAttributes(typeID))
+        .map(([attributeID, value]) => [Number(attributeID), Number(value)])
+        .filter(
+          ([attributeID, value]) =>
+            Number.isInteger(attributeID) && Number.isFinite(value),
+        ),
+    );
+
+    for (const [attributeID, value] of Object.entries(source)) {
+      const numericAttributeID = Number(attributeID);
+      const numericValue = Number(value);
+      if (!Number.isInteger(numericAttributeID) || !Number.isFinite(numericValue)) {
+        continue;
+      }
+      attributes[numericAttributeID] = numericValue;
+    }
+
+    const namedPrimaryAttributes = [
+      [ATTRIBUTE_CHARISMA, source.charisma ?? charData.charisma ?? 20],
+      [ATTRIBUTE_INTELLIGENCE, source.intelligence ?? charData.intelligence ?? 20],
+      [ATTRIBUTE_MEMORY, source.memory ?? charData.memory ?? 20],
+      [ATTRIBUTE_PERCEPTION, source.perception ?? charData.perception ?? 20],
+      [ATTRIBUTE_WILLPOWER, source.willpower ?? charData.willpower ?? 20],
+    ];
+    for (const [attributeID, value] of namedPrimaryAttributes) {
+      const numericValue = Number(value);
+      if (Number.isFinite(numericValue)) {
+        attributes[attributeID] = numericValue;
+      }
+    }
+
+    return attributes;
+  }
+  _buildShipModifiedCharacterAttributes(charData = {}, characterID = null, session = null) {
+    const charID = Number(
+      characterID ?? charData.characterID ?? charData.charID ?? charData.charid ?? 0,
+    ) || 0;
+    const source =
+      charData.characterAttributes && typeof charData.characterAttributes === "object"
+        ? charData.characterAttributes
+        : {};
+    const attributes = this._buildCharacterBaseAttributes(charData);
+    const directCharacterModifierEntries = buildCharacterBrainDefinitionSet(charID)
+      .characterEffects
+      .filter(
+        (effectDefinition) =>
+          String(effectDefinition && effectDefinition.modifierType || "M") === "M",
+      )
+      .map((effectDefinition) => ({
+        modifiedAttributeID: Number(effectDefinition && effectDefinition.targetAttributeID) || 0,
+        operation: Number(effectDefinition && effectDefinition.operation) || 0,
+        value: Number(effectDefinition && effectDefinition.value),
+        stackingPenalized: false,
+      }))
+      .filter(
+        (modifierEntry) =>
+          modifierEntry.modifiedAttributeID > 0 &&
+          Number.isFinite(modifierEntry.value),
+      );
+    if (directCharacterModifierEntries.length > 0) {
+      applyModifierGroups(attributes, directCharacterModifierEntries);
+    }
+
+    const sessionShipID = Number(
+      session && (session.activeShipID ?? session.shipID ?? session.shipid),
+    ) || 0;
+    const activeShip =
+      (sessionShipID > 0 && findCharacterShip(charID, sessionShipID)) ||
+      getActiveShipRecord(charID) ||
+      null;
+    if (activeShip) {
+      const fittingSnapshot = getShipFittingSnapshot(charID, activeShip.itemID, {
+        shipItem: activeShip,
+        reason: "dogma.ship-modified-char-attrs",
+      });
+      if (fittingSnapshot) {
+        const ownerModifierAttributes = collectCharacterModifierAttributes(
+          fittingSnapshot.skillMap,
+          fittingSnapshot.fittedItems,
+          fittingSnapshot.assumedActiveModuleContexts,
+        );
+        for (const [attributeID, value] of Object.entries(
+          ownerModifierAttributes || {},
+        )) {
+          const numericAttributeID = Number(attributeID);
+          const numericValue = Number(value);
+          if (!Number.isInteger(numericAttributeID) || !Number.isFinite(numericValue)) {
+            continue;
+          }
+          attributes[numericAttributeID] = numericValue;
+        }
+      }
+    }
+
+    const characterTargetingState = buildCharacterTargetingState(
+      charID,
+      {
+        characterAttributes: source,
+      },
+    );
+    const industryAttributes = resolveCharacterIndustryAttributes(charID);
+    const securityStatus = Number(
+      charData.securityStatus ?? charData.securityRating ?? source.securityStatus ?? 0,
+    );
+
+    attributes[ATTRIBUTE_MAX_LOCKED_TARGETS] = Number(
+      characterTargetingState.maxLockedTargets ?? attributes[ATTRIBUTE_MAX_LOCKED_TARGETS] ?? 0,
+    );
+    attributes[ATTRIBUTE_MANUFACTURE_SLOT_LIMIT] = Number(
+      source[ATTRIBUTE_MANUFACTURE_SLOT_LIMIT] ??
+        industryAttributes[ATTRIBUTE_MANUFACTURE_SLOT_LIMIT] ??
+        attributes[ATTRIBUTE_MANUFACTURE_SLOT_LIMIT] ??
+        0,
+    );
+    attributes[ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER] = Number(
+      source[ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER] ??
+        industryAttributes[ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER] ??
+        attributes[ATTRIBUTE_MANUFACTURE_TIME_MULTIPLIER] ??
+        0,
+    );
+    attributes[ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED] = Number(
+      source[ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED] ??
+        industryAttributes[ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED] ??
+        attributes[ATTRIBUTE_MANUFACTURING_TIME_RESEARCH_SPEED] ??
+        0,
+    );
+    attributes[ATTRIBUTE_COPY_SPEED_PERCENT] = Number(
+      source[ATTRIBUTE_COPY_SPEED_PERCENT] ??
+        industryAttributes[ATTRIBUTE_COPY_SPEED_PERCENT] ??
+        attributes[ATTRIBUTE_COPY_SPEED_PERCENT] ??
+        0,
+    );
+    attributes[ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED] = Number(
+      source[ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED] ??
+        industryAttributes[ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED] ??
+        attributes[ATTRIBUTE_MINERAL_NEED_RESEARCH_SPEED] ??
+        0,
+    );
+    attributes[ATTRIBUTE_MAX_LABORATORY_SLOTS] = Number(
+      source[ATTRIBUTE_MAX_LABORATORY_SLOTS] ??
+        industryAttributes[ATTRIBUTE_MAX_LABORATORY_SLOTS] ??
+        attributes[ATTRIBUTE_MAX_LABORATORY_SLOTS] ??
+        0,
+    );
+    attributes[ATTRIBUTE_INVENTION_RESEARCH_SPEED] = Number(
+      source[ATTRIBUTE_INVENTION_RESEARCH_SPEED] ??
+        industryAttributes[ATTRIBUTE_INVENTION_RESEARCH_SPEED] ??
+        attributes[ATTRIBUTE_INVENTION_RESEARCH_SPEED] ??
+        0,
+    );
+    attributes[ATTRIBUTE_REACTION_TIME_MULTIPLIER] = Number(
+      source[ATTRIBUTE_REACTION_TIME_MULTIPLIER] ??
+        industryAttributes[ATTRIBUTE_REACTION_TIME_MULTIPLIER] ??
+        attributes[ATTRIBUTE_REACTION_TIME_MULTIPLIER] ??
+        0,
+    );
+    attributes[ATTRIBUTE_REACTION_SLOT_LIMIT] = Number(
+      source[ATTRIBUTE_REACTION_SLOT_LIMIT] ??
+        industryAttributes[ATTRIBUTE_REACTION_SLOT_LIMIT] ??
+        attributes[ATTRIBUTE_REACTION_SLOT_LIMIT] ??
+        0,
+    );
+    attributes[ATTRIBUTE_PILOT_SECURITY_STATUS] = Number.isFinite(securityStatus)
+      ? securityStatus
+      : 0;
+
+    return attributes;
+  }
+  _buildShipModifiedCharacterAttributeDict(
+    charData = {},
+    characterID = null,
+    session = null,
+  ) {
+    const attributes = this._buildShipModifiedCharacterAttributes(
+      charData,
+      characterID,
+      session,
+    );
+    return {
+      type: "dict",
+      entries: Object.entries(attributes).map(([attributeID, value]) => [
+        Number(attributeID),
+        value,
+      ]),
+    };
+  }
+  _buildCharacterAttributeDict(charData = {}, characterID = null) {
+    const attributes = this._buildCharacterAttributes(charData, characterID);
     return {
       type: "dict",
       entries: Object.entries(attributes).map(([attributeID, value]) => [
@@ -1154,7 +1594,13 @@ class DogmaService extends BaseService {
       return null;
     }
     const charID = this._getCharID(session);
-    const shipItem = getActiveShipRecord(charID);
+    let shipItem = getActiveShipRecord(charID);
+    if (
+      !shipItem ||
+      Number(shipItem.itemID) !== Number(item.locationID)
+    ) {
+      shipItem = findItemById(item.locationID);
+    }
     if (
       !shipItem ||
       Number(shipItem.itemID) !== Number(item.locationID)
@@ -1166,12 +1612,204 @@ class DogmaService extends BaseService {
       shipItem.itemID,
       item.flagID,
     );
-    return spaceRuntime.getGenericModuleRuntimeAttributes(
+    const activeModuleContexts =
+      spaceRuntime &&
+      typeof spaceRuntime.getActiveModuleContextsForSession === "function"
+        ? spaceRuntime.getActiveModuleContextsForSession(session, {
+          excludeModuleID: Number(item && item.itemID) || 0,
+        })
+        : [];
+    const additionalLocationModifierSources = getLocationModifierSourcesForSystem(
+      session &&
+      (
+        session.solarsystemid2 ||
+        session.solarsystemid ||
+        (session._space && session._space.systemID) ||
+        0
+      ),
+    );
+    const runtimeAttributes = spaceRuntime.getGenericModuleRuntimeAttributes(
       charID,
       shipItem,
       item,
       chargeItem,
+      null,
+      {
+        activeModuleContexts,
+        additionalLocationModifierSources,
+      },
     );
+    if (!runtimeAttributes) {
+      return null;
+    }
+
+    const activeEffectState =
+      spaceRuntime &&
+      typeof spaceRuntime.getActiveModuleEffect === "function"
+        ? spaceRuntime.getActiveModuleEffect(session, Number(item && item.itemID) || 0)
+        : null;
+    const activeAttributeOverrides =
+      activeEffectState &&
+      activeEffectState.genericAttributeOverrides &&
+      typeof activeEffectState.genericAttributeOverrides === "object"
+        ? activeEffectState.genericAttributeOverrides
+        : null;
+    if (!activeAttributeOverrides) {
+      return runtimeAttributes;
+    }
+
+    return {
+      ...runtimeAttributes,
+      attributeOverrides: {
+        ...(runtimeAttributes.attributeOverrides || {}),
+        ...activeAttributeOverrides,
+      },
+    };
+  }
+  _buildScannerProbeLauncherRuntimeAttributeMap(item, session) {
+    if (
+      !item ||
+      !session ||
+      Number(item.groupID) !== GROUP_SCAN_PROBE_LAUNCHER
+    ) {
+      return null;
+    }
+
+    const runtimeAttributes = this._getGenericModuleAttributeOverrides(item, session);
+    if (!runtimeAttributes) {
+      return null;
+    }
+
+    const attributes = {};
+    if (Number.isFinite(Number(runtimeAttributes.capNeed))) {
+      attributes[MODULE_ATTRIBUTE_CAPACITOR_NEED] = Number(
+        runtimeAttributes.capNeed,
+      );
+    }
+
+    const durationAttributeID =
+      Number(runtimeAttributes.durationAttributeID) || MODULE_ATTRIBUTE_DURATION;
+    if (Number.isFinite(Number(runtimeAttributes.durationMs))) {
+      attributes[durationAttributeID] = Number(runtimeAttributes.durationMs);
+    }
+
+    const attributeOverrides =
+      runtimeAttributes.attributeOverrides &&
+      typeof runtimeAttributes.attributeOverrides === "object"
+        ? runtimeAttributes.attributeOverrides
+        : null;
+    if (
+      attributeOverrides &&
+      Number.isFinite(Number(attributeOverrides[MODULE_ATTRIBUTE_SPEED]))
+    ) {
+      attributes[MODULE_ATTRIBUTE_SPEED] = Number(
+        attributeOverrides[MODULE_ATTRIBUTE_SPEED],
+      );
+    }
+
+    const reloadRuntimeAttributes = this._getModuleReloadAttributeOverrides(
+      item,
+      session,
+    );
+    if (
+      reloadRuntimeAttributes &&
+      Number.isFinite(Number(reloadRuntimeAttributes.reloadTime))
+    ) {
+      attributes[ATTRIBUTE_RELOAD_TIME] = Number(
+        reloadRuntimeAttributes.reloadTime,
+      );
+    }
+
+    return attributes;
+  }
+  _syncScannerProbeLauncherRuntimeAttributes(
+    session,
+    moduleItem,
+    options = {},
+  ) {
+    if (!session || typeof session.sendNotification !== "function" || !moduleItem) {
+      return 0;
+    }
+
+    const runtimeAttributes = this._buildScannerProbeLauncherRuntimeAttributeMap(
+      moduleItem,
+      session,
+    );
+    if (!runtimeAttributes) {
+      return 0;
+    }
+
+    const numericModuleID = Number(moduleItem.itemID) || 0;
+    const numericCharID = Number(moduleItem.ownerID) || this._getCharID(session);
+    if (numericModuleID <= 0 || numericCharID <= 0) {
+      return 0;
+    }
+
+    const forceAll = options.forceAll === true;
+    const when = this._sessionFileTime(session);
+    const changes = [];
+    for (const [rawAttributeID, rawValue] of Object.entries(runtimeAttributes)) {
+      const attributeID = Number(rawAttributeID);
+      const nextValue = Number(rawValue);
+      if (
+        !Number.isInteger(attributeID) ||
+        attributeID <= 0 ||
+        !Number.isFinite(nextValue)
+      ) {
+        continue;
+      }
+      if (!forceAll && Math.abs(nextValue) <= 1e-9) {
+        continue;
+      }
+      changes.push([
+        "OnModuleAttributeChanges",
+        numericCharID,
+        numericModuleID,
+        attributeID,
+        when,
+        nextValue,
+        forceAll ? 0 : nextValue,
+        null,
+      ]);
+    }
+
+    if (changes.length <= 0) {
+      return 0;
+    }
+    this._notifyModuleAttributeChanges(session, changes);
+    return changes.length;
+  }
+  _refreshScannerProbeLauncherClientState(
+    session,
+    shipID,
+    moduleItem,
+    options = {},
+  ) {
+    if (
+      !session ||
+      !session._space ||
+      !moduleItem ||
+      Number(moduleItem.groupID) !== GROUP_SCAN_PROBE_LAUNCHER
+    ) {
+      return 0;
+    }
+
+    const numericShipID = Number(shipID) || this._getShipID(session);
+    if (options.forceRuntimeReplay === true) {
+      this._syncScannerProbeLauncherRuntimeAttributes(session, moduleItem, {
+        forceAll: true,
+      });
+    }
+    if (options.refreshChargeBootstrap !== true) {
+      return 0;
+    }
+    if (session._space.useRealChargeInventoryHudRows === true) {
+      return 0;
+    }
+    return syncLoadedChargeDogmaBootstrapForSession(session, numericShipID, {
+      mode: CHARGE_DOGMA_REPLAY_MODE_PRIME_REPAIR_THEN_QUANTITY,
+      refreshDelayMs: 0,
+    });
   }
   _resolveLoadedChargeItem(item, session = null) {
     if (!item || !session || !isShipFittingFlag(item.flagID)) {
@@ -1285,6 +1923,40 @@ class DogmaService extends BaseService {
         ),
     );
   }
+  _getFittedModuleResourceAttributeOverrides(item, session = null) {
+    if (
+      !item ||
+      Number(item.categoryID) === 8 ||
+      !isShipFittingFlag(item.flagID)
+    ) {
+      return null;
+    }
+    const characterID = Number(item.ownerID) || this._getCharID(session);
+    const shipID = Number(item.locationID) || 0;
+    if (characterID <= 0 || shipID <= 0) {
+      return null;
+    }
+    const activeShipRecord = this._getActiveShipRecord(session);
+    const shipItem =
+      findCharacterShip(characterID, shipID) ||
+      (
+        activeShipRecord &&
+        Number(activeShipRecord.itemID) === shipID
+          ? activeShipRecord
+          : null
+      );
+    if (!shipItem) {
+      return null;
+    }
+
+    const fittingSnapshot = getShipFittingSnapshot(characterID, shipID, {
+      shipItem,
+      reason: "dogma.module-attrs",
+    });
+    return fittingSnapshot
+      ? fittingSnapshot.getModuleAttributeOverrides(item)
+      : null;
+  }
   _buildShipAttributes(charData = {}, shipData = {}, session = null) {
     const securityStatus = Number(
       charData.securityStatus ??
@@ -1295,15 +1967,17 @@ class DogmaService extends BaseService {
     );
     const shipCondition = getShipConditionState(shipData);
     const numericCharID = Number(charData.characterID ?? charData.charID ?? charData.charid ?? shipData.ownerID ?? 0) || 0;
-    const { attributes, resourceState } = calculateShipDerivedAttributes(
+    const fittingSnapshot = getShipFittingSnapshot(
       numericCharID,
-      shipData,
+      shipData && shipData.itemID,
+      {
+        shipItem: shipData,
+        reason: "dogma.ship-attrs",
+      },
     );
-    const characterCombatAttributes = collectCharacterModifierAttributes(
-      resourceState && resourceState.skillMap,
-      resourceState && resourceState.fittedItems,
-      [],
-    );
+    const attributes = fittingSnapshot
+      ? { ...fittingSnapshot.shipAttributes }
+      : {};
     const runtimeAttributeOverrides = this._getShipRuntimeAttributeOverrides(
       session,
       shipData,
@@ -1324,14 +1998,6 @@ class DogmaService extends BaseService {
     const resolvedRadius = Number(shipData.radius ?? (shipMetadata && shipMetadata.radius));
     if (!(ATTRIBUTE_RADIUS in attributes) && Number.isFinite(resolvedRadius)) {
       attributes[ATTRIBUTE_RADIUS] = resolvedRadius;
-    }
-    for (const [attributeID, value] of Object.entries(characterCombatAttributes || {})) {
-      const numericAttributeID = Number(attributeID);
-      const numericValue = Number(value);
-      if (!Number.isInteger(numericAttributeID) || !Number.isFinite(numericValue)) {
-        continue;
-      }
-      attributes[numericAttributeID] = numericValue;
     }
     if (
       runtimeAttributeOverrides &&
@@ -1416,13 +2082,7 @@ class DogmaService extends BaseService {
   }
   _buildShipAttributeDict(charData = {}, shipData = {}, session = null) {
     const attributes = this._buildShipAttributes(charData, shipData, session);
-    return {
-      type: "dict",
-      entries: Object.entries(attributes).map(([attributeID, value]) => [
-        Number(attributeID),
-        value,
-      ]),
-    };
+    return this._buildAttributeValueDict(attributes);
   }
   _buildAttributeValueDict(attributes = {}) {
     return {
@@ -1448,6 +2108,23 @@ class DogmaService extends BaseService {
           marshalDogmaAttributeValue(attributeID, value),
         ]),
     );
+    const resourceAttributeOverrides =
+      this._getFittedModuleResourceAttributeOverrides(item, session);
+    if (resourceAttributeOverrides) {
+      for (const [attributeID, value] of Object.entries(resourceAttributeOverrides)) {
+        const numericAttributeID = Number(attributeID);
+        const numericValue = Number(value);
+        if (
+          Number.isInteger(numericAttributeID) &&
+          Number.isFinite(numericValue)
+        ) {
+          attributes[numericAttributeID] = marshalDogmaAttributeValue(
+            numericAttributeID,
+            numericValue,
+          );
+        }
+      }
+    }
     const weaponDogmaAttributes = this._getWeaponDogmaAttributeOverrides(
       item,
       session,
@@ -1514,6 +2191,27 @@ class DogmaService extends BaseService {
         session,
       );
       if (genericRuntimeAttributes) {
+        const genericAttributeOverrides =
+          genericRuntimeAttributes.attributeOverrides &&
+          typeof genericRuntimeAttributes.attributeOverrides === "object"
+            ? genericRuntimeAttributes.attributeOverrides
+            : null;
+        if (genericAttributeOverrides) {
+          for (const [attributeID, value] of Object.entries(genericAttributeOverrides)) {
+            const numericAttributeID = Number(attributeID);
+            const numericValue = Number(value);
+            if (
+              !Number.isInteger(numericAttributeID) ||
+              !Number.isFinite(numericValue)
+            ) {
+              continue;
+            }
+            attributes[numericAttributeID] = marshalDogmaAttributeValue(
+              numericAttributeID,
+              numericValue,
+            );
+          }
+        }
         attributes[MODULE_ATTRIBUTE_CAPACITOR_NEED] = Number(
           genericRuntimeAttributes.capNeed,
         );
@@ -1532,7 +2230,8 @@ class DogmaService extends BaseService {
         }
         if (
           durationAttributeID !== MODULE_ATTRIBUTE_SPEED &&
-          MODULE_ATTRIBUTE_SPEED in attributes
+          MODULE_ATTRIBUTE_SPEED in attributes &&
+          Number(item && item.groupID) !== GROUP_SCAN_PROBE_LAUNCHER
         ) {
           delete attributes[MODULE_ATTRIBUTE_SPEED];
         }
@@ -1702,13 +2401,7 @@ class DogmaService extends BaseService {
       return this._buildEmptyDict();
     }
     const entries = [];
-    // CCP parity: modules without an explicit moduleState default to online
-    // (fitted before the auto-online migration).
-    const effectivelyOnline =
-      isModuleOnline(item) ||
-      item.moduleState === undefined ||
-      item.moduleState === null;
-    if (effectivelyOnline) {
+    if (isEffectivelyOnlineModule(item)) {
       const onlineEntry = this._buildActiveEffectEntry(item, EFFECT_ONLINE, {}, session);
       if (onlineEntry) {
         entries.push(onlineEntry);
@@ -1756,9 +2449,14 @@ class DogmaService extends BaseService {
     if (options.includeFittedItems !== false) {
       const fittedItems = getFittedModuleItems(charID, shipID);
       if (Array.isArray(fittedItems)) {
-        inventoryEntries.push(
-          ...fittedItems.map((item) => [
+        for (const item of fittedItems) {
+          const cachedEntry = this._getCachedDockedItemInfoEntry(
+            session,
             item.itemID,
+            item,
+          );
+          const entry =
+            cachedEntry ||
             this._buildCommonGetInfoEntry({
               itemID: item.itemID,
               typeID: item.typeID,
@@ -1775,17 +2473,26 @@ class DogmaService extends BaseService {
               activeEffects: this._buildInventoryItemActiveEffects(item, session),
               attributes: this._buildInventoryItemAttributeDict(item, session),
               session,
-            }),
-          ]),
-        );
+            });
+          inventoryEntries.push([
+            item.itemID,
+            entry,
+          ]);
+          this._cacheDockedItemInfoEntry(session, item.itemID, item, entry);
+        }
       }
     }
     if (options.includeLoadedCharges === true) {
       const loadedCharges = getLoadedChargeItems(charID, shipID);
       if (Array.isArray(loadedCharges)) {
-        inventoryEntries.push(
-          ...loadedCharges.map((item) => [
+        for (const item of loadedCharges) {
+          const cachedEntry = this._getCachedDockedItemInfoEntry(
+            session,
             item.itemID,
+            item,
+          );
+          const entry =
+            cachedEntry ||
             this._buildCommonGetInfoEntry({
               itemID: item.itemID,
               typeID: item.typeID,
@@ -1801,9 +2508,13 @@ class DogmaService extends BaseService {
               description: item.itemName || "charge",
               attributes: this._buildInventoryItemAttributeDict(item, session),
               session,
-            }),
-          ]),
-        );
+            });
+          inventoryEntries.push([
+            item.itemID,
+            entry,
+          ]);
+          this._cacheDockedItemInfoEntry(session, item.itemID, item, entry);
+        }
       }
     }
     if (options.includeChargeSublocations !== false) {
@@ -1903,7 +2614,8 @@ class DogmaService extends BaseService {
       ]],
     };
   }
-  _findInventoryItemContext(requestedItemID, session) {
+  _findInventoryItemContext(requestedItemID, session, options = {}) {
+    const includeAttributes = options.includeAttributes !== false;
     const charID = this._getCharID(session);
     if (Array.isArray(requestedItemID) && requestedItemID.length >= 3) {
       const [shipID, flagID, typeID] = requestedItemID;
@@ -1916,8 +2628,12 @@ class DogmaService extends BaseService {
           itemID: requestedItemID,
           typeID: Number(typeID),
           item: chargeItem,
-          attributes: this._buildInventoryItemAttributes(chargeItem, session),
-          baseAttributes: this._buildInventoryItemAttributes(chargeItem),
+          attributes: includeAttributes
+            ? this._buildInventoryItemAttributes(chargeItem, session)
+            : undefined,
+          baseAttributes: includeAttributes
+            ? this._buildInventoryItemAttributes(chargeItem)
+            : undefined,
         };
       }
       return null;
@@ -1938,8 +2654,12 @@ class DogmaService extends BaseService {
       itemID: item.itemID,
       typeID: Number(item.typeID),
       item,
-      attributes: this._buildInventoryItemAttributes(item, session),
-      baseAttributes: this._buildInventoryItemAttributes(item),
+      attributes: includeAttributes
+        ? this._buildInventoryItemAttributes(item, session)
+        : undefined,
+      baseAttributes: includeAttributes
+        ? this._buildInventoryItemAttributes(item)
+        : undefined,
     };
   }
   _notifyModuleAttributeChanges(session, changes = []) {
@@ -1962,6 +2682,37 @@ class DogmaService extends BaseService {
         normalizedChanges.map((change) => summarizeModuleAttributeChangeLog(change)),
       )}`,
     );
+  }
+  _notifyShipFittingResourceAttributeChanges(
+    session,
+    shipID,
+    previousSnapshot,
+    nextSnapshot,
+  ) {
+    if (!previousSnapshot || !nextSnapshot) {
+      return;
+    }
+    const numericShipID = Number(shipID) || this._getShipID(session);
+    const charID = this._getCharID(session);
+    if (numericShipID <= 0 || charID <= 0) {
+      return;
+    }
+
+    const timestamp = this._sessionFileTime(session);
+    const changes = listShipFittingAttributeChanges(
+      previousSnapshot,
+      nextSnapshot,
+    ).map((change) => [
+      "OnModuleAttributeChanges",
+      charID,
+      numericShipID,
+      Number(change.attributeID) || 0,
+      timestamp,
+      Number(change.nextValue) || 0,
+      Number(change.previousValue) || 0,
+      null,
+    ]);
+    this._notifyModuleAttributeChanges(session, changes);
   }
   _refreshDockedFittingState(session, changes = []) {
     if (
@@ -2026,6 +2777,78 @@ class DogmaService extends BaseService {
   _captureChargeItemSnapshot(charID, shipID, flagID) {
     const chargeItem = getLoadedChargeByFlag(charID, shipID, flagID);
     return chargeItem ? { ...chargeItem } : null;
+  }
+  _syncRealChargeInventoryHudTransition(
+    session,
+    previousChargeItem = null,
+    nextChargeItem = null,
+  ) {
+    if (
+      !session ||
+      !session._space ||
+      session._space.useRealChargeInventoryHudRows !== true
+    ) {
+      return false;
+    }
+
+    const previousItem =
+      previousChargeItem && typeof previousChargeItem === "object"
+        ? { ...previousChargeItem }
+        : null;
+    const nextItem =
+      nextChargeItem && typeof nextChargeItem === "object"
+        ? { ...nextChargeItem }
+        : null;
+    let notified = false;
+
+    if (
+      previousItem &&
+      (!nextItem || Number(nextItem.itemID) !== Number(previousItem.itemID))
+    ) {
+      syncInventoryItemForSession(
+        session,
+        this._buildRemovedInventoryNotificationState(previousItem),
+        {
+          locationID: previousItem.locationID,
+          flagID: previousItem.flagID,
+          quantity: previousItem.quantity,
+          stacksize: previousItem.stacksize,
+          singleton: previousItem.singleton,
+        },
+        {
+          emitCfgLocation: false,
+        },
+      );
+      notified = true;
+    }
+
+    if (nextItem) {
+      syncInventoryItemForSession(
+        session,
+        nextItem,
+        previousItem && Number(previousItem.itemID) === Number(nextItem.itemID)
+          ? {
+              locationID: previousItem.locationID,
+              flagID: previousItem.flagID,
+              quantity: previousItem.quantity,
+              stacksize: previousItem.stacksize,
+              singleton: previousItem.singleton,
+            }
+          : {
+              locationID: 0,
+              flagID: 0,
+              quantity: 0,
+              stacksize: 0,
+              singleton: 0,
+            },
+        {
+          emitCfgLocation: false,
+        },
+      );
+      notified = true;
+    }
+
+    return notified;
   }
   _notifyWeaponModuleAttributeTransition(
     session,
@@ -2127,6 +2950,21 @@ class DogmaService extends BaseService {
       Number(nextState && nextState.quantity) || 0,
     );
     const forceTupleRepair = options.forceTupleRepair === true;
+    const suppressForcePrimeRepair = options.suppressForcePrimeRepair === true;
+    let hasReplayedPreviousChargeHudRow = false;
+    const replayRealChargeInventoryHudRow = () => {
+      const replayed = this._syncRealChargeInventoryHudTransition(
+        session,
+        hasReplayedPreviousChargeHudRow
+          ? null
+          : options.previousChargeItem || null,
+        options.nextChargeItem || null,
+      );
+      if (replayed) {
+        hasReplayedPreviousChargeHudRow = true;
+      }
+      return replayed;
+    };
     if (
       previousTypeID === nextTypeID &&
       previousQuantity === nextQuantity
@@ -2145,10 +2983,14 @@ class DogmaService extends BaseService {
           previousState,
           nextState,
           forceRepair: true,
-          forcePrimeNextCharge: true,
+          forcePrimeNextCharge: !suppressForcePrimeRepair,
           nextChargeRepairDelayMs: 0,
+          afterNextChargeSync: replayRealChargeInventoryHudRow,
         });
       }
+      return;
+    }
+    if (isDockedSession(session)) {
       return;
     }
     if (session && session._space) {
@@ -2189,6 +3031,7 @@ class DogmaService extends BaseService {
         previousState,
         nextState,
         primeNextCharge: previousTypeID !== nextTypeID,
+        afterNextChargeSync: replayRealChargeInventoryHudRow,
       });
       return;
     }
@@ -2244,6 +3087,385 @@ class DogmaService extends BaseService {
     }
     this._refreshDockedFittingState(session, normalizedChanges);
   }
+  _isScannerProbeLauncherRepair(moduleItem = null, chargeTypeID = 0) {
+    const moduleType =
+      resolveItemByTypeID(Number(moduleItem && moduleItem.typeID) || 0) || null;
+    const chargeType = resolveItemByTypeID(Number(chargeTypeID) || 0) || null;
+    return (
+      Number(moduleType && moduleType.groupID) === 481 &&
+      Number(chargeType && chargeType.groupID) === 479
+    );
+  }
+  _shouldSuppressScannerProbeLauncherForcePrimeRepair(
+    session,
+    moduleItem = null,
+    chargeTypeID = 0,
+  ) {
+    if (!this._isScannerProbeLauncherRepair(moduleItem, chargeTypeID)) {
+      return false;
+    }
+
+    // A same-ammo reload is one of the few safe repair hooks we can use to
+    // recover a missing tuple-backed probe charge after a live ship handoff.
+    // Keep the quieter no-prime repair once the shared charge hydration has
+    // completed, but allow the initial force-prime while that replay is still
+    // pending so scanSvc can actually see the launcher charge.
+    return !(
+      session &&
+      session._space &&
+      session._space.loginChargeDogmaReplayPending === true
+    );
+  }
+  _resolveProbeLaunchPosition(session, shipID) {
+    const numericShipID = Number(shipID) || this._getShipID(session);
+    const scene = spaceRuntime.getSceneForSession(session);
+    const shipEntity =
+      (scene &&
+        typeof scene.getShipEntityForSession === "function" &&
+        scene.getShipEntityForSession(session)) ||
+      (scene &&
+        typeof scene.getEntityByID === "function" &&
+        scene.getEntityByID(numericShipID)) ||
+      null;
+    const rawPosition =
+      (shipEntity &&
+        (shipEntity.position || shipEntity.destination || shipEntity.pos)) ||
+      null;
+    if (Array.isArray(rawPosition)) {
+      return {
+        x: Number(rawPosition[0]) || 0,
+        y: Number(rawPosition[1]) || 0,
+        z: Number(rawPosition[2]) || 0,
+      };
+    }
+    return {
+      x: Number(rawPosition && rawPosition.x) || 0,
+      y: Number(rawPosition && rawPosition.y) || 0,
+      z: Number(rawPosition && rawPosition.z) || 0,
+    };
+  }
+  _resolveValidatedProbeLaunchContext(session, moduleID, requestedCount = 1) {
+    const normalizedModuleID = Number(moduleID) || 0;
+    const normalizedRequestedCount = Math.max(1, Number(requestedCount) || 1);
+    const shipID = this._getShipID(session);
+    const charID = this._getCharID(session);
+    const systemID = Number(
+      (session && session.solarsystemid2) ||
+      (session && session.solarsystemid) ||
+      (session && session._space && session._space.systemID) ||
+      0,
+    ) || 0;
+    const moduleItem = findItemById(normalizedModuleID);
+    if (
+      !session ||
+      !session._space ||
+      charID <= 0 ||
+      shipID <= 0 ||
+      systemID <= 0
+    ) {
+      this._throwProbeLaunchUserError("NOT_IN_SPACE", moduleItem);
+    }
+    if (
+      !moduleItem ||
+      Number(moduleItem.ownerID) !== charID ||
+      Number(moduleItem.locationID) !== shipID
+    ) {
+      this._throwProbeLaunchUserError("MODULE_NOT_FOUND", moduleItem);
+    }
+    if (Number(moduleItem.groupID) !== GROUP_SCAN_PROBE_LAUNCHER) {
+      this._throwProbeLaunchUserError("INVALID_LAUNCHER", moduleItem);
+    }
+    if (!isEffectivelyOnlineModule(moduleItem)) {
+      this._throwProbeLaunchUserError("MODULE_NOT_ONLINE", moduleItem);
+    }
+
+    const removedGhostProbes = probeRuntimeState.removeInvalidCharacterProbes(charID, {
+      systemID,
+      nowMs: Date.now(),
+    });
+    if (removedGhostProbes.length > 0) {
+      log.warn(
+        `[DogmaIM] Purged ${removedGhostProbes.length} invalid persisted probe record(s) ` +
+        `before launch for charID=${charID} systemID=${systemID}`,
+      );
+    }
+    const removedExpiredProbes = probeRuntimeState.removeExpiredCharacterProbes(charID, {
+      systemID,
+      nowMs: Date.now(),
+    });
+    if (removedExpiredProbes.length > 0) {
+      log.warn(
+        `[DogmaIM] Purged ${removedExpiredProbes.length} expired persisted probe record(s) ` +
+        `before launch for charID=${charID} systemID=${systemID}`,
+      );
+    }
+
+    const loadedCharge = getLoadedChargeByFlag(charID, shipID, moduleItem.flagID);
+    if (!loadedCharge) {
+      this._throwProbeLaunchUserError("NO_CHARGES", moduleItem);
+    }
+    if (
+      Number(loadedCharge.categoryID) !== SCANNER_PROBE_CATEGORY_ID ||
+      Number(loadedCharge.groupID) !== GROUP_SCANNER_PROBE
+    ) {
+      this._throwProbeLaunchUserError("INVALID_CHARGE", moduleItem);
+    }
+
+    const loadedChargeQuantity = Math.max(
+      0,
+      Number(loadedCharge.stacksize ?? loadedCharge.quantity ?? 0) || 0,
+    );
+    if (loadedChargeQuantity < normalizedRequestedCount) {
+      this._throwProbeLaunchUserError("NOT_ENOUGH_CHARGES", moduleItem);
+    }
+
+    const activeProbeCount = probeRuntimeState.getReconnectableCharacterProbes(charID, systemID)
+      .length;
+    if ((activeProbeCount + normalizedRequestedCount) > probeRuntimeState.MAX_ACTIVE_PROBES) {
+      this._throwProbeLaunchUserError("TOO_MANY_ACTIVE_PROBES", moduleItem);
+    }
+
+    return {
+      moduleItem,
+      loadedCharge,
+      requestedCount: normalizedRequestedCount,
+      shipID,
+      charID,
+      systemID,
+    };
+  }
+  _throwProbeLaunchUserError(errorMsg = "", moduleItem = null) {
+    switch (String(errorMsg || "").trim()) {
+      case "NO_CHARGES":
+        throwWrappedUserError("NoCharges", {
+          launcher: this._buildUserErrorTypeValue(moduleItem && moduleItem.typeID),
+        });
+        break;
+      case "TOO_MANY_ACTIVE_PROBES":
+        this._throwCustomNotifyUserError("You cannot control more than eight active probes.");
+        break;
+      case "NOT_ENOUGH_CHARGES":
+        this._throwCustomNotifyUserError("You do not have enough loaded scanner probes.");
+        break;
+      case "NOT_IN_SPACE":
+      case "MODULE_NOT_FOUND":
+      case "SHIP_NOT_FOUND":
+        throwWrappedUserError("DeniedShipChanged");
+        break;
+      case "MODULE_NOT_ONLINE":
+        this._throwCustomNotifyUserError(`${this._resolveModuleDisplayName(moduleItem)} is offline.`);
+        break;
+      case "INVALID_LAUNCHER":
+        this._throwCustomNotifyUserError("That module cannot launch scanner probes.");
+        break;
+      case "INVALID_CHARGE":
+        this._throwCustomNotifyUserError("The loaded charge is not a valid scanner probe.");
+        break;
+      default:
+        this._throwCustomNotifyUserError("Unable to launch probes.");
+        break;
+    }
+  }
+  _launchProbesFromContext(session, probeContext = null) {
+    const moduleItem = probeContext && probeContext.moduleItem
+      ? probeContext.moduleItem
+      : null;
+    const loadedCharge = probeContext && probeContext.loadedCharge
+      ? probeContext.loadedCharge
+      : null;
+    const requestedCount = Math.max(
+      1,
+      Number(probeContext && probeContext.requestedCount) || 1,
+    );
+    const shipID = Number(probeContext && probeContext.shipID) || this._getShipID(session);
+    const charID = Number(probeContext && probeContext.charID) || this._getCharID(session);
+    const systemID = Number(probeContext && probeContext.systemID) || Number(
+      (session && session.solarsystemid2) ||
+      (session && session.solarsystemid) ||
+      (session && session._space && session._space.systemID) ||
+      0,
+    ) || 0;
+
+    const consumeResult = this._consumeLoadedProbeCharge(
+      session,
+      charID,
+      shipID,
+      moduleItem,
+      requestedCount,
+    );
+    if (!consumeResult.success) {
+      this._throwProbeLaunchUserError(consumeResult.errorMsg, moduleItem);
+    }
+
+    const launchPosition = this._resolveProbeLaunchPosition(session, shipID);
+    const launchedProbes = probeRuntimeState.launchCharacterProbes(
+      charID,
+      systemID,
+      Number(loadedCharge && loadedCharge.typeID) || 0,
+      requestedCount,
+      {
+        nowMs: Date.now(),
+        position: launchPosition,
+        shipID,
+        launcherItemID: Number(moduleItem && moduleItem.itemID) || 0,
+        launcherFlagID: Number(moduleItem && moduleItem.flagID) || 0,
+      },
+    );
+    if (launchedProbes.length !== requestedCount) {
+      probeSceneRuntime.removeProbeEntitiesForSession(
+        session,
+        launchedProbes.map((probe) => Number(probe && probe.probeID) || 0),
+      );
+      probeRuntimeState.removeCharacterProbes(
+        charID,
+        launchedProbes.map((probe) => Number(probe && probe.probeID) || 0),
+        { nowMs: Date.now() },
+      );
+      this._throwProbeLaunchUserError("TOO_MANY_ACTIVE_PROBES", moduleItem);
+    }
+
+    probeSceneRuntime.ensureProbeEntitiesForSession(session, launchedProbes, {
+      ownerID: charID,
+    });
+    for (const probe of launchedProbes) {
+      session.sendNotification("OnNewProbe", "clientID", [
+        probeScanRuntime.buildProbeKeyVal(probe),
+      ]);
+    }
+    return {
+      launchedProbes,
+      chargeTypeID: Number(loadedCharge && loadedCharge.typeID) || 0,
+      remainingQuantity: Math.max(
+        0,
+        Number(consumeResult && consumeResult.data && consumeResult.data.remainingQuantity) || 0,
+      ),
+      autoReloadRecommended:
+        Math.max(
+          0,
+          Number(consumeResult && consumeResult.data && consumeResult.data.remainingQuantity) || 0,
+        ) <= 0,
+    };
+  }
+  _consumeLoadedProbeCharge(session, charID, shipID, moduleItem, quantity = 1) {
+    const numericCharID = Number(charID) || this._getCharID(session);
+    const numericShipID = Number(shipID) || this._getShipID(session);
+    const numericQuantity = Math.max(1, Number(quantity) || 1);
+    if (!moduleItem || numericCharID <= 0 || numericShipID <= 0) {
+      return {
+        success: false,
+        errorMsg: "MODULE_NOT_FOUND",
+      };
+    }
+
+    const chargeItem = getLoadedChargeByFlag(
+      numericCharID,
+      numericShipID,
+      Number(moduleItem.flagID) || 0,
+    );
+    if (!chargeItem) {
+      return {
+        success: false,
+        errorMsg: "NO_CHARGES",
+      };
+    }
+
+    const availableQuantity = Math.max(
+      0,
+      Number(chargeItem.stacksize ?? chargeItem.quantity ?? 0) || 0,
+    );
+    if (availableQuantity <= 0) {
+      return {
+        success: false,
+        errorMsg: "NO_CHARGES",
+      };
+    }
+    if (availableQuantity < numericQuantity) {
+      return {
+        success: false,
+        errorMsg: "NOT_ENOUGH_CHARGES",
+      };
+    }
+
+    const previousChargeState = this._captureChargeStateSnapshot(
+      numericCharID,
+      numericShipID,
+      moduleItem.flagID,
+    );
+    const previousChargeItem = this._captureChargeItemSnapshot(
+      numericCharID,
+      numericShipID,
+      moduleItem.flagID,
+    );
+
+    let mutationResult = null;
+    if (availableQuantity === numericQuantity) {
+      mutationResult = removeInventoryItem(chargeItem.itemID, {
+        removeContents: true,
+      });
+    } else {
+      mutationResult = updateInventoryItem(chargeItem.itemID, (currentItem) => ({
+        ...currentItem,
+        quantity: availableQuantity - numericQuantity,
+        stacksize: availableQuantity - numericQuantity,
+        singleton: 0,
+      }));
+    }
+    if (!mutationResult || mutationResult.success !== true) {
+      return {
+        success: false,
+        errorMsg: mutationResult && mutationResult.errorMsg ? mutationResult.errorMsg : "WRITE_ERROR",
+      };
+    }
+
+    if (mutationResult.data && Array.isArray(mutationResult.data.changes)) {
+      this._syncInventoryChanges(session, mutationResult.data.changes);
+    } else {
+      this._syncInventoryChanges(session, [{
+        previousData: mutationResult.previousData || {},
+        item: mutationResult.data || null,
+      }]);
+    }
+
+    const nextChargeState = this._captureChargeStateSnapshot(
+      numericCharID,
+      numericShipID,
+      moduleItem.flagID,
+    );
+    const nextChargeItem = this._captureChargeItemSnapshot(
+      numericCharID,
+      numericShipID,
+      moduleItem.flagID,
+    );
+    this._notifyChargeQuantityTransition(
+      session,
+      numericCharID,
+      numericShipID,
+      moduleItem.flagID,
+      previousChargeState,
+      nextChargeState,
+      {
+        previousChargeItem,
+        nextChargeItem,
+      },
+    );
+    this._notifyWeaponModuleAttributeTransition(
+      session,
+      moduleItem,
+      previousChargeItem,
+      nextChargeItem,
+    );
+
+    return {
+      success: true,
+      data: {
+        chargeTypeID: Number(chargeItem.typeID) || 0,
+        remainingQuantity: Math.max(
+          0,
+          Number(nextChargeState && nextChargeState.quantity) || 0,
+        ),
+      },
+    };
+  }
   _buildRemovedInventoryNotificationState(item = {}) {
     return {
       ...item,
@@ -2283,6 +3505,14 @@ class DogmaService extends BaseService {
         return [change];
       }
       if (Number(candidateItem.categoryID) !== 8) {
+        return [change];
+      }
+      if (session._space.useRealChargeInventoryHudRows === true) {
+        // Direct-login space sessions intentionally keep the tuple charge lane
+        // for dogma/ammo state, but the rack HUD must stay bound to the real
+        // loaded charge inventory rows. Keep streaming those fitted charge
+        // changes so live launches/reloads do not snap the module button back
+        // to the tuple sublocation after first use.
         return [change];
       }
       const currentLocationID = Number(currentItem && currentItem.locationID) || 0;
@@ -2521,7 +3751,7 @@ class DogmaService extends BaseService {
           skill.itemID === Number.parseInt(String(requestedItemID), 10),
       ) || null;
     if (numericItemID === charID) {
-      const attributes = this._buildCharacterAttributes(charData);
+      const attributes = this._buildCharacterAttributes(charData, charID);
       return {
         itemID: charID,
         typeID: Number(charData.typeID || CHARACTER_TYPE_ID),
@@ -2602,7 +3832,7 @@ class DogmaService extends BaseService {
       options.includeCharges === false
         ? this._buildEmptyDict()
         : this._buildChargeStateDict(charID, shipID),
-      this._buildEmptyDict(),
+      buildWeaponBankStateDict(shipID, { characterID: charID }),
       this._buildEmptyDict(),
     ];
   }
@@ -2638,18 +3868,48 @@ class DogmaService extends BaseService {
           singleton: 1,
           stacksize: 1,
           description: "character",
-          attributes: this._buildCharacterAttributeDict(charData),
+          attributes: this._buildCharacterAttributeDict(charData, charID),
         }),
       ],
     ];
   }
-  _buildCharacterBrain() {
-    // V23.02 treats the brain as a versioned tuple with at least two payload
-    // collections. During login it rewrites this to (-1, ...) and later unpacks
-    // it again in ApplyBrainEffects/RemoveBrainEffects. Empirically this client
-    // unpacks four slots from the stored brain, so keep all collections present
-    // even when they are empty.
-    return [0, [], [], []];
+  _buildShipModifiedCharacterAttributeInfo(
+    charID,
+    charData,
+    locationID,
+    session = null,
+  ) {
+    return this._buildCommonGetInfoEntry({
+      itemID: charID,
+      typeID: charData.typeID || CHARACTER_TYPE_ID,
+      ownerID: charID,
+      locationID,
+      flagID: FLAG_PILOT,
+      groupID: CHARACTER_GROUP_ID,
+      categoryID: CHARACTER_CATEGORY_ID,
+      quantity: -1,
+      singleton: 1,
+      stacksize: 1,
+      description: "character",
+      attributes: this._buildShipModifiedCharacterAttributeDict(charData, charID, session),
+      session,
+    });
+  }
+  _buildCharacterBrain(charID, session = null) {
+    return buildBootstrapCharacterBrain(charID, 0, {
+      shipID:
+        session && (
+          session.activeShipID ??
+          session.shipID ??
+          session.shipid
+        ),
+      structureID:
+        session && (
+          session.structureid ??
+          session.structureID ??
+          session.structureId
+        ),
+    });
   }
   _getDockedStructureRecord(session) {
     const structureID = Number(
@@ -2726,29 +3986,19 @@ class DogmaService extends BaseService {
     );
   }
   _shouldPrimeLoginShipInfoChargeSublocations(session) {
-    // CCP login already seeds loaded charges through shipState /
-    // instanceFlagQuantityCache during MakeShipActive. Feeding tuple charge
-    // rows through GetAllInfo.shipInfo during session change makes the client
-    // explode inside godma.ProcessAllInfo -> PrimeLocation -> UpdateItem
-    // ("sequence is too short"), which then leaves invByID unset and the HUD
-    // never recovers. Keep login tuple charges out of shipInfo; the later
-    // in-space attach replay handles any runtime repair after inventory/HUD
-    // bootstrap.
+    // Docked fitting consumers iterate the real loaded charge inventory rows.
+    // Seeding tuple charge dogma items here causes the retail client to build
+    // malformed sublocation invCache rows with stacksize/singleton=None, which
+    // then explodes CreateFittingData() in the fitting warnings lane.
     void session;
     return false;
   }
   _shouldIncludeLoginShipInfoLoadedCharges(session) {
-    // CCP login primes the ship first through GetAllInfo/PrimeLocation and only
-    // later calls LoadItemsInLocation(shipID). Keeping the real loaded charge
-    // rows in the initial shipInfo payload gives OnCharacterEmbarkation the
-    // same fitted module+charge picture before the follow-up inventory list,
-    // while still avoiding the tuple charge rows that break ProcessAllInfo.
-    return Boolean(
-      session &&
-        !isDockedSession(session) &&
-        session._space &&
-        session._space.loginChargeHydrationProfile === "login",
-    );
+    // Docked normal fitting and its warning pass consume the actual loaded
+    // charge rows in the module slots. Keep those real charge items in
+    // shipInfo docked-only and leave the tuple lane to the guarded in-space
+    // HUD/bootstrap flow.
+    return isDockedSession(session) === true;
   }
   _buildShipState(charID, shipID, shipRecord = null, options = {}) {
     const shipCondition = getShipConditionState(shipRecord);
@@ -2787,7 +4037,10 @@ class DogmaService extends BaseService {
   }
   Handle_GetCharacterAttributes(args, session) {
     log.debug("[DogmaIM] GetCharacterAttributes");
-    return this._buildCharacterAttributeDict(this._getCharacterRecord(session) || {});
+    return this._buildCharacterAttributeDict(
+      this._getCharacterRecord(session) || {},
+      this._getCharID(session),
+    );
   }
   Handle_ChangeDroneSettings(args, session) {
     const rawDroneSettingChanges = args && args.length > 0 ? args[0] : null;
@@ -2935,16 +4188,10 @@ class DogmaService extends BaseService {
     log.debug("[DogmaIM] ShipOnlineModules");
     const charID = this._getCharID(session);
     const shipID = this._getShipID(session);
-    // CCP parity: modules without explicit moduleState are treated as online
-    // (fitted before auto-online migration).
     return {
       type: "list",
       items: getFittedModuleItems(charID, shipID)
-        .filter((item) =>
-          isModuleOnline(item) ||
-          item.moduleState === undefined ||
-          item.moduleState === null,
-        )
+        .filter((item) => isEffectivelyOnlineModule(item))
         .map((item) => item.itemID),
     };
   }
@@ -2977,8 +4224,285 @@ class DogmaService extends BaseService {
       case "TARGET_NOT_FOUND":
         throwWrappedUserError("TargetingAttemptCancelled");
         break;
+      case "TARGET_LOCK_LIMIT_REACHED":
+        this._throwCustomNotifyUserError("You cannot lock any more targets.");
+        break;
+      case "TARGET_JAMMED":
+        this._throwCustomNotifyUserError(
+          "You cannot lock that target while jammed except against the ships currently jamming you.",
+        );
+        break;
       default:
         throwWrappedUserError("DeniedTargetAttemptFailed");
+        break;
+    }
+  }
+  _buildUserErrorTypeValue(typeID) {
+    const numericTypeID = Number(typeID) || 0;
+    return numericTypeID > 0 ? [USER_ERROR_TYPE_ID, numericTypeID] : numericTypeID;
+  }
+  _resolveModuleDisplayName(moduleItem, fallback = "module") {
+    const typeRecord = resolveItemByTypeID(Number(moduleItem && moduleItem.typeID) || 0);
+    const rawName =
+      (moduleItem && moduleItem.itemName) ||
+      (typeRecord && (typeRecord.name || typeRecord.typeName)) ||
+      fallback;
+    const normalizedName = String(rawName || fallback).trim();
+    return normalizedName || fallback;
+  }
+  _resolveEntityDisplayName(entity, fallback = "That target") {
+    const typeRecord = resolveItemByTypeID(Number(entity && entity.typeID) || 0);
+    const rawName =
+      (entity && (entity.itemName || entity.name)) ||
+      (typeRecord && (typeRecord.name || typeRecord.typeName)) ||
+      fallback;
+    const normalizedName = String(rawName || fallback).trim();
+    return normalizedName || fallback;
+  }
+  _resolveModuleActivationRangeMeters(session, moduleItem) {
+    if (!moduleItem) {
+      return 0;
+    }
+    const loadedChargeItem = this._resolveLoadedChargeItem(moduleItem, session);
+    const weaponAttributes =
+      this._buildWeaponModuleAttributeMap(moduleItem, loadedChargeItem, session);
+    const moduleAttributes =
+      weaponAttributes ||
+      buildEffectiveItemAttributeMap(moduleItem, loadedChargeItem);
+    const maxRangeMeters = Math.max(
+      0,
+      Number(moduleAttributes && moduleAttributes[ATTRIBUTE_MAX_RANGE]) || 0,
+    );
+    const falloffMeters = Math.max(
+      0,
+      Number(moduleAttributes && moduleAttributes[ATTRIBUTE_FALLOFF_EFFECTIVENESS]) || 0,
+    );
+    return Math.max(0, Math.round(maxRangeMeters + falloffMeters));
+  }
+  _buildModuleTargetOutOfRangeNotify(context = {}) {
+    const session = context.session || null;
+    const moduleItem = context.moduleItem || null;
+    const moduleName = this._resolveModuleDisplayName(moduleItem);
+    const targetID = Number(context.targetID) || 0;
+    const scene =
+      session && typeof spaceRuntime.getSceneForSession === "function"
+        ? spaceRuntime.getSceneForSession(session)
+        : null;
+    const targetEntity =
+      scene && targetID > 0 && typeof scene.getEntityByID === "function"
+        ? scene.getEntityByID(targetID)
+        : null;
+    const targetName = this._resolveEntityDisplayName(targetEntity, "That target");
+    const maxRangeMeters = this._resolveModuleActivationRangeMeters(session, moduleItem);
+
+    if (maxRangeMeters > 0) {
+      return (
+        `${targetName} is too far away to use your ${moduleName} on. ` +
+        `It needs to be closer than ${INTEGER_NOTIFY_FORMATTER.format(maxRangeMeters)} meters.`
+      );
+    }
+
+    return `${targetName} is too far away to use your ${moduleName} on.`;
+  }
+  _throwCustomNotifyUserError(message) {
+    throwWrappedUserError("CustomNotify", {
+      notify: String(message || "The requested action could not be completed."),
+    });
+  }
+  _buildModuleReactivationUserErrorValues(session, moduleItem) {
+    const numericModuleID = Number(moduleItem && moduleItem.itemID) || 0;
+    const numericTypeID = Number(moduleItem && moduleItem.typeID) || 0;
+    const scene = spaceRuntime.getSceneForSession(session);
+    const shipEntity = scene ? scene.getShipEntityForSession(session) : null;
+    const nowMs =
+      scene && typeof scene.getCurrentSimTimeMs === "function"
+        ? Number(scene.getCurrentSimTimeMs()) || Date.now()
+        : Date.now();
+    const lockUntilMs =
+      shipEntity &&
+      shipEntity.moduleReactivationLocks instanceof Map
+        ? Number(shipEntity.moduleReactivationLocks.get(numericModuleID)) || 0
+        : 0;
+    const fullDelayMs = Math.max(
+      0,
+      Number(getTypeAttributeValue(numericTypeID, "moduleReactivationDelay")) || 0,
+    );
+    const remainingDelayMs = Math.max(0, lockUntilMs - nowMs);
+    const timeSinceLastStopMs = Math.max(0, fullDelayMs - remainingDelayMs);
+    return {
+      itemID: numericModuleID,
+      timeSinceLastStop: timeSinceLastStopMs,
+    };
+  }
+  _buildEffectCrowdedOutValues(session, moduleItem) {
+    const numericTypeID = Number(moduleItem && moduleItem.typeID) || 0;
+    const numericGroupID = Number(moduleItem && moduleItem.groupID) || 0;
+    const scene = spaceRuntime.getSceneForSession(session);
+    const shipEntity = scene ? scene.getShipEntityForSession(session) : null;
+    const count =
+      shipEntity &&
+      shipEntity.activeModuleEffects instanceof Map
+        ? [...shipEntity.activeModuleEffects.values()].filter(
+          (effectState) => Number(effectState && effectState.groupID) === numericGroupID,
+        ).length
+        : 0;
+    return {
+      module: numericTypeID,
+      count,
+    };
+  }
+  _throwModuleOnlineUserError(errorMsg = "", moduleItem = null) {
+    switch (String(errorMsg || "").trim()) {
+      case "MODULE_NOT_FOUND":
+      case "SHIP_NOT_FOUND":
+      case "NOT_IN_SPACE":
+        throwWrappedUserError("DeniedShipChanged");
+        break;
+      case "NOT_ENOUGH_CPU":
+        this._throwCustomNotifyUserError("You do not have enough CPU to online that module.");
+        break;
+      case "NOT_ENOUGH_POWER":
+        this._throwCustomNotifyUserError("You do not have enough powergrid to online that module.");
+        break;
+      case "NOT_ENOUGH_CAPACITOR":
+        throwWrappedUserError("NotEnoughCapacitorForOnline", {
+          module: Number(moduleItem && moduleItem.typeID) || 0,
+          have: 0,
+          need: ONLINE_CAPACITOR_CHARGE_RATIO / 100,
+        });
+        break;
+      default:
+        this._throwCustomNotifyUserError(
+          `Failed to change the online state for ${this._resolveModuleDisplayName(moduleItem)}.`,
+        );
+        break;
+    }
+  }
+  _throwModuleActivationUserError(errorMsg = "", context = {}) {
+    const normalizedErrorMsg = String(errorMsg || "").trim();
+    const session = context.session || null;
+    const moduleItem = context.moduleItem || null;
+    const moduleName = this._resolveModuleDisplayName(moduleItem);
+
+    switch (normalizedErrorMsg) {
+      case "NOT_IN_SPACE":
+      case "SHIP_NOT_FOUND":
+      case "MODULE_NOT_FOUND":
+        throwWrappedUserError("DeniedShipChanged");
+        break;
+      case "TARGET_SELF":
+        throwWrappedUserError("DeniedTargetSelf");
+        break;
+      case "SOURCE_WARPING":
+        throwWrappedUserError("DeniedTargetSelfWarping");
+        break;
+      case "TARGET_WARPING":
+        throwWrappedUserError("DeniedTargetOtherWarping");
+        break;
+      case "TARGET_NOT_FOUND":
+        throwWrappedUserError("TargetingAttemptCancelled");
+        break;
+      case "TARGET_OUT_OF_RANGE":
+        this._throwCustomNotifyUserError(this._buildModuleTargetOutOfRangeNotify(context));
+        break;
+      case "MODULE_ALREADY_ACTIVE":
+        throwWrappedUserError("EffectAlreadyActive2", {
+          modulename: this._buildUserErrorTypeValue(moduleItem && moduleItem.typeID),
+        });
+        break;
+      case "MODULE_REACTIVATING":
+        throwWrappedUserError(
+          "ModuleReactivationDelayed2",
+          this._buildModuleReactivationUserErrorValues(session, moduleItem),
+        );
+        break;
+      case "NO_AMMO":
+        throwWrappedUserError("NoCharges", {
+          launcher: this._buildUserErrorTypeValue(moduleItem && moduleItem.typeID),
+        });
+        break;
+      case "MAX_GROUP_ACTIVE":
+        throwWrappedUserError(
+          "EffectCrowdedOut",
+          this._buildEffectCrowdedOutValues(session, moduleItem),
+        );
+        break;
+      case "TARGET_REQUIRED":
+        this._throwCustomNotifyUserError("You need an active target to activate that module.");
+        break;
+      case "TARGET_NOT_LOCKED":
+        this._throwCustomNotifyUserError("That target is not locked.");
+        break;
+      case "TARGET_TETHERED":
+        this._throwCustomNotifyUserError("That target is tethered and cannot be affected by this module.");
+        break;
+      case "MODULE_NOT_ONLINE":
+        this._throwCustomNotifyUserError(`${moduleName} is offline.`);
+        break;
+      case "NOT_ENOUGH_CAPACITOR":
+        this._throwCustomNotifyUserError("You do not have enough capacitor to activate that module.");
+        break;
+      case "NO_FUEL":
+        this._throwCustomNotifyUserError("You do not have enough fuel to activate that module.");
+        break;
+      case "ACTIVE_INDUSTRIAL_CORE_REQUIRED":
+        this._throwCustomNotifyUserError(
+          "An active industrial core is required to activate that module.",
+        );
+        break;
+      case "WARP_SCRAMBLED":
+        this._throwCustomNotifyUserError("You cannot warp because you are warp scrambled.");
+        break;
+      case "MICROWARPDRIVE_BLOCKED":
+        this._throwCustomNotifyUserError(
+          "That module cannot be activated while you are warp scrambled.",
+        );
+        break;
+      case "MICRO_JUMP_DRIVE_BLOCKED":
+        this._throwCustomNotifyUserError(
+          "That module cannot be activated while you are warp scrambled.",
+        );
+        break;
+      case "MAX_VELOCITY_ACTIVATION_LIMIT":
+        this._throwCustomNotifyUserError("You are moving too fast to activate that module.");
+        break;
+      case "NO_ACTIVATABLE_EFFECT":
+      case "UNSUPPORTED_EFFECT":
+      case "UNSUPPORTED_MODULE":
+        this._throwCustomNotifyUserError(`${moduleName} cannot be activated.`);
+        break;
+      case "CANNOT_ACTIVATE_IN_WARP":
+        this._throwCustomNotifyUserError("You cannot activate that module while in warp.");
+        break;
+      case "MODULE_RESTRICTED_IN_LOWSEC":
+        this._throwCustomNotifyUserError(
+          "That module cannot be activated in the current security band.",
+        );
+        break;
+      case "TARGET_POINT_REQUIRED":
+        this._throwCustomNotifyUserError("You must choose a point in space for that module.");
+        break;
+      default:
+        this._throwCustomNotifyUserError(
+          `Failed to activate ${moduleName}: ${normalizedErrorMsg || "unknown error"}.`,
+        );
+        break;
+    }
+  }
+  _throwModuleDeactivationUserError(errorMsg = "", moduleItem = null) {
+    switch (String(errorMsg || "").trim()) {
+      case "NOT_IN_SPACE":
+      case "SHIP_NOT_FOUND":
+      case "MODULE_NOT_FOUND":
+        throwWrappedUserError("DeniedShipChanged");
+        break;
+      case "MODULE_NOT_ACTIVE":
+        this._throwCustomNotifyUserError(`${this._resolveModuleDisplayName(moduleItem)} is not active.`);
+        break;
+      default:
+        this._throwCustomNotifyUserError(
+          `Failed to deactivate ${this._resolveModuleDisplayName(moduleItem)}.`,
+        );
         break;
     }
   }
@@ -3041,6 +4565,461 @@ class DogmaService extends BaseService {
     log.debug("[DogmaIM] GetTargeters");
     return this._buildTargetIDList(spaceRuntime.getTargeters(session));
   }
+  _expandGroupedModuleIDs(shipID, rawModuleIDs) {
+    const normalizedModuleIDs = extractSequenceValues(rawModuleIDs);
+    const requestedModuleIDs =
+      normalizedModuleIDs.length > 0
+        ? normalizedModuleIDs
+        : Array.isArray(rawModuleIDs)
+          ? rawModuleIDs
+          : [rawModuleIDs];
+    const expandedModuleIDs = [];
+    const seenModuleIDs = new Set();
+    for (const requestedModuleID of requestedModuleIDs) {
+      const numericModuleID = Number(requestedModuleID) || 0;
+      if (numericModuleID <= 0) {
+        continue;
+      }
+      const bankModuleIDs = getModulesInBank(shipID, numericModuleID);
+      const nextModuleIDs =
+        Array.isArray(bankModuleIDs) && bankModuleIDs.length > 0
+          ? bankModuleIDs
+          : [numericModuleID];
+      for (const moduleID of nextModuleIDs) {
+        const numericExpandedModuleID = Number(moduleID) || 0;
+        if (numericExpandedModuleID <= 0 || seenModuleIDs.has(numericExpandedModuleID)) {
+          continue;
+        }
+        seenModuleIDs.add(numericExpandedModuleID);
+        expandedModuleIDs.push(numericExpandedModuleID);
+      }
+    }
+    return expandedModuleIDs;
+  }
+  _buildGroupedUnloadTargets(charID, shipID, rawModuleIDs, quantity = null) {
+    const normalizedQuantity =
+      quantity === null || quantity === undefined
+        ? null
+        : Math.max(0, Math.trunc(Number(quantity) || 0));
+    const expandedModuleIDs = this._expandGroupedModuleIDs(shipID, rawModuleIDs);
+    if (normalizedQuantity === null) {
+      return expandedModuleIDs.map((moduleID) => ({
+        moduleID,
+        quantity: null,
+      }));
+    }
+
+    const normalizedRequestedModuleIDs = extractSequenceValues(rawModuleIDs);
+    const requestedModuleIDs =
+      normalizedRequestedModuleIDs.length > 0
+        ? normalizedRequestedModuleIDs
+        : Array.isArray(rawModuleIDs)
+          ? rawModuleIDs
+          : [rawModuleIDs];
+    if (requestedModuleIDs.length !== 1 || expandedModuleIDs.length <= 1) {
+      return expandedModuleIDs.map((moduleID) => ({
+        moduleID,
+        quantity: normalizedQuantity,
+      }));
+    }
+
+    let remainingQuantity = normalizedQuantity;
+    const unloadTargets = [];
+    for (const moduleID of expandedModuleIDs) {
+      if (remainingQuantity <= 0) {
+        break;
+      }
+      const moduleItem = findItemById(moduleID);
+      if (!moduleItem) {
+        continue;
+      }
+      const chargeItem = getLoadedChargeByFlag(charID, shipID, moduleItem.flagID);
+      const availableQuantity = Number(
+        chargeItem && (chargeItem.stacksize || chargeItem.quantity),
+      ) || 0;
+      if (availableQuantity <= 0) {
+        continue;
+      }
+      const unloadQuantity = Math.min(remainingQuantity, availableQuantity);
+      unloadTargets.push({
+        moduleID,
+        quantity: unloadQuantity,
+      });
+      remainingQuantity -= unloadQuantity;
+    }
+
+    if (unloadTargets.length > 0) {
+      return unloadTargets;
+    }
+    return expandedModuleIDs.map((moduleID) => ({
+      moduleID,
+      quantity: normalizedQuantity,
+    }));
+  }
+  _collectWeaponBankTouchedModuleIDs(
+    shipID,
+    moduleIDs = [],
+    options = {},
+  ) {
+    const numericShipID = Number(shipID) || 0;
+    const touchedModuleIDs = new Set();
+    if (options.includeAllBanks === true) {
+      const banks = getShipWeaponBanks(numericShipID, {
+        characterID: this._getCharID(options.session || null),
+      });
+      for (const [masterID, slaveIDs] of Object.entries(banks || {})) {
+        const numericMasterID = Number(masterID) || 0;
+        if (numericMasterID > 0) {
+          touchedModuleIDs.add(numericMasterID);
+        }
+        for (const slaveID of Array.isArray(slaveIDs) ? slaveIDs : []) {
+          const numericSlaveID = Number(slaveID) || 0;
+          if (numericSlaveID > 0) {
+            touchedModuleIDs.add(numericSlaveID);
+          }
+        }
+      }
+    }
+    for (const rawModuleID of Array.isArray(moduleIDs) ? moduleIDs : [moduleIDs]) {
+      const numericModuleID = Number(rawModuleID) || 0;
+      if (numericModuleID <= 0) {
+        continue;
+      }
+      touchedModuleIDs.add(numericModuleID);
+      for (const bankModuleID of getModulesInBank(numericShipID, numericModuleID)) {
+        const numericBankModuleID = Number(bankModuleID) || 0;
+        if (numericBankModuleID > 0) {
+          touchedModuleIDs.add(numericBankModuleID);
+        }
+      }
+    }
+    return [...touchedModuleIDs].sort((left, right) => left - right);
+  }
+  _repairWeaponBankModulePresentation(session, shipID, moduleIDs = []) {
+    if (!session || !Array.isArray(moduleIDs) || moduleIDs.length <= 0) {
+      return;
+    }
+    const numericShipID = Number(shipID) || this._getShipID(session);
+    if (numericShipID <= 0) {
+      return;
+    }
+    if (!session._space) {
+      syncShipFittingStateForSession(session, numericShipID, {
+        includeOfflineModules: true,
+        includeCharges: true,
+        onlyCharges: true,
+        emitChargeInventoryRows: true,
+        syntheticFitTransition: true,
+      });
+      return;
+    }
+
+    const normalizedModuleIDs = [...new Set(
+      moduleIDs.map((value) => Number(value) || 0).filter((value) => value > 0),
+    )];
+    const shouldReplayRealHudChargeRows =
+      session._space &&
+      session._space.useRealChargeInventoryHudRows === true;
+    const charID = this._getCharID(session);
+    const currentChargeItemsByModuleID = new Map();
+    for (const moduleID of normalizedModuleIDs) {
+      if (moduleID <= 0) {
+        continue;
+      }
+      const moduleItem = findItemById(moduleID);
+      if (
+        !moduleItem ||
+        Number(moduleItem.ownerID) !== charID ||
+        Number(moduleItem.locationID) !== numericShipID
+      ) {
+        continue;
+      }
+      currentChargeItemsByModuleID.set(
+        moduleID,
+        this._captureChargeItemSnapshot(
+          charID,
+          numericShipID,
+          moduleItem.flagID,
+        ),
+      );
+    }
+
+    if (shouldReplayRealHudChargeRows && normalizedModuleIDs.length > 0) {
+      const chargeReplayItemIDs = [...new Set(
+        [...currentChargeItemsByModuleID.values()]
+          .map((item) => Number(item && item.itemID) || 0)
+          .filter((itemID) => itemID > 0),
+      )];
+      if (chargeReplayItemIDs.length > 0) {
+      // Weapon-bank mutations can be followed by another HUD action
+      // immediately. Re-send the real loaded charge rows on the touched slots
+      // up front so grouped launchers/turrets do not spend a tick bound to a
+      // stale bank-era charge presentation.
+        syncShipFittingStateForSession(session, numericShipID, {
+          includeOfflineModules: true,
+          includeCharges: true,
+          onlyCharges: true,
+          emitChargeInventoryRows: true,
+          allowInSpaceChargeInventoryRows: true,
+          syntheticFitTransition: true,
+          restrictToItemIDs: chargeReplayItemIDs,
+        });
+      }
+    }
+
+    for (const moduleID of normalizedModuleIDs) {
+      if (moduleID <= 0) {
+        continue;
+      }
+      const moduleItem = findItemById(moduleID);
+      if (
+        !moduleItem ||
+        Number(moduleItem.ownerID) !== charID ||
+        Number(moduleItem.locationID) !== numericShipID
+      ) {
+        continue;
+      }
+      const currentChargeState = this._captureChargeStateSnapshot(
+        charID,
+        numericShipID,
+        moduleItem.flagID,
+      );
+      const currentChargeItem =
+        currentChargeItemsByModuleID.get(moduleID) ||
+        this._captureChargeItemSnapshot(
+          charID,
+          numericShipID,
+          moduleItem.flagID,
+        );
+      if (
+        Number(currentChargeState && currentChargeState.typeID) > 0 &&
+        Number(currentChargeState && currentChargeState.quantity) > 0
+      ) {
+        this._notifyChargeQuantityTransition(
+          session,
+          charID,
+          numericShipID,
+          moduleItem.flagID,
+          currentChargeState,
+          currentChargeState,
+          shouldReplayRealHudChargeRows
+            ? {
+              forceTupleRepair: true,
+            }
+            : {
+              forceTupleRepair: true,
+              previousChargeItem: currentChargeItem,
+              nextChargeItem: currentChargeItem,
+            },
+        );
+      }
+      if (currentChargeItem) {
+        this._notifyWeaponModuleAttributeTransition(
+          session,
+          moduleItem,
+          null,
+          currentChargeItem,
+        );
+      }
+    }
+  }
+  _throwWeaponBankMutationUserError(errorMsg = "") {
+    switch (String(errorMsg || "").trim()) {
+      case "MODULES_MUST_BE_ONLINE":
+        this._throwCustomNotifyUserError(
+          "All weapons in the bank must be online before grouping them.",
+        );
+        break;
+      case "MODULE_CHARGE_MISMATCH":
+        this._throwCustomNotifyUserError(
+          "All weapons in the bank must have the same loaded charge, or all be empty.",
+        );
+        break;
+      case "BANK_NOT_FOUND":
+        this._throwCustomNotifyUserError("That weapon bank no longer exists.");
+        break;
+      default:
+        this._throwCustomNotifyUserError(
+          "Failed to change the current weapon bank configuration.",
+        );
+        break;
+    }
+  }
+  Handle_LinkWeapons(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const masterModuleID = args && args.length > 1 ? Number(args[1]) || 0 : 0;
+    const slaveModuleID = args && args.length > 2 ? Number(args[2]) || 0 : 0;
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [masterModuleID, slaveModuleID],
+    );
+    const result = linkWeaponBanks(shipID, masterModuleID, slaveModuleID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      this._repairWeaponBankModulePresentation(session, shipID, touchedModuleIDs);
+    }
+    return buildWeaponBankStateDict(shipID, {
+      banks:
+        result && result.data && result.data.banks
+          ? result.data.banks
+          : null,
+      characterID: this._getCharID(session),
+    });
+  }
+  Handle_MergeModuleGroups(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const targetMasterID = args && args.length > 1 ? Number(args[1]) || 0 : 0;
+    const sourceMasterID = args && args.length > 2 ? Number(args[2]) || 0 : 0;
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [targetMasterID, sourceMasterID],
+    );
+    const result = mergeModuleGroups(shipID, targetMasterID, sourceMasterID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      this._repairWeaponBankModulePresentation(session, shipID, touchedModuleIDs);
+    }
+    return buildWeaponBankStateDict(shipID, {
+      banks:
+        result && result.data && result.data.banks
+          ? result.data.banks
+          : null,
+      characterID: this._getCharID(session),
+    });
+  }
+  Handle_PeelAndLink(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const targetMasterID = args && args.length > 1 ? Number(args[1]) || 0 : 0;
+    const sourceMasterID = args && args.length > 2 ? Number(args[2]) || 0 : 0;
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [targetMasterID, sourceMasterID],
+    );
+    const result = peelAndLink(shipID, targetMasterID, sourceMasterID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      this._repairWeaponBankModulePresentation(session, shipID, touchedModuleIDs);
+    }
+    return buildWeaponBankStateDict(shipID, {
+      banks:
+        result && result.data && result.data.banks
+          ? result.data.banks
+          : null,
+      characterID: this._getCharID(session),
+    });
+  }
+  Handle_UnlinkModule(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const masterModuleID = args && args.length > 1 ? Number(args[1]) || 0 : 0;
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [masterModuleID],
+    );
+    const result = unlinkModuleFromBank(shipID, masterModuleID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      this._repairWeaponBankModulePresentation(session, shipID, touchedModuleIDs);
+    }
+    return Number(result && result.data && result.data.peeledModuleID) || 0;
+  }
+  Handle_LinkAllWeapons(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [],
+      { includeAllBanks: true, session },
+    );
+    const result = linkAllWeaponBanks(shipID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      const nextTouchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+        shipID,
+        [],
+        { includeAllBanks: true, session },
+      );
+      this._repairWeaponBankModulePresentation(
+        session,
+        shipID,
+        [...new Set([...touchedModuleIDs, ...nextTouchedModuleIDs])],
+      );
+    }
+    return buildWeaponBankStateDict(shipID, {
+      banks:
+        result && result.data && result.data.banks
+          ? result.data.banks
+          : null,
+      characterID: this._getCharID(session),
+    });
+  }
+  Handle_UnlinkAllModules(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [],
+      { includeAllBanks: true, session },
+    );
+    const result = unlinkAllWeaponBanks(shipID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      this._repairWeaponBankModulePresentation(session, shipID, touchedModuleIDs);
+    }
+    return buildWeaponBankStateDict(shipID, {
+      banks:
+        result && result.data && result.data.banks
+          ? result.data.banks
+          : {},
+      characterID: this._getCharID(session),
+    });
+  }
+  Handle_DestroyWeaponBank(args, session) {
+    const shipID =
+      args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
+    const masterModuleID = args && args.length > 1 ? Number(args[1]) || 0 : 0;
+    const touchedModuleIDs = this._collectWeaponBankTouchedModuleIDs(
+      shipID,
+      [masterModuleID],
+    );
+    const result = destroyWeaponBank(shipID, masterModuleID, {
+      characterID: this._getCharID(session),
+    });
+    if (!result || result.success !== true) {
+      this._throwWeaponBankMutationUserError(result && result.errorMsg);
+    }
+    if (result && result.data && result.data.changed) {
+      this._repairWeaponBankModulePresentation(session, shipID, touchedModuleIDs);
+    }
+    return null;
+  }
   _setModuleOnlineState(shipID, moduleID, online, session) {
     const charID = this._getCharID(session);
     const numericShipID = Number(shipID) || this._getShipID(session);
@@ -3056,33 +5035,54 @@ class DogmaService extends BaseService {
         errorMsg: "MODULE_NOT_FOUND",
       };
     }
-    const previousState = getItemModuleState(moduleItem);
+    const previousOnline = isEffectivelyOnlineModule(moduleItem);
+    const nextOnline = Boolean(online);
     const inSpace = Boolean(session && session._space);
-    if (online && !previousState.online) {
-      const shipRecord =
-        findCharacterShip(charID, numericShipID) ||
-        this._getActiveShipRecord(session) ||
-        null;
-      const fittedItems = listFittedItems(charID, numericShipID);
-      const resourceState = buildShipResourceState(charID, shipRecord || {
-        itemID: numericShipID,
-        typeID: this._getShipTypeID(session),
-      }, {
-        fittedItems,
-      });
-      const moduleCpuLoad = Number(
-        getTypeAttributeValue(moduleItem.typeID, "cpuLoad", "cpu"),
-      ) || 0;
-      const modulePowerLoad = Number(
-        getTypeAttributeValue(moduleItem.typeID, "powerLoad", "power"),
-      ) || 0;
-      if (resourceState.cpuLoad + moduleCpuLoad > resourceState.cpuOutput + 1e-6) {
+    if (!nextOnline) {
+      const bankMasterID = getWeaponBankMasterModuleID(
+        numericShipID,
+        numericModuleID,
+      );
+      if (bankMasterID > 0) {
+        destroyWeaponBankAndNotify(session, numericShipID, bankMasterID, {
+          characterID: charID,
+          skipOfflineValidation: true,
+        });
+      }
+    }
+    const shipRecord =
+      findCharacterShip(charID, numericShipID) ||
+      this._getActiveShipRecord(session) ||
+      null;
+    const shipStateSource = shipRecord || {
+      itemID: numericShipID,
+      typeID: this._getShipTypeID(session),
+    };
+    const previousFittingSnapshot = getShipFittingSnapshot(charID, numericShipID, {
+      shipItem: shipStateSource,
+      reason: "dogma.online.before",
+    });
+    if (nextOnline && !previousOnline) {
+      const onlineCandidate =
+        previousFittingSnapshot &&
+        previousFittingSnapshot.buildOnlineCandidateResourceState(moduleItem);
+      const resourceState =
+        onlineCandidate && onlineCandidate.baselineResourceState;
+      const moduleResourceLoad =
+        onlineCandidate && onlineCandidate.moduleResourceLoad;
+      if (!resourceState || !moduleResourceLoad) {
+        return {
+          success: false,
+          errorMsg: "MODULE_NOT_FOUND",
+        };
+      }
+      if (onlineCandidate.cpuAfter > resourceState.cpuOutput + 1e-6) {
         return {
           success: false,
           errorMsg: "NOT_ENOUGH_CPU",
         };
       }
-      if (resourceState.powerLoad + modulePowerLoad > resourceState.powerOutput + 1e-6) {
+      if (onlineCandidate.powerAfter > resourceState.powerOutput + 1e-6) {
         return {
           success: false,
           errorMsg: "NOT_ENOUGH_POWER",
@@ -3102,7 +5102,7 @@ class DogmaService extends BaseService {
         }
       }
     }
-    if (!online && inSpace) {
+    if (!nextOnline && inSpace) {
       const activeEffect = spaceRuntime.getActiveModuleEffect(session, numericModuleID);
       if (activeEffect) {
         if (activeEffect.isGeneric) {
@@ -3121,36 +5121,53 @@ class DogmaService extends BaseService {
       ...currentItem,
       moduleState: {
         ...(currentItem.moduleState || {}),
-        online: Boolean(online),
+        online: nextOnline,
       },
     }));
     if (!updateResult.success) {
       return updateResult;
     }
+    invalidateShipFittingSnapshot(charID, numericShipID, {
+      shipItem: shipStateSource,
+    });
+    const refreshedShipStateSource =
+      findCharacterShip(charID, numericShipID) ||
+      this._getActiveShipRecord(session) ||
+      shipStateSource;
+    const nextFittingSnapshot = refreshShipFittingSnapshot(charID, numericShipID, {
+      shipItem: refreshedShipStateSource,
+      reason: "dogma.online.after",
+    });
     const isOnlineAttributeID = getAttributeIDByNames("isOnline");
-    if (isOnlineAttributeID) {
+    if (isOnlineAttributeID && previousOnline !== nextOnline) {
       this._notifyModuleAttributeChanges(session, [[
         "OnModuleAttributeChanges",
         charID,
         numericModuleID,
         isOnlineAttributeID,
         this._sessionFileTime(session),
-        online ? 1 : 0,
-        previousState.online ? 1 : 0,
+        nextOnline ? 1 : 0,
+        previousOnline ? 1 : 0,
         null,
       ]]);
     }
+    this._notifyShipFittingResourceAttributeChanges(
+      session,
+      numericShipID,
+      previousFittingSnapshot,
+      nextFittingSnapshot,
+    );
     syncModuleOnlineEffectForSession(session, updateResult.data, {
-      active: Boolean(online),
+      active: nextOnline,
     });
     log.debug(
       `[DogmaIM] SetModuleOnlineState applied shipID=${numericShipID} ` +
       `module=${JSON.stringify(summarizeModuleItemForLog(updateResult.data))} ` +
-      `previousOnline=${previousState.online === true} nextOnline=${Boolean(online)} ` +
+      `previousOnline=${previousOnline === true} nextOnline=${nextOnline} ` +
       `inSpace=${inSpace}`,
     );
     if (inSpace) {
-      if (online && !previousState.online) {
+      if (nextOnline && !previousOnline) {
         spaceRuntime.setShipCapacitorRatio(
           session,
           ONLINE_CAPACITOR_REMAINDER_RATIO / 100,
@@ -3205,6 +5222,8 @@ class DogmaService extends BaseService {
     switch (normalized) {
       case "online":
         return "online";
+      case "usemissiles":
+        return "useMissiles";
       case "modulebonusafterburner":
       case "effectmodulebonusafterburner":
       case "effects.afterburner":
@@ -3572,6 +5591,19 @@ class DogmaService extends BaseService {
         shipID,
         moduleFlagID,
       );
+      const nextChargeItem = this._captureChargeItemSnapshot(
+        charID,
+        shipID,
+        moduleFlagID,
+      );
+      if (reloadState.action === "load" && nextChargeItem) {
+        this._armPendingHardpointActivationBootstrap(
+          session,
+          moduleItem,
+          nextChargeItem,
+          { reason: "reload-complete" },
+        );
+      }
       this._notifyChargeQuantityTransition(
         session,
         charID,
@@ -3581,13 +5613,24 @@ class DogmaService extends BaseService {
         nextChargeState,
         {
           forceTupleRepair: reloadState.action === "load",
+          previousChargeItem,
+          nextChargeItem,
         },
       );
       this._notifyWeaponModuleAttributeTransition(
         session,
         moduleItem,
         previousChargeItem,
-        this._captureChargeItemSnapshot(charID, shipID, moduleFlagID),
+        nextChargeItem,
+      );
+      this._refreshScannerProbeLauncherClientState(
+        session,
+        shipID,
+        moduleItem,
+        {
+          forceRuntimeReplay: true,
+          refreshChargeBootstrap: reloadState.action === "load",
+        },
       );
       this._notifyModuleNextActivationTime(
         session,
@@ -3604,13 +5647,25 @@ class DogmaService extends BaseService {
     };
   }
   Handle_Activate(args, session) {
-    const itemID = args && args.length > 0 ? Number(args[0]) || 0 : 0;
+    const requestedItemID = args && args.length > 0 ? Number(args[0]) || 0 : 0;
     const effectName = this._normalizeActivationEffectName(
       args && args.length > 1 ? args[1] : "",
     );
     const targetID = args && args.length > 2 ? args[2] : null;
     const repeat = args && args.length > 3 ? args[3] : null;
-    const item = findItemById(itemID);
+    const requestedItem = findItemById(requestedItemID);
+    const groupedMasterModuleID =
+      requestedItem &&
+      Number(requestedItem.categoryID) === 7
+        ? getWeaponBankMasterModuleID(
+          Number(requestedItem.locationID) || this._getShipID(session),
+          requestedItemID,
+        )
+        : 0;
+    const itemID = groupedMasterModuleID || requestedItemID;
+    const item = groupedMasterModuleID > 0
+      ? findItemById(itemID)
+      : requestedItem;
     log.debug(
       `[DogmaIM] Activate(itemID=${itemID}, effect=${effectName}, target=${String(targetID)}, repeat=${String(repeat)}) ` +
       `module=${JSON.stringify(summarizeModuleItemForLog(item))} inSpace=${Boolean(session && session._space)}`,
@@ -3622,15 +5677,18 @@ class DogmaService extends BaseService {
         log.warn(
           `[DogmaIM] Activate online rejected itemID=${itemID} shipID=${shipID} error=${result.errorMsg}`,
         );
-        return null;
+        this._throwModuleOnlineUserError(result.errorMsg, item);
       }
       return 1;
     }
-    if (!item || !isModuleOnline(item)) {
+    if (!item || !isEffectivelyOnlineModule(item)) {
       log.warn(
         `[DogmaIM] Activate rejected itemID=${itemID} effect=${effectName} error=MODULE_NOT_ONLINE`,
       );
-      return null;
+      this._throwModuleActivationUserError("MODULE_NOT_ONLINE", {
+        session,
+        moduleItem: item || requestedItem,
+      });
     }
     // Propulsion modules (AB/MWD) use the dedicated propulsion path which
     // applies speed/mass bonuses.  All other activatable modules use the
@@ -3638,20 +5696,103 @@ class DogmaService extends BaseService {
     const isPropulsion =
       effectName === "moduleBonusAfterburner" ||
       effectName === "moduleBonusMicrowarpdrive";
+    const isProbeLauncherActivation =
+      effectName === "useMissiles" &&
+      item &&
+      Number(item.groupID) === GROUP_SCAN_PROBE_LAUNCHER;
+    const shouldRefreshProbeLauncherChargeBootstrap =
+      isProbeLauncherActivation &&
+      session &&
+      session._space &&
+      session._space.useRealChargeInventoryHudRows !== true &&
+      session._space.loginChargeHydrationProfile === "login" &&
+      session._space.loginChargeDogmaReplayFlushed !== true &&
+      session._space._probeLauncherActivationChargeBootstrapDone !== true;
+    const probeLaunchContext = isProbeLauncherActivation
+      ? this._resolveValidatedProbeLaunchContext(session, itemID, 1)
+      : null;
+    if (isProbeLauncherActivation) {
+      this._refreshScannerProbeLauncherClientState(
+        session,
+        Number(item && item.locationID) || this._getShipID(session),
+        item,
+        {
+          forceRuntimeReplay: true,
+          refreshChargeBootstrap: shouldRefreshProbeLauncherChargeBootstrap,
+        },
+      );
+      if (
+        shouldRefreshProbeLauncherChargeBootstrap &&
+        session &&
+        session._space
+      ) {
+        session._space._probeLauncherActivationChargeBootstrapDone = true;
+      }
+    }
+    const activationRepeat = isProbeLauncherActivation ? 1 : repeat;
+    this._consumePendingHardpointActivationBootstrap(session, item);
     const result = isPropulsion
       ? spaceRuntime.activatePropulsionModule(session, item, effectName, {
           targetID,
-          repeat,
+          repeat: activationRepeat,
         })
       : spaceRuntime.activateGenericModule(session, item, effectName, {
           targetID,
-          repeat,
+          repeat: activationRepeat,
         });
     if (!result.success) {
       log.warn(
         `[DogmaIM] Activate rejected itemID=${itemID} effect=${effectName} error=${result.errorMsg}`,
       );
-      return null;
+      this._throwModuleActivationUserError(result.errorMsg, {
+        session,
+        moduleItem: item || requestedItem,
+        targetID,
+      });
+    }
+    if (isProbeLauncherActivation) {
+      if (result && result.data && result.data.effectState) {
+        // CCP parity: scan-probe launchers are still a one-shot server cycle,
+        // but the client button/radial behaves much better when the wire
+        // contract stays on the launcher's normal repeatable cycle shape.
+        // Keep the server-side auto-stop, but do not collapse the live client
+        // effect row down to repeat=0.
+        result.data.effectState.autoDeactivateAtCycleEnd = true;
+        result.data.effectState.repeat = 1;
+        result.data.effectState.stopReason = "cycle";
+      }
+      try {
+        const launchResult = this._launchProbesFromContext(session, probeLaunchContext);
+        if (
+          result &&
+          result.data &&
+          result.data.effectState &&
+          launchResult &&
+          launchResult.autoReloadRecommended === true &&
+          Number(launchResult.chargeTypeID) > 0
+        ) {
+          result.data.effectState.autoReloadOnCycleEnd = {
+            chargeTypeID: Number(launchResult.chargeTypeID) || 0,
+            reloadTimeMs: this._getModuleReloadTimeMs(item),
+            ammoLocationID:
+              Number(item && item.locationID) || this._getShipID(session),
+          };
+        }
+        this._refreshScannerProbeLauncherClientState(
+          session,
+          Number(item && item.locationID) || this._getShipID(session),
+          item,
+          {
+            forceRuntimeReplay: true,
+            refreshChargeBootstrap: false,
+          },
+        );
+      } catch (error) {
+        spaceRuntime.deactivateGenericModule(session, itemID, {
+          reason: "probe-launch-failed",
+        });
+        throw error;
+      }
     }
     log.debug(
       `[DogmaIM] Activate accepted itemID=${itemID} effect=${effectName} ` +
@@ -3667,11 +5808,23 @@ class DogmaService extends BaseService {
     return 1;
   }
   Handle_Deactivate(args, session) {
-    const itemID = args && args.length > 0 ? Number(args[0]) || 0 : 0;
+    const requestedItemID = args && args.length > 0 ? Number(args[0]) || 0 : 0;
     const effectName = this._normalizeActivationEffectName(
       args && args.length > 1 ? args[1] : "",
     );
-    const item = findItemById(itemID);
+    const requestedItem = findItemById(requestedItemID);
+    const groupedMasterModuleID =
+      requestedItem &&
+      Number(requestedItem.categoryID) === 7
+        ? getWeaponBankMasterModuleID(
+          Number(requestedItem.locationID) || this._getShipID(session),
+          requestedItemID,
+        )
+        : 0;
+    const itemID = groupedMasterModuleID || requestedItemID;
+    const item = groupedMasterModuleID > 0
+      ? findItemById(itemID)
+      : requestedItem;
     log.debug(
       `[DogmaIM] Deactivate(itemID=${itemID}, effect=${effectName}) ` +
       `module=${JSON.stringify(summarizeModuleItemForLog(item))} inSpace=${Boolean(session && session._space)}`,
@@ -3684,7 +5837,7 @@ class DogmaService extends BaseService {
         log.warn(
           `[DogmaIM] Deactivate online rejected itemID=${itemID} shipID=${shipID} error=${result.errorMsg}`,
         );
-        return null;
+        this._throwModuleOnlineUserError(result.errorMsg, item);
       }
       return 1;
     }
@@ -3702,7 +5855,7 @@ class DogmaService extends BaseService {
       log.warn(
         `[DogmaIM] Deactivate rejected itemID=${itemID} effect=${effectName} error=${result.errorMsg}`,
       );
-      return null;
+      this._throwModuleDeactivationUserError(result.errorMsg, item || requestedItem);
     }
     log.debug(
       `[DogmaIM] Deactivate accepted itemID=${itemID} effect=${effectName} ` +
@@ -3724,6 +5877,7 @@ class DogmaService extends BaseService {
     const result = this._setModuleOnlineState(shipID, moduleID, true, session);
     if (!result.success) {
       log.warn(`[DogmaIM] SetModuleOnline rejected moduleID=${moduleID} error=${result.errorMsg}`);
+      this._throwModuleOnlineUserError(result.errorMsg, findItemById(moduleID));
     }
     return null;
   }
@@ -3731,9 +5885,11 @@ class DogmaService extends BaseService {
     const shipID = args && args.length > 0 ? args[0] : this._getShipID(session);
     const moduleID = args && args.length > 1 ? args[1] : null;
     log.debug(`[DogmaIM] TakeModuleOffline(shipID=${shipID}, moduleID=${moduleID})`);
-    return this._setModuleOnlineState(shipID, moduleID, false, session).success
-      ? null
-      : null;
+    const result = this._setModuleOnlineState(shipID, moduleID, false, session);
+    if (!result.success) {
+      this._throwModuleOnlineUserError(result.errorMsg, findItemById(moduleID));
+    }
+    return null;
   }
   Handle_CreateNewbieShip(args, session) {
     const requestedShipID =
@@ -3764,15 +5920,40 @@ class DogmaService extends BaseService {
     }
     return null;
   }
+  Handle_LaunchProbes(args, session) {
+    const moduleID = args && args.length > 0
+      ? Number(args[0]) || 0
+      : 0;
+    const requestedCount = Math.max(
+      1,
+      Number(args && args.length > 1 ? args[1] : 1) || 1,
+    );
+    const shipID = this._getShipID(session);
+    const charID = this._getCharID(session);
+    const systemID = Number(
+      (session && session.solarsystemid2) ||
+      (session && session.solarsystemid) ||
+      (session && session._space && session._space.systemID) ||
+      0,
+    ) || 0;
+    log.info(
+      `[DogmaIM] LaunchProbes(moduleID=${moduleID}, requestedCount=${requestedCount}, shipID=${shipID}, charID=${charID}, systemID=${systemID})`,
+    );
+    const probeLaunchContext = this._resolveValidatedProbeLaunchContext(
+      session,
+      moduleID,
+      requestedCount,
+    );
+    this._launchProbesFromContext(session, probeLaunchContext);
+    return null;
+  }
   Handle_LoadAmmo(args, session) {
     const shipID = args && args.length > 0 ? Number(args[0]) || this._getShipID(session) : this._getShipID(session);
     const rawModuleIDs = args && args.length > 1 ? args[1] : [];
     const rawChargeItemIDs = args && args.length > 2 ? args[2] : [];
     const ammoLocationID = args && args.length > 3 ? Number(args[3]) || shipID : shipID;
     const charID = this._getCharID(session);
-    const moduleIDs = extractList(rawModuleIDs).length > 0
-      ? extractList(rawModuleIDs)
-      : (Array.isArray(rawModuleIDs) ? rawModuleIDs : [rawModuleIDs]);
+    const moduleIDs = this._expandGroupedModuleIDs(shipID, rawModuleIDs);
     const chargeRequests = normalizeAmmoLoadRequests(rawChargeItemIDs);
     log.info(
       `[DogmaIM] LoadAmmo(shipID=${shipID}, modules=[${moduleIDs}], charges=[${summarizeAmmoLoadRequests(chargeRequests)}], ammoLocationID=${ammoLocationID})`,
@@ -3843,6 +6024,12 @@ class DogmaService extends BaseService {
             activeChargeTypeID === chargeTypeID &&
             existingQuantity >= moduleCapacity
           ) {
+            const suppressForcePrimeRepair =
+              this._shouldSuppressScannerProbeLauncherForcePrimeRepair(
+              session,
+              moduleItem,
+              chargeTypeID,
+            );
             this._notifyChargeQuantityTransition(
               session,
               charID,
@@ -3852,6 +6039,9 @@ class DogmaService extends BaseService {
               previousChargeState,
               {
                 forceTupleRepair: true,
+                suppressForcePrimeRepair,
+                previousChargeItem,
+                nextChargeItem: previousChargeItem,
               },
             );
             continue;
@@ -3905,6 +6095,12 @@ class DogmaService extends BaseService {
             // Explicit same-ammo LoadAmmo requests are a safe on-demand repair
             // hook for tuple-backed charge dogma even on weapons that do not
             // use a timed reload path (for example crystals/scripts).
+            const suppressForcePrimeRepair =
+              this._shouldSuppressScannerProbeLauncherForcePrimeRepair(
+              session,
+              moduleItem,
+              chargeTypeID,
+            );
             this._notifyChargeQuantityTransition(
               session,
               charID,
@@ -3914,8 +6110,22 @@ class DogmaService extends BaseService {
               previousChargeState,
               {
                 forceTupleRepair: true,
+                suppressForcePrimeRepair,
+                previousChargeItem,
+                nextChargeItem: previousChargeItem,
               },
             );
+            if (Number(moduleItem.groupID) === GROUP_SCAN_PROBE_LAUNCHER) {
+              this._refreshScannerProbeLauncherClientState(
+                session,
+                shipID,
+                moduleItem,
+                {
+                  forceRuntimeReplay: true,
+                  refreshChargeBootstrap: false,
+                },
+              );
+            }
           }
           continue;
         }
@@ -3981,6 +6191,11 @@ class DogmaService extends BaseService {
           shipID,
           moduleItem.flagID,
         );
+        const nextChargeItem = this._captureChargeItemSnapshot(
+          charID,
+          shipID,
+          moduleItem.flagID,
+        );
         this._notifyChargeQuantityTransition(
           session,
           charID,
@@ -3988,12 +6203,40 @@ class DogmaService extends BaseService {
           moduleItem.flagID,
           previousChargeState,
           nextChargeState,
+          {
+            previousChargeItem,
+            nextChargeItem,
+          },
         );
         this._notifyWeaponModuleAttributeTransition(
           session,
           moduleItem,
           previousChargeItem,
-          this._captureChargeItemSnapshot(charID, shipID, moduleItem.flagID),
+          nextChargeItem,
+        );
+        const shouldForceScannerProbeRuntimeReplay =
+          session &&
+          session._space &&
+          Number(moduleItem && moduleItem.groupID) === GROUP_SCAN_PROBE_LAUNCHER;
+        const shouldRefreshScannerProbeChargeBootstrap =
+          session &&
+          session._space &&
+          Number(moduleItem && moduleItem.groupID) === GROUP_SCAN_PROBE_LAUNCHER &&
+          (
+            session._space.loginChargeDogmaReplayPending === true ||
+            Number(previousChargeState && previousChargeState.typeID) !==
+              Number(nextChargeState && nextChargeState.typeID) ||
+            Number(previousChargeState && previousChargeState.quantity) !==
+              Number(nextChargeState && nextChargeState.quantity)
+          );
+        this._refreshScannerProbeLauncherClientState(
+          session,
+          shipID,
+          moduleItem,
+          {
+            forceRuntimeReplay: shouldForceScannerProbeRuntimeReplay,
+            refreshChargeBootstrap: shouldRefreshScannerProbeChargeBootstrap,
+          },
         );
       }
     }
@@ -4005,14 +6248,21 @@ class DogmaService extends BaseService {
     const destination = args && args.length > 2 ? args[2] : shipID;
     const quantity = args && args.length > 3 ? Number(args[3]) || null : null;
     const charID = this._getCharID(session);
-    const normalizedModuleIDs = extractSequenceValues(rawModuleIDs);
-    const moduleIDs =
-      normalizedModuleIDs.length > 0 ? normalizedModuleIDs : [rawModuleIDs];
+    const unloadTargets = this._buildGroupedUnloadTargets(
+      charID,
+      shipID,
+      rawModuleIDs,
+      quantity,
+    );
     const resolvedDestination = this._resolveUnloadDestination(destination, session, shipID);
     log.debug(
-      `[DogmaIM] UnloadAmmo(shipID=${shipID}, moduleCount=${moduleIDs.length}, destination=${JSON.stringify(resolvedDestination)})`,
+      `[DogmaIM] UnloadAmmo(shipID=${shipID}, moduleCount=${unloadTargets.length}, destination=${JSON.stringify(resolvedDestination)})`,
     );
-    for (const moduleID of moduleIDs.map((value) => Number(value) || 0).filter((value) => value > 0)) {
+    for (const unloadTarget of unloadTargets) {
+      const moduleID = Number(unloadTarget && unloadTarget.moduleID) || 0;
+      if (moduleID <= 0) {
+        continue;
+      }
       const moduleItem = findItemById(moduleID);
       if (
         !moduleItem ||
@@ -4040,7 +6290,7 @@ class DogmaService extends BaseService {
           chargeItem,
           resolvedDestination.locationID,
           resolvedDestination.flagID,
-          quantity,
+          unloadTarget.quantity,
         );
         if (!unloadResult.success) {
           continue;
@@ -4052,6 +6302,11 @@ class DogmaService extends BaseService {
           shipID,
           moduleItem.flagID,
         );
+        const nextChargeItem = this._captureChargeItemSnapshot(
+          charID,
+          shipID,
+          moduleItem.flagID,
+        );
         this._notifyChargeQuantityTransition(
           session,
           charID,
@@ -4059,12 +6314,40 @@ class DogmaService extends BaseService {
           moduleItem.flagID,
           previousChargeState,
           nextChargeState,
+          {
+            previousChargeItem,
+            nextChargeItem,
+          },
         );
         this._notifyWeaponModuleAttributeTransition(
           session,
           moduleItem,
           previousChargeItem,
-          this._captureChargeItemSnapshot(charID, shipID, moduleItem.flagID),
+          nextChargeItem,
+        );
+        const shouldForceScannerProbeRuntimeReplay =
+          session &&
+          session._space &&
+          Number(moduleItem && moduleItem.groupID) === GROUP_SCAN_PROBE_LAUNCHER;
+        const shouldRefreshScannerProbeChargeBootstrap =
+          session &&
+          session._space &&
+          Number(moduleItem && moduleItem.groupID) === GROUP_SCAN_PROBE_LAUNCHER &&
+          (
+            session._space.loginChargeDogmaReplayPending === true ||
+            Number(previousChargeState && previousChargeState.typeID) !==
+              Number(nextChargeState && nextChargeState.typeID) ||
+            Number(previousChargeState && previousChargeState.quantity) !==
+              Number(nextChargeState && nextChargeState.quantity)
+          );
+        this._refreshScannerProbeLauncherClientState(
+          session,
+          shipID,
+          moduleItem,
+          {
+            forceRuntimeReplay: shouldForceScannerProbeRuntimeReplay,
+            refreshChargeBootstrap: shouldRefreshScannerProbeChargeBootstrap,
+          },
         );
       }
     }
@@ -4072,6 +6355,7 @@ class DogmaService extends BaseService {
   }
   Handle_GetAllInfo(args, session) {
     log.debug("[DogmaIM] GetAllInfo");
+    const startedAtMs = Date.now();
     const charID = this._getCharID(session);
     const charData = this._getCharacterRecord(session) || {};
     const shipContext = this._getCurrentDogmaShipContext(session);
@@ -4104,7 +6388,9 @@ class DogmaService extends BaseService {
       ? this._getDockedStructureRecord(session)
       : null;
     const shipInfoEntry = getShipInfo
-      ? this._buildCommonGetInfoEntry({
+      ? (
+        this._getCachedDockedItemInfoEntry(session, shipID, shipMetadata) ||
+        this._buildCommonGetInfoEntry({
           itemID: shipID,
           typeID: shipMetadata.typeID,
           ownerID: shipMetadata.ownerID || ownerID,
@@ -4134,7 +6420,11 @@ class DogmaService extends BaseService {
             : this._buildShipAttributeDict(charData, shipMetadata, session),
           session,
         })
+      )
       : null;
+    if (getShipInfo && shipInfoEntry) {
+      this._cacheDockedItemInfoEntry(session, shipID, shipMetadata, shipInfoEntry);
+    }
     const shipInventoryInfoEntries = getShipInfo
       ? shipContext.controllingStructure
         ? []
@@ -4162,7 +6452,7 @@ class DogmaService extends BaseService {
       `loginTuplePrime=${primeLoginShipInfoChargeSublocations ? 1 : 0} ` +
       `docked=${isDockedSession(session) ? 1 : 0}`,
     );
-    return {
+    const result = {
       type: "object",
       name: "util.KeyVal",
       args: {
@@ -4170,7 +6460,17 @@ class DogmaService extends BaseService {
         entries: [
           ["activeShipID", shipID],
           ["locationInfo", getShipInfo ? locationInfo : null],
-          ["shipModifiedCharAttribs", null],
+          [
+            "shipModifiedCharAttribs",
+            getShipInfo
+              ? this._buildShipModifiedCharacterAttributeInfo(
+                  charID,
+                  charData,
+                  characterLocationID,
+                  session,
+                )
+              : null,
+          ],
           [
             "charInfo",
             includeCharInfo
@@ -4184,7 +6484,7 @@ class DogmaService extends BaseService {
                   // GetAllInfo path. The client seeds charBrain exclusively
                   // from charInfo, and without it docked MakeShipActive later
                   // crashes in RemoveBrainEffects while switching ships.
-                  this._buildCharacterBrain(),
+                  this._buildCharacterBrain(charID, session),
                 ]
               : null,
           ],
@@ -4205,11 +6505,24 @@ class DogmaService extends BaseService {
                       shipContext.controllingStructure
                         ? false
                         : !deferLoginShipFittingBootstrap,
-                    includeCharges: shipContext.controllingStructure ? false : true,
+                    // Docked fitting seeds real loaded charge rows through
+                    // shipInfo. Keep shipState chargeState disabled there:
+                    // any parallel tuple-backed charge bootstrap makes the
+                    // retail client synthesize malformed sublocation rows and
+                    // poison the fitting warning pass.
+                    includeCharges:
+                      shipContext.controllingStructure || isDockedSession(session)
+                        ? false
+                        : true,
                   })
               : null,
           ],
-          ["systemWideEffectsOnShip", null],
+          [
+            "systemWideEffectsOnShip",
+            buildSystemWideEffectsPayloadForSystem(
+              Number(session && (session.solarsystemid2 || session.solarsystemid)) || 0,
+            ),
+          ],
           [
             "structureInfo",
             dockedStructureRecord
@@ -4219,6 +6532,43 @@ class DogmaService extends BaseService {
         ],
       },
     };
+    const elapsedMs = Date.now() - startedAtMs;
+    const shipState = getShipInfo
+      ? result.args.entries.find((entry) => entry[0] === "shipState")?.[1]
+      : null;
+    const shipStateEntries =
+      shipState && Array.isArray(shipState) && shipState[0] && shipState[0].type === "dict"
+        ? shipState[0].entries.length
+        : 0;
+    const chargeStateEntries =
+      shipState && Array.isArray(shipState) && shipState[1] && shipState[1].type === "dict"
+        ? shipState[1].entries.length
+        : 0;
+    recordSpaceBootstrapTrace(session, "dogma-get-all-info", {
+      charID,
+      shipID,
+      elapsedMs,
+      getCharInfo,
+      getShipInfo,
+      includeCharInfo,
+      includeDockedCharInfo,
+      shipInfoEntries: 1 + shipInventoryInfoEntries.length,
+      shipStateEntries,
+      chargeStateEntries,
+      tupleCharges: shipInfoTupleChargeEntries,
+      loadedCharges: includeLoginShipInfoLoadedCharges === true,
+      deferredFitting: deferLoginShipFittingBootstrap === true,
+      loginTuplePrime: primeLoginShipInfoChargeSublocations === true,
+      docked: isDockedSession(session) === true,
+    });
+    if (elapsedMs >= 100) {
+      log.info(
+        `[DogmaIM] GetAllInfo took ${elapsedMs}ms ship=${shipID} ` +
+        `shipInfoEntries=${1 + shipInventoryInfoEntries.length} shipStateEntries=${shipStateEntries} ` +
+        `chargeStateEntries=${chargeStateEntries} deferredFitting=${deferLoginShipFittingBootstrap ? 1 : 0}`,
+      );
+    }
+    return result;
   }
   Handle_ShipGetInfo(args, session) {
     log.debug("[DogmaIM] ShipGetInfo");
@@ -4295,10 +6645,24 @@ class DogmaService extends BaseService {
         session,
       });
     }
-    const inventoryContext = this._findInventoryItemContext(requestedItemID, session);
+    const inventoryContext = this._findInventoryItemContext(
+      requestedItemID,
+      session,
+      {
+        includeAttributes: false,
+      },
+    );
     if (inventoryContext && inventoryContext.item) {
       const item = inventoryContext.item;
-      return this._buildCommonGetInfoEntry({
+      const cachedEntry = this._getCachedDockedItemInfoEntry(
+        session,
+        requestedItemID,
+        item,
+      );
+      if (cachedEntry) {
+        return cachedEntry;
+      }
+      const entry = this._buildCommonGetInfoEntry({
         itemID: Array.isArray(requestedItemID) ? requestedItemID : item.itemID,
         typeID: item.typeID,
         ownerID: item.ownerID || charID,
@@ -4315,13 +6679,23 @@ class DogmaService extends BaseService {
         attributes: this._buildInventoryItemAttributeDict(item, session),
         session,
       });
+      this._cacheDockedItemInfoEntry(session, requestedItemID, item, entry);
+      return entry;
     }
     const shipContext = this._getCurrentDogmaShipContext(session);
     if (
       shipContext.controllingStructure &&
       numericItemID === Number(shipContext.shipID)
     ) {
-      return this._buildCommonGetInfoEntry({
+      const cachedEntry = this._getCachedDockedItemInfoEntry(
+        session,
+        requestedItemID,
+        shipContext.shipMetadata,
+      );
+      if (cachedEntry) {
+        return cachedEntry;
+      }
+      const entry = this._buildCommonGetInfoEntry({
         itemID: shipContext.shipID,
         typeID: shipContext.shipMetadata.typeID,
         ownerID: shipContext.shipMetadata.ownerID || charID,
@@ -4355,6 +6729,13 @@ class DogmaService extends BaseService {
         ),
         session,
       });
+      this._cacheDockedItemInfoEntry(
+        session,
+        requestedItemID,
+        shipContext.shipMetadata,
+        entry,
+      );
+      return entry;
     }
     const itemID = isCharacter
       ? charID
@@ -4401,7 +6782,7 @@ class DogmaService extends BaseService {
       customInfo: isCharacter ? "" : (shipMetadata.customInfo || ""),
       description: "item",
       attributes: isCharacter
-        ? this._buildCharacterAttributeDict(charData)
+        ? this._buildCharacterAttributeDict(charData, this._getCharID(session))
         : this._buildShipAttributeDict(charData, shipMetadata, session),
       session,
     });
@@ -4448,7 +6829,7 @@ class DogmaService extends BaseService {
         `Server value:${this._formatDebugValue(serverValue)}`,
         `Base value:${this._formatDebugValue(baseValue)}`,
         "Attribute modification graph:",
-        "  No server-side modifier graph is implemented in EvEJS yet.",
+        "  No server-side modifier graph is implemented in EveJS Elysian yet.",
       ],
     };
   }
@@ -4459,6 +6840,11 @@ class DogmaService extends BaseService {
       this._getLocationID(session),
       0,
     ];
+  }
+  Handle_InjectSkillIntoBrain(args, session) {
+    log.debug("[DogmaIM] InjectSkillIntoBrain");
+    const rawItemIDs = args && args.length === 1 ? args[0] : args;
+    return injectSkillbookItems(this._getCharID(session), rawItemIDs, session);
   }
   Handle_MachoResolveObject(args, session, kwargs) {
     log.debug("[DogmaIM] MachoResolveObject called");
@@ -4512,6 +6898,7 @@ class DogmaService extends BaseService {
     flushDeferredDockedFittingReplay(session, {
       trigger: "dogma.GetAllInfo",
     });
+    syncCharacterDogmaState(session, this._getCharID(session));
   }
 }
 /**

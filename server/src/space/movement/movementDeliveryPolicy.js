@@ -2223,16 +2223,41 @@ function resolveDamageStateDispatchStamp(options = {}) {
           maximumHeldFutureDamageStamp,
         ) >>> 0
       : 0;
+  // `client/funky.txt` still had owner damage-state arriving one lane behind a
+  // freshly projected owner movement lane:
+  //   damage 1775153614 - current 1775153615
+  //   damage 1775153685 - current 1775153686
+  // In both windows we had already emitted the previous presented lane on the
+  // prior raw dispatch, so Michelle had effectively consumed `presented + 1`
+  // before the next OnDamageStateChange arrived. Clear that exact projected
+  // lane, but only for the adjacent-raw case; this keeps damage monotonic with
+  // recent owner steering without reopening the older far-future drift.
+  const projectedPresentedDamageClearFloor =
+    previousLastSentDestinyStamp > 0 &&
+    previousLastSentDestinyStamp === currentPresentedStamp &&
+    previousLastSentDestinyRawDispatchStamp > 0 &&
+    currentRawDispatchStamp > previousLastSentDestinyRawDispatchStamp &&
+    (
+      currentRawDispatchStamp - previousLastSentDestinyRawDispatchStamp
+    ) <= 1
+      ? projectPreviouslySentDestinyLane(
+          previousLastSentDestinyStamp,
+          previousLastSentDestinyRawDispatchStamp,
+          currentRawDispatchStamp,
+        )
+      : 0;
   const finalStamp = Math.max(
     maximumHeldFutureDamageStamp,
     presentedDamageClearFloor,
     sameRawPresentedDamageReuseClearFloor,
+    projectedPresentedDamageClearFloor,
   ) >>> 0;
   return {
     directCriticalEchoStamp,
     maximumHeldFutureDamageStamp,
     presentedDamageClearFloor,
     sameRawPresentedDamageReuseClearFloor,
+    projectedPresentedDamageClearFloor,
     finalStamp,
   };
 }

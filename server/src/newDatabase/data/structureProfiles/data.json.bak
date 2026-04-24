@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "version": 1,
+    "description": "DB-backed corporation structure deployment/access profile state.",
+    "updatedAt": "2026-04-03T23:10:01.277Z"
+  },
+  "nextProfileID": 2,
+  "profilesByID": {
+    "1": {
+      "profileID": 1,
+      "corporationID": 980090001,
+      "name": "Default Profile",
+      "description": "",
+      "isDefault": true,
+      "settingsBySettingID": {},
+      "createdAt": "2026-04-03T23:10:01.277Z",
+      "updatedAt": "2026-04-03T23:10:01.277Z"
+    }
+  }
+}

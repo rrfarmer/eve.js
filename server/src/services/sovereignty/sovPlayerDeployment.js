@@ -6,14 +6,20 @@ const {
   throwWrappedUserError,
 } = require(path.join(__dirname, "../../common/machoErrors"));
 const {
+  normalizeText,
+} = require(path.join(__dirname, "../_shared/serviceHelpers"));
+const {
   ITEM_FLAGS,
+  consumeInventoryItemQuantity,
   findItemById,
-  removeInventoryItem,
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const {
   syncInventoryItemForSession,
 } = require(path.join(__dirname, "../character/characterState"));
 const structureState = require(path.join(__dirname, "../structure/structureState"));
+const {
+  resolveUsableProfileIDForCorporation,
+} = require(path.join(__dirname, "../structure/structureProfilesState"));
 const {
   DEFAULT_REINFORCE_HOUR,
   DEFAULT_REINFORCE_WEEKDAY,
@@ -77,6 +83,10 @@ function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeStructureText(value, fallback = "") {
+  return normalizeText(value, fallback).trim();
+}
+
 function normalizeExtraConfig(value) {
   if (!value || typeof value !== "object") {
     return {};
@@ -134,15 +144,17 @@ function buildPositionFromClientRequest(session, x, z) {
   const fallback = shipEntity && shipEntity.position
     ? shipEntity.position
     : { x: 0, y: 0, z: 0 };
+  const xOffset = Number.isFinite(Number(x)) ? Number(x) : 0;
+  const zOffset = Number.isFinite(Number(z)) ? Number(z) : 0;
   return {
-    x: Number.isFinite(Number(x)) ? Number(x) : Number(fallback.x || 0),
+    x: Number(fallback.x || 0) + xOffset,
     y: Number(fallback.y || 0),
-    z: Number.isFinite(Number(z)) ? Number(z) : Number(fallback.z || 0),
+    z: Number(fallback.z || 0) + zOffset,
   };
 }
 
 function consumeInventoryItemForDeployment(session, itemID) {
-  const removeResult = removeInventoryItem(itemID, {
+  const removeResult = consumeInventoryItemQuantity(itemID, 1, {
     removeContents: true,
   });
   if (!removeResult.success) {
@@ -246,7 +258,7 @@ function validateClaimableNullsecSolarSystem(solarSystemID) {
 }
 
 function updateNamedSovStructure(systemID, structureID, structureName) {
-  const trimmedName = String(structureName || "").trim();
+  const trimmedName = normalizeStructureText(structureName);
   if (!trimmedName) {
     return;
   }
@@ -294,7 +306,7 @@ function deploySovereigntyCoreFromItem(session, item, options = {}) {
   };
   const namesByKind = {};
   if (options.structureName) {
-    namesByKind[String(kind)] = String(options.structureName).trim();
+    namesByKind[String(kind)] = normalizeStructureText(options.structureName);
   }
 
   const anchorResult = anchorSovereigntyStructures(
@@ -407,11 +419,17 @@ function deployGenericStructureFromItem(session, item, options = {}) {
       notify: "That structure type is not supported by the current deployment service.",
     });
   }
+  const fallbackStructureName =
+    normalizeStructureText(item && item.itemName, typeRecord.name) ||
+    normalizeStructureText(typeRecord && typeRecord.name, `Structure ${typeRecord.typeID}`);
+  const resolvedStructureName =
+    normalizeStructureText(options.structureName, fallbackStructureName) ||
+    fallbackStructureName;
 
   const createResult = structureState.createStructure({
     typeID: typeRecord.typeID,
-    name: options.structureName || item.itemName || typeRecord.name,
-    itemName: options.structureName || item.itemName || typeRecord.name,
+    name: resolvedStructureName,
+    itemName: resolvedStructureName,
     ownerCorpID: normalizePositiveInteger(
       session && (session.corporationID || session.corpid),
       0,
@@ -481,26 +499,41 @@ function deployStructureFromInventoryItem(session, itemID, options = {}) {
     throwWrappedUserError("TargetingAttemptCancelled");
   }
 
-  const structureName = String(options.structureName || item.itemName || "").trim();
+  const structureName = normalizeStructureText(
+    options.structureName,
+    normalizeStructureText(item && item.itemName),
+  );
   const position = options.position || buildPositionFromClientRequest(session);
   const typeID = normalizePositiveInteger(item.typeID, null);
+  const corporationID = normalizePositiveInteger(
+    session && (session.corporationID || session.corpid),
+    null,
+  );
+  const resolvedProfileID = resolveUsableProfileIDForCorporation(
+    corporationID,
+    options.profileID,
+  );
+  const resolvedOptions = {
+    ...options,
+    profileID: resolvedProfileID,
+  };
 
   let deployResult = null;
   if (getSovereigntyKindForTypeID(typeID)) {
     deployResult = deploySovereigntyCoreFromItem(session, item, {
-      ...options,
+      ...resolvedOptions,
       structureName,
       position,
     });
   } else if (getSovereigntyFlexKindForTypeID(typeID)) {
     deployResult = deploySovereigntyFlexFromItem(session, item, {
-      ...options,
+      ...resolvedOptions,
       structureName,
       position,
     });
   } else {
     deployResult = deployGenericStructureFromItem(session, item, {
-      ...options,
+      ...resolvedOptions,
       structureName,
       position,
     });

@@ -34,6 +34,7 @@ const {
   getFittedModuleItems,
   getLoadedChargeItems,
   isModuleOnline,
+  hasLoadedScanProbeLauncherCharge,
 } = require(path.join(
   repoRoot,
   "server/src/services/fitting/liveFittingState",
@@ -81,6 +82,7 @@ function findSpaceCombatCandidate() {
     .filter((characterID) => characterID > 0)
     .sort((left, right) => left - right);
 
+  let probeFallbackCandidate = null;
   for (const characterID of characterIDs) {
     const characterRecord = getCharacterRecord(characterID);
     const ship = getActiveShipRecord(characterID);
@@ -106,12 +108,22 @@ function findSpaceCombatCandidate() {
       continue;
     }
 
-    return {
+    const candidate = {
       characterID,
       ship,
       fittedModules,
       loadedCharges,
     };
+    if (!hasLoadedScanProbeLauncherCharge(characterID, ship.itemID)) {
+      return candidate;
+    }
+    if (!probeFallbackCandidate) {
+      probeFallbackCandidate = candidate;
+    }
+  }
+
+  if (probeFallbackCandidate) {
+    return probeFallbackCandidate;
   }
 
   assert.fail("Expected an in-space character with online fitted modules and loaded charges");
@@ -126,6 +138,7 @@ function findDockedCombatCandidate() {
     .filter((characterID) => characterID > 0)
     .sort((left, right) => left - right);
 
+  let probeFallbackCandidate = null;
   for (const characterID of characterIDs) {
     const characterRecord = getCharacterRecord(characterID);
     const ship = getActiveShipRecord(characterID);
@@ -151,13 +164,23 @@ function findDockedCombatCandidate() {
       continue;
     }
 
-    return {
+    const candidate = {
       characterID,
       ship,
       fittedModules,
       loadedCharges,
       stationID: Number(characterRecord.stationID || characterRecord.stationid || 0),
     };
+    if (!hasLoadedScanProbeLauncherCharge(characterID, ship.itemID)) {
+      return candidate;
+    }
+    if (!probeFallbackCandidate) {
+      probeFallbackCandidate = candidate;
+    }
+  }
+
+  if (probeFallbackCandidate) {
+    return probeFallbackCandidate;
   }
 
   const fallback = findSpaceCombatCandidate();
@@ -370,11 +393,331 @@ async function waitFor(predicate, attempts = 40) {
   return false;
 }
 
+function prepareOpenGate(scene) {
+  const stargate = scene.staticEntities.find((entity) => entity.kind === "stargate");
+  assert.ok(stargate, "expected at least one stargate in the source scene");
+  spaceRuntime.ensureScene(stargate.destinationSolarSystemID);
+  spaceRuntime.refreshStargateActivationStates({
+    broadcast: false,
+    animateOpenTransitions: false,
+  });
+  scene.settleTransientStargateActivationStates(
+    Date.now() + spaceRuntime._testing.STARGATE_ACTIVATION_TRANSITION_MS + 1,
+  );
+  const openGate = scene.getEntityByID(stargate.itemID);
+  assert.ok(openGate, "expected refreshed stargate entity");
+  assert.equal(
+    openGate.activationState,
+    spaceRuntime._testing.STARGATE_ACTIVATION_STATE.OPEN,
+  );
+  return openGate;
+}
+
 test.afterEach(() => {
   spaceRuntime._testing.clearScenes();
 });
 
-test("solar jump replays fitted modules while keeping loaded ammo on the shared prime-and-repair tuple bootstrap path in space", async () => {
+test("stargate jump keeps loaded charges on the delayed real-HUD replay lane after ship inventory prime", async () => {
+  const candidate = findSpaceCombatCandidate();
+  const session = buildSession(candidate.characterID);
+
+  const applyResult = applyCharacterToSession(session, candidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+    selectionEvent: false,
+  });
+  assert.equal(applyResult.success, true);
+
+  const sourceScene = spaceRuntime.ensureScene(candidate.ship.spaceState.systemID);
+  const shipEntity = sourceScene.attachSession(session, candidate.ship, {
+    broadcast: false,
+    emitSimClockRebase: false,
+    spawnStopped: true,
+  });
+  assert.ok(shipEntity);
+
+  const openGate = prepareOpenGate(sourceScene);
+  const sourceGate = worldData.getStargateByID(openGate.itemID);
+  const destinationGate = worldData.getStargateByID(sourceGate && sourceGate.destinationID);
+  assert.ok(sourceGate, "expected a source stargate record");
+  assert.ok(destinationGate, "expected a destination stargate record");
+
+  shipEntity.position = { ...openGate.position };
+  shipEntity.velocity = { x: 0, y: 0, z: 0 };
+  shipEntity.mode = "STOP";
+  shipEntity.speedFraction = 0;
+
+  const jumpOutResult = spaceRuntime.startStargateJump(session, sourceGate.itemID);
+  assert.equal(jumpOutResult.success, true);
+
+  session._notifications.length = 0;
+  session._transitionState = {
+    kind: "stargate-jump",
+    targetID: sourceGate.itemID,
+    startedAt: Date.now(),
+  };
+
+  const activeShip = getActiveShipRecord(session.characterID);
+  const completionResult = transitions._testing.completeStargateJumpForTesting(
+    session,
+    sourceGate,
+    destinationGate,
+    activeShip,
+  );
+  assert.equal(completionResult.success, true);
+  assert.equal(
+    Number(
+      session._pendingCommandShipFittingReplay &&
+        session._pendingCommandShipFittingReplay.shipID,
+    ),
+    Number(candidate.ship.itemID),
+    "expected stargate jump to queue a delayed HUD replay for the active ship",
+  );
+  assert.equal(
+    session._space && session._space.loginChargeHydrationProfile,
+    "stargate",
+    "expected stargate jump attach to keep the dedicated stargate hydration profile",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.awaitPostLoginShipInventoryList,
+    true,
+    "expected stargate jump to hold the delayed HUD replay until ship inventory prime completes",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.awaitPostLoginHudTurretBootstrap,
+    true,
+    "expected stargate jump to keep the delayed HUD replay armed until the first rack bootstrap asks for turret slots",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.onlyCharges,
+    true,
+    "expected stargate jump to use the charge-only HUD repair lane instead of the older module+tuple bootstrap path",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.emitChargeInventoryRows,
+    true,
+    "expected stargate jump to replay real loaded charge rows for the HUD after bootstrap",
+  );
+  assert.equal(session._space.loginShipInventoryPrimed, false);
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  assert.equal(session._space.useRealChargeInventoryHudRows, true);
+  assert.ok(
+    session._space.loginFittingReplayTimer,
+    "expected stargate jump attach to arm the implicit delayed HUD replay timer immediately",
+  );
+
+  const destinationScene = spaceRuntime.getSceneForSession(session);
+  assert.ok(destinationScene, "expected stargate jump to attach the session to the destination scene");
+  destinationScene.tick(destinationScene.getCurrentWallclockMs() + 2500);
+
+  const beyonce = new BeyonceService();
+  const bindResult = beyonce.Handle_MachoBindObject(
+    [destinationGate.solarSystemID, null],
+    session,
+    null,
+  );
+  assert.ok(Array.isArray(bindResult));
+  beyonce.afterCallResponse("MachoBindObject", session);
+
+  const hydrated = await waitFor(
+    () => session._space && session._space.beyonceBound === true,
+  );
+  assert.equal(
+    hydrated,
+    true,
+    "expected stargate jump bind to complete while keeping the delayed HUD replay pending for ship inventory prime",
+  );
+  const prePrimeOnItemChangeItemIDs = extractOnItemChangeRawItemIDs(
+    session._notifications,
+  ).filter((itemID) => Number(itemID) !== Number(candidate.ship.itemID));
+  assert.deepEqual(
+    prePrimeOnItemChangeItemIDs,
+    [],
+    "expected stargate jump bind to avoid a synthetic fitted-module OnItemChange replay before ship inventory prime",
+  );
+
+  const invBroker = new InvBrokerService();
+  bindShipInventory(invBroker, session, candidate.ship.itemID);
+  invBroker.Handle_List([null], session, {});
+
+  const primed = await waitFor(
+    () => session._space && session._space.loginShipInventoryPrimed === true,
+  );
+  assert.equal(
+    primed,
+    true,
+    "expected the first post-gate ship inventory List(flag=None) to complete ship inventory prime before the delayed HUD charge replay",
+  );
+  for (const fittedModule of candidate.fittedModules) {
+    assert.equal(
+      countRawOnItemChangesByItemID(session._notifications, fittedModule.itemID),
+      0,
+      `expected stargate jump inventory prime to avoid synthetic fitted-module replay churn for module ${fittedModule.itemID}`,
+    );
+  }
+  for (const loadedCharge of candidate.loadedCharges) {
+    assert.equal(
+      countRawOnItemChangesByItemID(session._notifications, loadedCharge.itemID),
+      0,
+      `expected stargate jump inventory prime to defer real loaded charge replay until the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected stargate jump inventory prime to avoid tuple-backed charge slot transitions before the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countChargeQuantityChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected stargate jump inventory prime to avoid tuple-backed quantity churn for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countOnGodmaPrimeItemsByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected stargate jump inventory prime to avoid tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+    );
+  }
+  assert.equal(session._space.loginShipInventoryPrimed, true);
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  assert.equal(
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected stargate jump to keep the delayed HUD replay armed until the first turret-slot bootstrap",
+  );
+
+  const hudHydrated = await waitFor(
+    () =>
+      candidate.loadedCharges.every(
+        (loadedCharge) =>
+          countRawOnItemChangesByItemID(
+            session._notifications,
+            loadedCharge.itemID,
+          ) >= 1,
+      ) &&
+      !session._pendingCommandShipFittingReplay,
+    140,
+  );
+  assert.equal(
+    hudHydrated,
+    true,
+    "expected stargate jump to auto-flush the delayed real loaded charge rows after ship inventory prime even if no turret-slot bootstrap arrives",
+  );
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  for (const loadedCharge of candidate.loadedCharges) {
+    assert.ok(
+      countRawOnItemChangesByItemID(
+        session._notifications,
+        loadedCharge.itemID,
+      ) >= 1,
+      `expected stargate jump HUD bootstrap to replay real loaded charge row ${loadedCharge.itemID}`,
+    );
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected stargate jump HUD bootstrap to avoid tuple-backed charge slot replay for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countChargeQuantityChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected stargate jump HUD bootstrap to avoid tuple quantity bootstrap for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countOnGodmaPrimeItemsByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected stargate jump HUD bootstrap to avoid tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+    );
+  }
+  const stabilizedRealChargeReplayCounts = new Map(
+    candidate.loadedCharges.map((loadedCharge) => [
+      String(loadedCharge.itemID),
+      countRawOnItemChangesByItemID(
+        session._notifications,
+        loadedCharge.itemID,
+      ),
+    ]),
+  );
+  invBroker.Handle_GetAvailableTurretSlots([], session);
+  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  for (const loadedCharge of candidate.loadedCharges) {
+    assert.equal(
+      countRawOnItemChangesByItemID(
+        session._notifications,
+        loadedCharge.itemID,
+      ) <=
+        stabilizedRealChargeReplayCounts.get(String(loadedCharge.itemID)) + 1,
+      true,
+      `expected later stargate HUD polls to avoid more than one stabilizing loaded charge row restate for ${loadedCharge.itemID}`,
+    );
+    assert.equal(
+      countChargeQuantityChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected later stargate HUD polls to avoid replaying tuple quantity bootstrap for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countOnGodmaPrimeItemsByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected later stargate HUD polls to avoid reopening tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected later stargate HUD polls to avoid replaying tuple-backed charge slot ${loadedCharge.flagID}`,
+    );
+  }
+  assert.equal(session._space.loginChargeHudFinalizePending, false);
+  assert.equal(session._space.loginChargeHudFinalizeWindowEndsAtMs, 0);
+});
+
+test("solar jump keeps loaded charges on the delayed real-HUD replay lane after ship inventory prime", async () => {
   const candidate = findSpaceCombatCandidate();
   const session = buildSession(candidate.characterID);
 
@@ -405,16 +748,36 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
         session._pendingCommandShipFittingReplay.shipID,
     ),
     Number(candidate.ship.itemID),
-    "expected solar jump to queue a post-prime fitted-module replay for clientDogmaIM module hydration",
+    "expected solar jump to queue a delayed HUD replay for the active ship",
   );
   assert.equal(
     session._pendingCommandShipFittingReplay.awaitPostLoginShipInventoryList,
     true,
-    "expected solar jump to hold the fitted-module replay until ship inventory prime completes",
+    "expected solar jump to hold the delayed HUD replay until ship inventory prime completes",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.awaitPostLoginHudTurretBootstrap,
+    true,
+    "expected solar jump to keep the delayed HUD replay armed until the first rack bootstrap asks for turret slots",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.onlyCharges,
+    true,
+    "expected solar jump to use the charge-only HUD repair lane instead of the older module+tuple bootstrap path",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.emitChargeInventoryRows,
+    true,
+    "expected solar jump to replay real loaded charge rows for the HUD after bootstrap",
   );
   assert.equal(session._space.loginShipInventoryPrimed, false);
-  assert.equal(session._space.loginChargeDogmaReplayPending, true);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  assert.equal(session._space.useRealChargeInventoryHudRows, true);
+  assert.ok(
+    session._space.loginFittingReplayTimer,
+    "expected solar jump attach to arm the implicit delayed HUD replay timer immediately",
+  );
 
   const destinationScene = spaceRuntime.getSceneForSession(session);
   assert.ok(destinationScene, "expected jump to attach the session to the destination scene");
@@ -431,7 +794,7 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
   assert.equal(
     hydrated,
     true,
-    "expected solar jump bind to complete while keeping the fitted-module replay pending for ship inventory prime",
+    "expected solar jump bind to complete while keeping the delayed HUD replay pending for ship inventory prime",
   );
   const prePrimeOnItemChangeItemIDs = extractOnItemChangeRawItemIDs(
     session._notifications,
@@ -447,41 +810,25 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
   invBroker.Handle_List([null], session, {});
 
   const primed = await waitFor(
-    () =>
-      candidate.fittedModules.every(
-        (fittedModule) =>
-          countRawOnItemChangesByItemID(
-            session._notifications,
-            fittedModule.itemID,
-          ) >= 1,
-      ),
+    () => session._space && session._space.loginShipInventoryPrimed === true,
   );
   assert.equal(
     primed,
     true,
-    "expected the first post-jump ship inventory List(flag=None) to emit the delayed fitted-module replay before the HUD charge bootstrap",
+    "expected the first post-jump ship inventory List(flag=None) to complete ship inventory prime before the delayed HUD charge replay",
   );
   for (const fittedModule of candidate.fittedModules) {
-    assert.ok(
-      countRawOnItemChangesByItemID(session._notifications, fittedModule.itemID) >= 1,
-      `expected the first post-jump ship inventory prime to replay fitted module ${fittedModule.itemID}`,
+    assert.equal(
+      countRawOnItemChangesByItemID(session._notifications, fittedModule.itemID),
+      0,
+      `expected solar jump inventory prime to avoid synthetic fitted-module replay churn for module ${fittedModule.itemID}`,
     );
   }
   for (const loadedCharge of candidate.loadedCharges) {
     assert.equal(
       countRawOnItemChangesByItemID(session._notifications, loadedCharge.itemID),
       0,
-      `expected the post-jump inventory prime to defer real loaded charge replay until the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
-    );
-    assert.equal(
-      countChargeQuantityChangesByTupleKey(
-        session._notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-      0,
-      `expected the first post-jump inventory prime to defer tuple-backed charge replay until the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+      `expected solar jump inventory prime to defer real loaded charge replay until the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
     );
     assert.equal(
       countRawOnItemChangesByTupleKey(
@@ -491,108 +838,102 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
         loadedCharge.typeID,
       ),
       0,
-      `expected the first post-jump inventory prime to avoid tuple-backed charge slot transitions before the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+      `expected solar jump inventory prime to avoid tuple-backed charge slot transitions before the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countChargeQuantityChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected solar jump inventory prime to avoid tuple-backed quantity churn for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countOnGodmaPrimeItemsByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected solar jump inventory prime to avoid tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
     );
   }
   assert.equal(session._space.loginShipInventoryPrimed, true);
-  assert.equal(session._space.loginChargeDogmaReplayPending, true);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   assert.equal(
-    session._space.loginChargeDogmaReplayMode,
-    "prime-and-repair",
-    "expected solar jump charge hydration to use the same working tuple prime-and-repair bootstrap as the stargate path",
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected solar jump to keep the delayed HUD replay armed until the first turret-slot bootstrap",
   );
-  assert.equal(session._pendingCommandShipFittingReplay, null);
 
-  invBroker.Handle_GetAvailableTurretSlots([], session);
-  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
   const hudHydrated = await waitFor(
     () =>
       candidate.loadedCharges.every(
         (loadedCharge) =>
-          countRawOnItemChangesByTupleKey(
+          countRawOnItemChangesByItemID(
             session._notifications,
-            candidate.ship.itemID,
-            loadedCharge.flagID,
-            loadedCharge.typeID,
+            loadedCharge.itemID,
           ) >= 1,
       ) &&
-      candidate.loadedCharges.every(
-        (loadedCharge) =>
-          countChargeQuantityChangesByTupleKey(
-            session._notifications,
-            candidate.ship.itemID,
-            loadedCharge.flagID,
-            loadedCharge.typeID,
-          ) >= 1,
-      ) &&
-      candidate.loadedCharges.every(
-        (loadedCharge) =>
-          countOnGodmaPrimeItemsByTupleKey(
-            session._notifications,
-            candidate.ship.itemID,
-            loadedCharge.flagID,
-            loadedCharge.typeID,
-          ) >= 1,
-      ),
+      !session._pendingCommandShipFittingReplay,
+    140,
   );
   assert.equal(
     hudHydrated,
     true,
-    "expected the HUD turret-slot bootstrap to flush the prime-and-repair tuple charge replay after the post-jump module replay",
+    "expected solar jump to auto-flush the delayed real loaded charge rows after ship inventory prime even if no turret-slot bootstrap arrives",
   );
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
   assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   for (const loadedCharge of candidate.loadedCharges) {
     assert.ok(
-      countChargeQuantityChangesByTupleKey(
+      countRawOnItemChangesByItemID(
         session._notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
+        loadedCharge.itemID,
       ) >= 1,
-      `expected post-jump HUD bootstrap to replay tuple quantity for loaded charge slot ${loadedCharge.flagID}`,
+      `expected solar jump HUD bootstrap to replay real loaded charge row ${loadedCharge.itemID}`,
     );
-    assert.ok(
-      countOnGodmaPrimeItemsByTupleKey(
-        session._notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ) >= 1,
-      `expected post-jump HUD bootstrap to replay tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
-    );
-  }
-  const stabilizedTupleReplayCounts = new Map(
-    candidate.loadedCharges.map((loadedCharge) => [
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
+    assert.equal(
       countRawOnItemChangesByTupleKey(
         session._notifications,
         candidate.ship.itemID,
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-    ]),
-  );
-  const stabilizedTuplePrimeCounts = new Map(
-    candidate.loadedCharges.map((loadedCharge) => [
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
+      0,
+      `expected solar jump HUD bootstrap to avoid tuple-backed charge slot replay for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countChargeQuantityChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected solar jump HUD bootstrap to avoid tuple quantity bootstrap for slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
       countOnGodmaPrimeItemsByTupleKey(
         session._notifications,
         candidate.ship.itemID,
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-    ]),
-  );
-  const stabilizedTupleQuantityCounts = new Map(
+      0,
+      `expected solar jump HUD bootstrap to avoid tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+    );
+  }
+  const stabilizedRealChargeReplayCounts = new Map(
     candidate.loadedCharges.map((loadedCharge) => [
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
-      countChargeQuantityChangesByTupleKey(
+      String(loadedCharge.itemID),
+      countRawOnItemChangesByItemID(
         session._notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
+        loadedCharge.itemID,
       ),
     ]),
   );
@@ -600,17 +941,14 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
   invBroker.afterCallResponse("GetAvailableTurretSlots", session);
   await new Promise((resolve) => setTimeout(resolve, 600));
   for (const loadedCharge of candidate.loadedCharges) {
-    const tupleKey =
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`;
     assert.equal(
-      countRawOnItemChangesByTupleKey(
+      countRawOnItemChangesByItemID(
         session._notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-      stabilizedTupleReplayCounts.get(tupleKey),
-      `expected later post-jump HUD polls to avoid replaying tuple-backed charge slot ${loadedCharge.flagID} after the initial bootstrap`,
+        loadedCharge.itemID,
+      ) <=
+        stabilizedRealChargeReplayCounts.get(String(loadedCharge.itemID)) + 1,
+      true,
+      `expected later solar HUD polls to avoid more than one stabilizing loaded charge row restate for ${loadedCharge.itemID}`,
     );
     assert.equal(
       countChargeQuantityChangesByTupleKey(
@@ -619,8 +957,8 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-      stabilizedTupleQuantityCounts.get(tupleKey),
-      `expected later post-jump HUD polls to avoid replaying tuple quantity bootstrap for slot ${loadedCharge.flagID}`,
+      0,
+      `expected later solar HUD polls to avoid replaying tuple quantity bootstrap for slot ${loadedCharge.flagID}`,
     );
     assert.equal(
       countOnGodmaPrimeItemsByTupleKey(
@@ -629,20 +967,71 @@ test("solar jump replays fitted modules while keeping loaded ammo on the shared 
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-      stabilizedTuplePrimeCounts.get(tupleKey),
-      `expected later post-jump HUD polls to avoid reopening tuple godma-prime churn for loaded charge slot ${loadedCharge.flagID}`,
+      0,
+      `expected later solar HUD polls to avoid reopening tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+    );
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session._notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected later solar HUD polls to avoid replaying tuple-backed charge slot ${loadedCharge.flagID}`,
     );
   }
   assert.equal(session._space.loginChargeHudFinalizePending, false);
   assert.equal(session._space.loginChargeHudFinalizeWindowEndsAtMs, 0);
+});
 
-  for (const loadedCharge of candidate.loadedCharges) {
-    assert.equal(
-      countRawOnItemChangesByItemID(session._notifications, loadedCharge.itemID),
-      0,
-      `expected post-jump charge hydration to avoid replaying real loaded-charge inventory row ${loadedCharge.itemID}`,
-    );
-  }
+test("solar jump into an already loaded destination uses the lighter warm hydration profile", () => {
+  const candidate = findSpaceCombatCandidate();
+  const session = buildSession(candidate.characterID);
+
+  const applyResult = applyCharacterToSession(session, candidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+    selectionEvent: false,
+  });
+  assert.equal(applyResult.success, true);
+
+  const sourceScene = spaceRuntime.ensureScene(candidate.ship.spaceState.systemID);
+  const shipEntity = sourceScene.attachSession(session, candidate.ship, {
+    broadcast: false,
+    emitSimClockRebase: false,
+    spawnStopped: true,
+  });
+  assert.ok(shipEntity);
+
+  const targetSolarSystemID =
+    Number(candidate.ship.spaceState.systemID) === 30000140 ? 30000142 : 30000140;
+
+  const warmDestinationScene = spaceRuntime.ensureScene(targetSolarSystemID);
+  assert.ok(warmDestinationScene);
+
+  const jumpResult = transitions.jumpSessionToSolarSystem(session, targetSolarSystemID);
+  assert.equal(jumpResult.success, true);
+  assert.equal(
+    session._space && session._space.loginChargeHydrationProfile,
+    "solarWarm",
+    "expected warm solar jumps to use the lighter hydration profile",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.awaitPostLoginShipInventoryList,
+    false,
+    "expected warm solar jumps to avoid waiting on ship inventory prime before replay",
+  );
+  assert.equal(
+    session._pendingCommandShipFittingReplay.awaitPostLoginHudTurretBootstrap,
+    false,
+    "expected warm solar jumps to avoid the delayed HUD turret bootstrap wait",
+  );
+  assert.equal(
+    Boolean(session._space && session._space.loginFittingReplayTimer),
+    false,
+    "expected warm solar jumps to skip the implicit delayed HUD bootstrap timer",
+  );
 });
 
 test("undock leaves the first ballpark bootstrap free to emit the initial sim-clock rebase", () => {
@@ -706,7 +1095,7 @@ test("undock leaves the first ballpark bootstrap free to emit the initial sim-cl
   }
 });
 
-test("undock replays tuple-backed charges after HUD bootstrap through the shared prime-and-repair path", async () => {
+test("undock keeps loaded charges on the delayed real-HUD replay lane after ship inventory prime", async () => {
   const candidate = findDockedCombatCandidate();
   const session = buildSession(candidate.characterID);
 
@@ -724,8 +1113,8 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
     assert.equal(undockResult.success, true);
     assert.equal(
       session._space.loginChargeDogmaReplayPending,
-      true,
-      "expected undock to arm the late charge hydration path until the HUD rack bootstrap asks for turret slots",
+      false,
+      "expected undock to keep tuple charge bootstrap disabled while the delayed HUD replay is armed",
     );
     assert.equal(
       session._space.loginChargeHudFinalizePending,
@@ -733,9 +1122,9 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
       "expected undock parity attach to keep the late HUD tuple repair window disabled until an explicit profile opts in",
     );
     assert.equal(
-      session._space.loginChargeDogmaReplayMode,
-      "prime-and-repair",
-      "expected undock to use the same working tuple prime-and-repair bootstrap as the good jump path",
+      session._space.useRealChargeInventoryHudRows,
+      true,
+      "expected undock to use the real loaded charge row lane for the module HUD",
     );
 
     const scene = spaceRuntime.getSceneForSession(session);
@@ -762,18 +1151,40 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
 
     const invBroker = new InvBrokerService();
     bindShipInventory(invBroker, session, candidate.ship.itemID);
+    invBroker.Handle_GetSelfInvItem([], session);
+    for (const loadedCharge of candidate.loadedCharges) {
+      assert.equal(
+        countRawOnItemChangesByTupleKey(
+          session._notifications,
+          candidate.ship.itemID,
+          loadedCharge.flagID,
+          loadedCharge.typeID,
+        ),
+        0,
+        `expected undock GetSelfInvItem to avoid replaying tuple-backed charge rows before the HUD bootstrap for slot ${loadedCharge.flagID}`,
+      );
+      assert.equal(
+        countOnGodmaPrimeItemsByTupleKey(
+          session._notifications,
+          candidate.ship.itemID,
+          loadedCharge.flagID,
+          loadedCharge.typeID,
+        ),
+        0,
+        `expected undock GetSelfInvItem to avoid tuple godma-prime before the HUD bootstrap for loaded charge slot ${loadedCharge.flagID}`,
+      );
+    }
     invBroker.Handle_List([null], session, {});
 
     const primed = await waitFor(
       () =>
         session._space &&
-        session._space.loginShipInventoryPrimed === true &&
-        session._pendingCommandShipFittingReplay === null,
+        session._space.loginShipInventoryPrimed === true,
     );
     assert.equal(
       primed,
       true,
-      "expected undock ship inventory prime to flush the fitted-module replay before the delayed tuple-backed charge replay",
+      "expected undock ship inventory prime to complete before the delayed HUD charge replay",
     );
     for (const loadedCharge of candidate.loadedCharges) {
       assert.equal(
@@ -794,95 +1205,95 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
           loadedCharge.typeID,
         ),
         0,
-        `expected undock inventory prime to avoid reopening tuple godma prime for loaded charge slot ${loadedCharge.flagID}`,
+        `expected undock inventory prime to avoid tuple godma-prime until the HUD rack bootstrap for loaded charge slot ${loadedCharge.flagID}`,
       );
       assert.equal(
         countRawOnItemChangesByItemID(session._notifications, loadedCharge.itemID),
         0,
         `expected undock inventory prime to avoid replaying real loaded-charge inventory row ${loadedCharge.itemID}`,
       );
+      assert.equal(
+        countChargeQuantityChangesByTupleKey(
+          session._notifications,
+          candidate.ship.itemID,
+          loadedCharge.flagID,
+          loadedCharge.typeID,
+        ),
+        0,
+        `expected undock inventory prime to avoid tuple quantity bootstrap for loaded charge slot ${loadedCharge.flagID}`,
+      );
     }
+    assert.equal(
+      Boolean(session._pendingCommandShipFittingReplay),
+      true,
+      "expected undock to keep the delayed HUD replay armed until the first rack bootstrap",
+    );
 
-    invBroker.Handle_GetAvailableTurretSlots([], session);
-    invBroker.afterCallResponse("GetAvailableTurretSlots", session);
     const hudHydrated = await waitFor(
       () =>
         candidate.loadedCharges.every(
           (loadedCharge) =>
-            countRawOnItemChangesByTupleKey(
+            countRawOnItemChangesByItemID(
               session._notifications,
-              candidate.ship.itemID,
-              loadedCharge.flagID,
-              loadedCharge.typeID,
+              loadedCharge.itemID,
             ) >= 1,
         ) &&
-        candidate.loadedCharges.every(
-          (loadedCharge) =>
-            countChargeQuantityChangesByTupleKey(
-              session._notifications,
-              candidate.ship.itemID,
-              loadedCharge.flagID,
-              loadedCharge.typeID,
-            ) >= 1,
-        ) &&
-        candidate.loadedCharges.every(
-          (loadedCharge) =>
-            countOnGodmaPrimeItemsByTupleKey(
-              session._notifications,
-              candidate.ship.itemID,
-              loadedCharge.flagID,
-              loadedCharge.typeID,
-            ) >= 1,
-        ),
+      !session._pendingCommandShipFittingReplay,
+      140,
     );
     assert.equal(
       hudHydrated,
       true,
-      "expected undock HUD bootstrap to flush the delayed tuple-backed charge replay through the same prime-and-repair path as the good jump case",
+      "expected undock to auto-flush the delayed real loaded charge rows after ship inventory prime even if no turret-slot bootstrap arrives",
     );
     assert.equal(session._space.loginChargeDogmaReplayPending, false);
     assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
     for (const loadedCharge of candidate.loadedCharges) {
       assert.ok(
-        countOnGodmaPrimeItemsByTupleKey(
+        countRawOnItemChangesByItemID(
           session._notifications,
-          candidate.ship.itemID,
-          loadedCharge.flagID,
-          loadedCharge.typeID,
+          loadedCharge.itemID,
         ) >= 1,
-        `expected undock HUD bootstrap to replay tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+        `expected undock HUD bootstrap to replay real loaded charge row ${loadedCharge.itemID}`,
       );
-    }
-    const stabilizedTupleReplayCounts = new Map(
-      candidate.loadedCharges.map((loadedCharge) => [
-        `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
+      assert.equal(
         countRawOnItemChangesByTupleKey(
           session._notifications,
           candidate.ship.itemID,
           loadedCharge.flagID,
           loadedCharge.typeID,
         ),
-      ]),
-    );
-    const stabilizedTuplePrimeCounts = new Map(
-      candidate.loadedCharges.map((loadedCharge) => [
-        `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
+        0,
+        `expected undock HUD bootstrap to avoid tuple-backed charge repair for loaded charge slot ${loadedCharge.flagID}`,
+      );
+      assert.equal(
         countOnGodmaPrimeItemsByTupleKey(
           session._notifications,
           candidate.ship.itemID,
           loadedCharge.flagID,
           loadedCharge.typeID,
         ),
-      ]),
-    );
-    const stabilizedTupleQuantityCounts = new Map(
-      candidate.loadedCharges.map((loadedCharge) => [
-        `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
+        0,
+        `expected undock HUD bootstrap to avoid tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
+      );
+      assert.equal(
         countChargeQuantityChangesByTupleKey(
           session._notifications,
           candidate.ship.itemID,
           loadedCharge.flagID,
           loadedCharge.typeID,
+        ),
+        0,
+        `expected undock HUD bootstrap to avoid tuple quantity hydrate for loaded charge slot ${loadedCharge.flagID}`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const stabilizedRealChargeReplayCounts = new Map(
+      candidate.loadedCharges.map((loadedCharge) => [
+        String(loadedCharge.itemID),
+        countRawOnItemChangesByItemID(
+          session._notifications,
+          loadedCharge.itemID,
         ),
       ]),
     );
@@ -890,17 +1301,15 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
     invBroker.afterCallResponse("GetAvailableTurretSlots", session);
     await new Promise((resolve) => setTimeout(resolve, 600));
     for (const loadedCharge of candidate.loadedCharges) {
-      const tupleKey =
-        `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`;
+      const laterRealChargeReplayCount = countRawOnItemChangesByItemID(
+        session._notifications,
+        loadedCharge.itemID,
+      );
       assert.equal(
-        countRawOnItemChangesByTupleKey(
-          session._notifications,
-          candidate.ship.itemID,
-          loadedCharge.flagID,
-          loadedCharge.typeID,
-        ),
-        stabilizedTupleReplayCounts.get(tupleKey),
-        `expected later undock HUD polls to avoid replaying tuple-backed charge slot ${loadedCharge.flagID} after the initial bootstrap`,
+        laterRealChargeReplayCount <=
+          stabilizedRealChargeReplayCounts.get(String(loadedCharge.itemID)) + 1,
+        true,
+        `expected later undock HUD polls to avoid more than one stabilizing loaded charge row restate for ${loadedCharge.itemID}`,
       );
       assert.equal(
         countOnGodmaPrimeItemsByTupleKey(
@@ -909,8 +1318,8 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
           loadedCharge.flagID,
           loadedCharge.typeID,
         ),
-        stabilizedTuplePrimeCounts.get(tupleKey),
-        `expected later undock HUD polls to avoid reopening tuple godma-prime churn for loaded charge slot ${loadedCharge.flagID}`,
+        0,
+        `expected later undock HUD polls to avoid reopening tuple godma-prime for loaded charge slot ${loadedCharge.flagID}`,
       );
       assert.equal(
         countChargeQuantityChangesByTupleKey(
@@ -919,13 +1328,18 @@ test("undock replays tuple-backed charges after HUD bootstrap through the shared
           loadedCharge.flagID,
           loadedCharge.typeID,
         ),
-        stabilizedTupleQuantityCounts.get(tupleKey),
-        `expected later undock HUD polls to avoid replaying tuple quantity bootstrap for loaded charge slot ${loadedCharge.flagID}`,
+        0,
+        `expected later undock HUD polls to avoid replaying extra tuple quantity bootstrap for loaded charge slot ${loadedCharge.flagID}`,
       );
       assert.equal(
-        countRawOnItemChangesByItemID(session._notifications, loadedCharge.itemID),
+        countRawOnItemChangesByTupleKey(
+          session._notifications,
+          candidate.ship.itemID,
+          loadedCharge.flagID,
+          loadedCharge.typeID,
+        ),
         0,
-        `expected undock HUD hydration to avoid replaying real loaded-charge inventory row ${loadedCharge.itemID}`,
+        `expected later undock HUD polls to avoid replaying tuple-backed charge slot ${loadedCharge.flagID}`,
       );
     }
     assert.equal(session._space.loginChargeHudFinalizePending, false);

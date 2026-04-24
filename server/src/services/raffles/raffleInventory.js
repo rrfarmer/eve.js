@@ -16,6 +16,7 @@ const {
   grantItemToCharacterLocation,
   grantItemsToCharacterLocation,
   listContainerItems,
+  buildRemovedItemNotificationState,
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const {
   TOKEN_TYPE_ID,
@@ -33,9 +34,11 @@ const {
 function getCharacterSessions(characterId, options = {}) {
   const normalizedCharacterId = normalizeInteger(characterId, 0);
   const recipients = new Map();
+  const excludedSession = options.excludeSession || null;
 
   const addSession = (session) => {
     if (
+      session === excludedSession ||
       !session ||
       !session.socket ||
       session.socket.destroyed ||
@@ -106,14 +109,28 @@ function notifyInventoryChange(session, item, previousData = {}) {
   syncInventoryItemForSession(session, item, previousData);
 }
 
+function resolveInventoryChangeNotificationItem(change) {
+  if (!change || typeof change !== "object") {
+    return null;
+  }
+  if (change.item && typeof change.item === "object") {
+    return change.item;
+  }
+  if (change.removed === true && change.previousData && typeof change.previousData === "object") {
+    return buildRemovedItemNotificationState(change.previousData);
+  }
+  return null;
+}
+
 function notifyInventoryChangesToCharacter(charId, changes = [], options = {}) {
   const sessions = getCharacterSessions(charId, options);
   for (const session of sessions) {
     for (const change of Array.isArray(changes) ? changes : []) {
-      if (!change || !change.item) {
+      const notificationItem = resolveInventoryChangeNotificationItem(change);
+      if (!notificationItem) {
         continue;
       }
-      notifyInventoryChange(session, change.item, change.previousData || {});
+      notifyInventoryChange(session, notificationItem, change.previousData || {});
     }
   }
 }

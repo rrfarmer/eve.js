@@ -7,8 +7,12 @@ const repoRoot = path.join(__dirname, "..", "..");
 const {
   getNpcLoadedChargeForModule,
   getNpcPropulsionModules,
+  resolveNpcPropulsionEffectName,
   getNpcWeaponModules,
 } = require(path.join(repoRoot, "server/src/space/npc/npcEquipment"));
+const {
+  NPC_ENABLE_FITTED_PROPULSION_MODULES,
+} = require(path.join(repoRoot, "server/src/space/npc/npcCapabilityResolver"));
 const {
   resolveItemByTypeID,
 } = require(path.join(repoRoot, "server/src/services/inventory/itemTypeRegistry"));
@@ -100,9 +104,15 @@ test("native npc equipment resolver reads native module and cargo state", () => 
   assert.equal(loadedCharge.moduleID, beamModule.itemID);
 
   const propulsionModules = getNpcPropulsionModules(entity);
-  assert.equal(propulsionModules.length, 1);
-  assert.equal(propulsionModules[0].moduleItem.typeID, 35661);
-  assert.equal(propulsionModules[0].effectName, "moduleBonusMicrowarpdrive");
+  assert.equal(resolveNpcPropulsionEffectName(propulsionModule), "moduleBonusMicrowarpdrive");
+  assert.equal(
+    propulsionModules.length,
+    NPC_ENABLE_FITTED_PROPULSION_MODULES === true ? 1 : 0,
+  );
+  if (NPC_ENABLE_FITTED_PROPULSION_MODULES === true) {
+    assert.equal(propulsionModules[0].moduleItem.typeID, 35661);
+    assert.equal(propulsionModules[0].effectName, "moduleBonusMicrowarpdrive");
+  }
 });
 
 test("weapon family resolver classifies the main turret families and long-range subtypes from live charge metadata", () => {
@@ -140,6 +150,13 @@ test("weapon family resolver classifies the main turret families and long-range 
       buildChargeItem(201, 980200000015, 980100000015),
     ),
     "projectileTurret",
+  );
+  assert.equal(
+    resolveWeaponFamily(
+      buildModuleItem(47914, 980100000016, 32),
+      buildChargeItem(47924, 980200000016, 980100000016),
+    ),
+    "precursorTurret",
   );
 });
 

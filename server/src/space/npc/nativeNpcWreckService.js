@@ -2,17 +2,10 @@ const path = require("path");
 
 const spaceRuntime = require(path.join(__dirname, "../runtime"));
 const {
-  getTypeAttributeValue,
-} = require(path.join(__dirname, "../../services/fitting/liveFittingState"));
-const {
   ITEM_FLAGS,
   getItemMetadata,
   grantItemToCharacterLocation,
 } = require(path.join(__dirname, "../../services/inventory/itemStore"));
-const {
-  resolveRuntimeWreckRadius,
-  resolveRuntimeWreckStructureFallbackHP,
-} = require(path.join(__dirname, "../../services/inventory/wreckRadius"));
 const {
   getSpaceDebrisLifetimeMs,
 } = require(path.join(__dirname, "../../services/inventory/spaceDebrisState"));
@@ -26,12 +19,13 @@ const {
   rollNpcLootEntries,
 } = require(path.join(__dirname, "./npcLoot"));
 const {
+  getControllerByEntityID,
   unregisterController,
 } = require(path.join(__dirname, "./npcRegistry"));
 const nativeNpcStore = require(path.join(__dirname, "./nativeNpcStore"));
 const {
   buildDunRotationFromDirection,
-  resolveShipWreckType,
+  resolveEntityWreckType,
 } = require(path.join(__dirname, "../wreckUtils"));
 
 const DESTRUCTION_EFFECT_EXPLOSION = 3;
@@ -62,74 +56,43 @@ function normalizeWreckSingleton(value) {
   return value === true || Number(value) === 1;
 }
 
-function buildNativeWreckRuntimeEntity(wreckRecord) {
-  const metadata = getItemMetadata(wreckRecord.typeID, wreckRecord.itemName);
-  const staticRadius = toFiniteNumber(wreckRecord.radius, toFiniteNumber(metadata && metadata.radius, 0));
-  const radius = resolveRuntimeWreckRadius({
-    ...metadata,
-    itemName: wreckRecord.itemName,
-    name: wreckRecord.itemName,
-    radius: staticRadius,
-  }, staticRadius);
-  const signatureRadius = Math.max(
-    0,
-    toFiniteNumber(getTypeAttributeValue(wreckRecord.typeID, "signatureRadius"), radius),
+function buildNativeWreckRuntimeEntity(wreckRecord, options = {}) {
+  const wreckItemRecord = nativeNpcStore.buildNativeWreckInventoryItem(
+    wreckRecord && wreckRecord.wreckID,
   );
-  const structureHP = Math.max(
-    0,
-    toFiniteNumber(
-      getTypeAttributeValue(wreckRecord.typeID, "hp", "structureHP"),
-      0,
-    ),
-  ) || resolveRuntimeWreckStructureFallbackHP({
-    ...metadata,
-    itemName: wreckRecord.itemName,
-    name: wreckRecord.itemName,
-    radius,
-  }, radius);
+  if (!wreckItemRecord) {
+    return null;
+  }
 
-  return {
-    kind: "wreck",
-    systemID: toPositiveInt(wreckRecord.systemID, 0),
-    itemID: toPositiveInt(wreckRecord.wreckID, 0),
-    typeID: toPositiveInt(wreckRecord.typeID, 0),
-    groupID: toPositiveInt(wreckRecord.groupID, 0),
-    categoryID: toPositiveInt(wreckRecord.categoryID, 0),
-    itemName: String(wreckRecord.itemName || "Wreck"),
-    ownerID: toPositiveInt(wreckRecord.ownerID, 0),
-    position: cloneVector(wreckRecord.position),
-    velocity: cloneVector(wreckRecord.velocity),
-    direction: cloneVector(wreckRecord.direction, { x: 1, y: 0, z: 0 }),
-    targetPoint: cloneVector(wreckRecord.targetPoint || wreckRecord.position),
-    mode: String(wreckRecord.mode || "STOP"),
-    speedFraction: toFiniteNumber(wreckRecord.speedFraction, 0),
-    radius,
-    signatureRadius,
-    shieldCapacity: 0,
-    armorHP: 0,
-    structureHP,
-    bubbleID: null,
-    publicGridKey: null,
-    departureBubbleID: null,
-    departureBubbleVisibleUntilMs: 0,
-    persistSpaceState: false,
-    lastPersistAt: 0,
-    spaceState: null,
-    conditionState: cloneValue(wreckRecord.conditionState || {
-      damage: 0,
-      charge: 1,
-      armorDamage: 0,
-      shieldCharge: 0,
-      incapacitated: false,
-    }),
-    createdAtMs: toFiniteNumber(wreckRecord.createdAtMs, 0) || null,
-    expiresAtMs: toFiniteNumber(wreckRecord.expiresAtMs, 0) || null,
-    isEmpty: nativeNpcStore.listNativeWreckItemsForWreck(wreckRecord.wreckID).length === 0,
-    launcherID: toPositiveInt(wreckRecord.launcherID, 0) || null,
-    dunRotation: Array.isArray(wreckRecord.dunRotation) ? cloneValue(wreckRecord.dunRotation) : null,
-    nativeNpcWreck: true,
-    transient: wreckRecord.transient === true,
-  };
+  const entity = spaceRuntime.buildRuntimeSpaceEntityFromItemRecord(
+    wreckItemRecord,
+    toPositiveInt(wreckRecord && wreckRecord.systemID, 0),
+    toFiniteNumber(options.nowMs, Date.now()),
+  );
+  if (!entity) {
+    return null;
+  }
+
+  entity.persistSpaceState = false;
+  entity.lastPersistAt = 0;
+  entity.spaceState = cloneValue(wreckItemRecord.spaceState || entity.spaceState || null);
+  entity.conditionState = cloneValue(
+    wreckItemRecord.conditionState || entity.conditionState || null,
+  );
+  entity.createdAtMs = toFiniteNumber(wreckRecord && wreckRecord.createdAtMs, 0) || null;
+  entity.expiresAtMs = toFiniteNumber(wreckRecord && wreckRecord.expiresAtMs, 0) || null;
+  entity.isEmpty =
+    nativeNpcStore.listNativeWreckItemsForWreck(
+      toPositiveInt(wreckRecord && wreckRecord.wreckID, 0),
+    ).length === 0;
+  entity.launcherID = toPositiveInt(wreckRecord && wreckRecord.launcherID, 0) || null;
+  entity.dunRotation =
+    Array.isArray(wreckRecord && wreckRecord.dunRotation)
+      ? cloneValue(wreckRecord.dunRotation)
+      : null;
+  entity.nativeNpcWreck = true;
+  entity.transient = wreckRecord && wreckRecord.transient === true;
+  return entity;
 }
 
 function buildNativeWreckItemRecord(wreckRecord, itemType, options = {}) {
@@ -225,8 +188,36 @@ function spawnNativeWreck(systemID, wreckID, options = {}) {
     return refreshNativeWreckRuntimeEntity(scene.systemID, wreckRecord.wreckID, options);
   }
 
-  const entity = buildNativeWreckRuntimeEntity(wreckRecord);
-  return scene.spawnDynamicEntity(entity, options);
+  const entity = buildNativeWreckRuntimeEntity(wreckRecord, {
+    nowMs:
+      typeof scene.getCurrentSimTimeMs === "function"
+        ? scene.getCurrentSimTimeMs()
+        : Date.now(),
+  });
+  if (!entity) {
+    return {
+      success: false,
+      errorMsg: "WRECK_BUILD_FAILED",
+    };
+  }
+  const spawnOptions = {
+    ...options,
+  };
+  const broadcastOptions =
+    options.broadcastOptions && typeof options.broadcastOptions === "object"
+      ? { ...options.broadcastOptions }
+      : {};
+  if (broadcastOptions.freshAcquire === undefined) {
+    // Native NPC wrecks are the follow-on to an already visible explosion /
+    // RemoveBalls handoff, just like the player-ship /deathtest path. Using the
+    // lighter immediate lane avoids bootstrap-acquire backsteps that make the
+    // wreck disappear until the next full scene refresh.
+    broadcastOptions.freshAcquire = false;
+  }
+  if (Object.keys(broadcastOptions).length > 0) {
+    spawnOptions.broadcastOptions = broadcastOptions;
+  }
+  return scene.spawnDynamicEntity(entity, spawnOptions);
 }
 
 function destroyNativeWreck(wreckID, options = {}) {
@@ -383,7 +374,16 @@ function destroyNativeNpcEntityWithWreck(systemID, shipEntity, options = {}) {
   }
 
   const nativeEntityRecord = nativeNpcStore.getNativeEntity(entityID);
-  const wreckType = resolveShipWreckType(shipEntity.typeID);
+  const wreckType = resolveEntityWreckType({
+    nativeNpc: true,
+    profileID: nativeEntityRecord && nativeEntityRecord.profileID,
+    shipTypeID: shipEntity && shipEntity.typeID,
+    itemName: shipEntity && shipEntity.itemName,
+    groupName: nativeEntityRecord && nativeEntityRecord.slimGroupName,
+    classID: nativeEntityRecord && nativeEntityRecord.capitalClassID,
+    factionName: nativeEntityRecord && nativeEntityRecord.factionName,
+    npcEntityType: nativeEntityRecord && nativeEntityRecord.npcEntityType,
+  });
   if (!wreckType) {
     return {
       success: false,
@@ -393,6 +393,37 @@ function destroyNativeNpcEntityWithWreck(systemID, shipEntity, options = {}) {
 
   const scene = spaceRuntime.ensureScene(normalizedSystemID);
   const nowMs = scene ? scene.getCurrentSimTimeMs() : Date.now();
+  const controller = getControllerByEntityID(entityID);
+  let destroyedFighterCount = 0;
+  if (
+    scene &&
+    controller &&
+    Array.isArray(
+      controller.behaviorProfile &&
+      controller.behaviorProfile.capitalFighterWingTypeIDs,
+    )
+  ) {
+    const {
+      resetNpcSupercarrierWing,
+    } = require(path.join(
+      __dirname,
+      "../../services/fighter/npc/npcSupercarrierDirector",
+    ));
+    const cleanupResult = resetNpcSupercarrierWing(
+      scene,
+      shipEntity,
+      controller,
+      {
+        removeContents: options.removeContents !== false,
+      },
+    );
+    destroyedFighterCount = Number(
+      cleanupResult &&
+      cleanupResult.success &&
+      cleanupResult.data &&
+      cleanupResult.data.destroyedCount,
+    ) || 0;
+  }
   const wreckIDResult = nativeNpcStore.allocateWreckID({
     transient: shipEntity.transient === true,
   });
@@ -511,6 +542,7 @@ function destroyNativeNpcEntityWithWreck(systemID, shipEntity, options = {}) {
     data: {
       wreck: wreckRecord,
       shipID: entityID,
+      destroyedFighterCount,
       wreckItems: nativeNpcStore.listNativeWreckItemsForWreck(wreckRecord.wreckID),
       rolledLootEntries: rolledLootEntries.map((entry) => ({
         typeID: entry.typeID,

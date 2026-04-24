@@ -274,8 +274,32 @@ function findNotification(session, name) {
   return matches.length > 0 ? matches[matches.length - 1] : null;
 }
 
+function primeTargetLock(sourceEntity, targetEntity, scene) {
+  const nowMs = scene.getCurrentSimTimeMs();
+  if (!(sourceEntity.lockedTargets instanceof Map)) {
+    sourceEntity.lockedTargets = new Map();
+  }
+  if (!(targetEntity.targetedBy instanceof Set)) {
+    targetEntity.targetedBy = new Set();
+  }
+  sourceEntity.lockedTargets.set(targetEntity.itemID, {
+    targetID: targetEntity.itemID,
+    lockedAtMs: nowMs,
+  });
+  targetEntity.targetedBy.add(sourceEntity.itemID);
+}
+
 function waitForNextTurn(delayMs = 5) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function advanceScene(scene, deltaMs) {
+  const baseWallclock = Math.max(
+    Number(scene.lastWallclockTickAt) || 0,
+    Number(scene.getCurrentWallclockMs()) || 0,
+    Number(scene.getCurrentSimTimeMs()) || 0,
+  );
+  scene.tick(baseWallclock + Math.max(0, Number(deltaMs) || 0));
 }
 
 function finishInitialBallpark(session) {
@@ -467,6 +491,33 @@ function getOnItemChangeItemIDs(session) {
       entry.payload[0].fields &&
       entry.payload[0].fields.itemID,
     ) || 0)
+    .filter((itemID) => itemID > 0);
+}
+
+function getOnItemChangeEntryMap(entry) {
+  return entry &&
+    Array.isArray(entry.payload) &&
+    entry.payload[1] &&
+    entry.payload[1].type === "dict" &&
+    Array.isArray(entry.payload[1].entries)
+    ? new Map(entry.payload[1].entries)
+    : new Map();
+}
+
+function getOnGodmaPrimeItemIDs(session) {
+  return (session && Array.isArray(session.notifications) ? session.notifications : [])
+    .filter((entry) => entry && entry.name === "OnGodmaPrimeItem")
+    .map((entry) => {
+      const primeEntries =
+        entry &&
+        Array.isArray(entry.payload) &&
+        entry.payload[1] &&
+        entry.payload[1].args &&
+        Array.isArray(entry.payload[1].args.entries)
+          ? new Map(entry.payload[1].args.entries)
+          : null;
+      return Number(primeEntries && primeEntries.get("itemID")) || 0;
+    })
     .filter((itemID) => itemID > 0);
 }
 
@@ -865,6 +916,44 @@ test("ship.LaunchDrones syncs OnItemChange rows for every split-launched drone i
       itemChangeItemIDs.has(Number(launchedDroneID)),
       true,
       `Expected OnItemChange sync for launched drone ${String(launchedDroneID)}`,
+    );
+    const launchedItemChange = [...session.notifications].reverse().find((entry) => (
+      entry &&
+      entry.name === "OnItemChange" &&
+      Array.isArray(entry.payload) &&
+      entry.payload[0] &&
+      entry.payload[0].fields &&
+      Number(entry.payload[0].fields.itemID) === Number(launchedDroneID)
+    ));
+    assert.ok(
+      launchedItemChange,
+      `Expected a concrete OnItemChange payload for launched drone ${String(launchedDroneID)}`,
+    );
+    assert.equal(
+      Number(launchedItemChange.payload[0].fields.quantity),
+      -1,
+      `Expected launched drone ${String(launchedDroneID)} to sync singleton quantity semantics`,
+    );
+    assert.equal(
+      Number(launchedItemChange.payload[0].fields.stacksize),
+      1,
+      `Expected launched drone ${String(launchedDroneID)} to sync stacksize=1`,
+    );
+    assert.equal(
+      Number(launchedItemChange.payload[0].fields.singleton),
+      1,
+      `Expected launched drone ${String(launchedDroneID)} to sync singleton=1`,
+    );
+    const changeEntries = getOnItemChangeEntryMap(launchedItemChange);
+    assert.equal(
+      Number(changeEntries.get(3)),
+      Number(candidate.ship.itemID),
+      `Expected launched drone ${String(launchedDroneID)} to report the ship as the old location`,
+    );
+    assert.equal(
+      Number(changeEntries.get(4)),
+      Number(ITEM_FLAGS.DRONE_BAY),
+      `Expected launched drone ${String(launchedDroneID)} to report DRONE_BAY as the old flag`,
     );
   }
 });
@@ -1422,6 +1511,67 @@ test("ship MachoBindObject keeps successful drone launch replies marshal-safe fo
   );
 });
 
+test("ship.LaunchDrones keeps launch-limit error replies marshal-safe for CCP LaunchFromShip", { concurrency: false }, () => {
+  resetInventoryStoreForTests();
+  snapshotItemsTable();
+  const candidate = getActiveShipCandidate();
+  promoteShipToDroneHull(candidate);
+  const session = buildSession(candidate);
+  const shipService = new ShipService();
+  const droneType = resolveItemByName("Acolyte II");
+  assert.equal(droneType && droneType.success, true, "Expected Acolyte II metadata");
+
+  const applyResult = applyCharacterToSession(session, candidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  assert.equal(applyResult.success, true);
+
+  registerSession(session);
+  attachSessionToScene(session, candidate.ship);
+
+  const droneStack = grantItemToCharacterLocation(
+    candidate.characterID,
+    candidate.ship.itemID,
+    ITEM_FLAGS.DRONE_BAY,
+    droneType.match,
+    6,
+    { transient: true },
+  );
+  assert.equal(droneStack.success, true, "Expected transient drone stack grant");
+  const stackItem = droneStack.data && droneStack.data.items && droneStack.data.items[0];
+  assert.ok(stackItem && stackItem.itemID, "Expected stack-backed drone item");
+  transientItemIDs.push(Number(stackItem.itemID) || 0);
+
+  const launchResult = shipService.Handle_LaunchDrones(
+    [[[stackItem.itemID, 6]]],
+    session,
+    {},
+  );
+
+  assert.doesNotThrow(
+    () => marshalEncode(launchResult),
+    "Expected launch-limit drone errors to stay marshal-safe instead of collapsing to None",
+  );
+
+  const launchEntry = (launchResult.entries || []).find(
+    (entry) => Array.isArray(entry) && Number(entry[0]) === Number(stackItem.itemID),
+  );
+  const launchItems = launchEntry ? getMarshalListItems(launchEntry[1]) : [];
+  assert.equal(launchItems.length, 6, "Expected five launched drone IDs and one launch-limit error entry");
+
+  const limitError = launchItems.find((entry) => (
+    Array.isArray(entry) &&
+    entry[0] === "CustomNotify"
+  ));
+  assert.ok(limitError, "Expected launch-limit result to contain a CustomNotify tuple");
+  assert.equal(
+    getMarshalDictEntry(limitError[1], "notify"),
+    "Maximum active drones already in space.",
+    "Expected launch-limit error text to remain marshal-safe for CCP LaunchFromShip",
+  );
+});
+
 test("packet dispatcher resolves token-wrapped bound ship LaunchDrones calls for CCP follow-up launch requests", { concurrency: false }, async () => {
   resetInventoryStoreForTests();
   snapshotItemsTable();
@@ -1637,6 +1787,44 @@ test("ship.LaunchDrones replays split-created drone state after the current turn
     Number(entry.payload[0]) === Number(splitCreatedDroneID)
   ));
   assert.equal(immediateStateNotifies.length, 1, "Expected one immediate OnDroneStateChange for the split-created drone");
+  const immediatePrimeIndex = findNotificationIndex(session, (entry) => (
+    entry &&
+    entry.name === "OnGodmaPrimeItem" &&
+    Array.isArray(entry.payload) &&
+    entry.payload[1] &&
+    entry.payload[1].args &&
+    Array.isArray(entry.payload[1].args.entries) &&
+    new Map(entry.payload[1].args.entries).get("itemID") === Number(splitCreatedDroneID)
+  ));
+  assert.ok(
+    immediatePrimeIndex >= 0,
+    "Expected split-created launches to send an immediate OnGodmaPrimeItem before the first state change",
+  );
+  const immediateStateIndex = findNotificationIndex(session, (entry) => (
+    entry &&
+    entry.name === "OnDroneStateChange" &&
+    Array.isArray(entry.payload) &&
+    Number(entry.payload[0]) === Number(splitCreatedDroneID)
+  ));
+  assert.ok(immediateStateIndex >= 0, "Expected an immediate OnDroneStateChange for the split-created drone");
+  assert.ok(
+    immediatePrimeIndex < immediateStateIndex,
+    "Expected the split-created drone dogma prime to precede the first OnDroneStateChange",
+  );
+  const immediatePrimeNotification = session.notifications[immediatePrimeIndex];
+  const immediatePrimeEntries = new Map(immediatePrimeNotification.payload[1].args.entries);
+  const immediatePrimeInvEntries = new Map(immediatePrimeEntries.get("invItem").args.entries);
+  const immediatePrimeLine = immediatePrimeInvEntries.get("line");
+  assert.equal(
+    Number(immediatePrimeNotification.payload[0]),
+    Number(TEST_SYSTEM_ID),
+    "Expected split-created drone dogma primes to target the live solar-system location",
+  );
+  assert.deepEqual(
+    immediatePrimeLine.slice(3, 5),
+    [Number(TEST_SYSTEM_ID), 0],
+    "Expected split-created drone dogma primes to describe the real in-space drone row instead of a phantom bay row",
+  );
 
   await waitForNextTurn();
 
@@ -1650,6 +1838,79 @@ test("ship.LaunchDrones replays split-created drone state after the current turn
     replayedStateNotifies.length > immediateStateNotifies.length,
     "Expected a deferred post-launch OnDroneStateChange replay for the split-created drone itemID",
   );
+  const splitPrimeIDs = getOnGodmaPrimeItemIDs(session).filter(
+    (itemID) => Number(itemID) === Number(splitCreatedDroneID),
+  );
+  assert.ok(
+    splitPrimeIDs.length > 1,
+    "Expected split-created launches to resend a deferred OnGodmaPrimeItem after the first turn",
+  );
+});
+
+test("ship.LaunchDrones re-primes every split-created drone after a stacked 5-drone launch", { concurrency: false }, async () => {
+  resetInventoryStoreForTests();
+  snapshotItemsTable();
+  const candidate = getActiveShipCandidate();
+  promoteShipToDroneHull(candidate);
+  const session = buildSession(candidate);
+  const shipService = new ShipService();
+  const droneType = resolveItemByName("Acolyte II");
+  assert.equal(droneType && droneType.success, true, "Expected Acolyte II metadata");
+
+  const applyResult = applyCharacterToSession(session, candidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  assert.equal(applyResult.success, true);
+
+  registerSession(session);
+  attachSessionToScene(session, candidate.ship);
+
+  const droneStack = grantItemToCharacterLocation(
+    candidate.characterID,
+    candidate.ship.itemID,
+    ITEM_FLAGS.DRONE_BAY,
+    droneType.match,
+    5,
+    { transient: true },
+  );
+  assert.equal(droneStack.success, true, "Expected transient 5-drone launch stack grant");
+  const droneItem = droneStack.data && droneStack.data.items && droneStack.data.items[0];
+  assert.ok(droneItem && droneItem.itemID, "Expected 5-drone launch stack item");
+  transientItemIDs.push(Number(droneItem.itemID) || 0);
+
+  const launchResult = shipService.Handle_LaunchDrones(
+    [[[droneItem.itemID, 5]]],
+    session,
+    {},
+  );
+  const launchEntry = (launchResult.entries || []).find(
+    (entry) => Array.isArray(entry) && Number(entry[0]) === Number(droneItem.itemID),
+  );
+  const launchedIDs = launchEntry ? getMarshalListItems(launchEntry[1]) : [];
+  assert.equal(launchedIDs.length, 5, "Expected five launched drone IDs");
+
+  const splitCreatedDroneIDs = launchedIDs.filter(
+    (itemID) => Number(itemID) !== Number(droneItem.itemID),
+  );
+  assert.equal(
+    splitCreatedDroneIDs.length,
+    4,
+    "Expected stacked 5-drone launch to create four split-created drone itemIDs",
+  );
+
+  await waitForNextTurn();
+
+  const primeItemIDs = getOnGodmaPrimeItemIDs(session);
+  for (const splitCreatedDroneID of splitCreatedDroneIDs) {
+    const primeCount = primeItemIDs.filter(
+      (itemID) => Number(itemID) === Number(splitCreatedDroneID),
+    ).length;
+    assert.ok(
+      primeCount > 1,
+      `Expected split-created drone ${String(splitCreatedDroneID)} to receive a deferred second OnGodmaPrimeItem`,
+    );
+  }
 });
 
 test("entity.CmdReturnBay merges returned split drones straight into the existing bay stack without a bogus temporary bay row", { concurrency: false }, () => {
@@ -2701,6 +2962,148 @@ test("entity.CmdEngage drives combat drones onto a live target with real damage 
     getDamageMessageTotalDamage(targetDamageMessage) > 0,
     "Expected target-side damage message to report applied drone damage",
   );
+});
+
+test("ECM drones clear locks, restrict relocks to the jamming drone, and expire after the short jam window", { concurrency: false }, () => {
+  resetInventoryStoreForTests();
+  snapshotItemsTable();
+  const candidates = getActiveShipCandidates();
+  assert.ok(candidates.length >= 2, "Expected at least two active ship candidates for drone ECM parity");
+  const controllerCandidate = candidates[0];
+  const targetCandidate = candidates.find(
+    (entry) => Number(entry.characterID) !== Number(controllerCandidate.characterID),
+  );
+  assert.ok(targetCandidate, "Expected a second active ship candidate for drone ECM parity");
+  promoteShipToDroneHull(controllerCandidate);
+
+  const controllerSession = buildSession(controllerCandidate);
+  const targetSession = buildSession(targetCandidate);
+  const shipService = new ShipService();
+  const entityService = new EntityService();
+  const droneItem = grantSingletonDrone(controllerCandidate, "Hornet EC-300");
+
+  assert.equal(applyCharacterToSession(controllerSession, controllerCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  }).success, true);
+  assert.equal(applyCharacterToSession(targetSession, targetCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  }).success, true);
+
+  registerSession(controllerSession);
+  registerSession(targetSession);
+  const controllerShipEntity = attachSessionToScene(controllerSession, controllerCandidate.ship);
+  const targetShipEntity = attachSessionToScene(targetSession, targetCandidate.ship);
+  finishInitialBallpark(controllerSession);
+  finishInitialBallpark(targetSession);
+
+  const stagingOrigin = {
+    x: Number(controllerShipEntity.position.x) + 5_000_000,
+    y: Number(controllerShipEntity.position.y),
+    z: Number(controllerShipEntity.position.z),
+  };
+  assert.equal(
+    spaceRuntime.teleportDynamicEntityToPoint(
+      TEST_SYSTEM_ID,
+      controllerShipEntity.itemID,
+      stagingOrigin,
+      {
+        broadcast: false,
+        direction: { x: 1, y: 0, z: 0 },
+      },
+    ).success,
+    true,
+  );
+  targetShipEntity.signatureRadius = Math.max(
+    Number(targetShipEntity.signatureRadius || 0),
+    500,
+  );
+  targetShipEntity.radius = Math.max(
+    Number(targetShipEntity.radius || 0),
+    120,
+  );
+  assert.equal(
+    spaceRuntime.teleportDynamicEntityToPoint(
+      TEST_SYSTEM_ID,
+      targetShipEntity.itemID,
+      {
+        x: Number(stagingOrigin.x) + 1_200,
+        y: Number(stagingOrigin.y),
+        z: Number(stagingOrigin.z),
+      },
+      {
+        broadcast: false,
+        direction: { x: -1, y: 0, z: 0 },
+      },
+    ).success,
+    true,
+  );
+
+  const scene = spaceRuntime.ensureScene(TEST_SYSTEM_ID);
+  scene.__jammerRandom = () => 0;
+  primeTargetLock(targetShipEntity, controllerShipEntity, scene);
+
+  shipService.Handle_LaunchDrones([[[droneItem.itemID, 1]]], controllerSession, {});
+  controllerSession.notifications.length = 0;
+  targetSession.notifications.length = 0;
+
+  const commandResult = entityService.Handle_CmdEngage(
+    [[droneItem.itemID], targetShipEntity.itemID],
+    controllerSession,
+    {},
+  );
+  assertEmptyDroneCommandResult(commandResult);
+
+  let jamStarted = false;
+  for (let step = 0; step < 25; step += 1) {
+    advanceScene(scene, 1000);
+    if (findNotification(targetSession, "OnJamStart")) {
+      jamStarted = true;
+      break;
+    }
+  }
+
+  const droneEntity = scene.getEntityByID(droneItem.itemID);
+  assert.ok(droneEntity, "Expected launched ECM drone to remain in space");
+  assert.equal(jamStarted, true, "Expected ECM drone to apply a live jam");
+  assert.ok(findNotification(targetSession, "OnJamStart"), "Expected target OnJamStart for ECM drone");
+  assert.ok(findNotification(targetSession, "OnEwarStart"), "Expected target OnEwarStart for ECM drone");
+  assert.equal(targetShipEntity.lockedTargets.size, 0, "Expected ECM drone to clear the target's active locks");
+  assert.ok(
+    getSpecialFxEvents(controllerSession.notifications, (entry) => (
+      Number(entry.args[0]) === Number(droneItem.itemID) &&
+      Number(entry.args[3]) === Number(targetShipEntity.itemID) &&
+      String(entry.args[5]) === "effects.ElectronicAttributeModifyTarget"
+    )).length > 0,
+    "Expected controller session to receive ECM drone FX",
+  );
+
+  const blockedValidation = scene.validateTargetLockRequest(
+    targetSession,
+    targetShipEntity,
+    controllerShipEntity,
+  );
+  assert.equal(blockedValidation.success, false, "Expected ECM drone to block relocking non-jammer targets");
+
+  const allowedValidation = scene.validateTargetLockRequest(
+    targetSession,
+    targetShipEntity,
+    droneEntity,
+  );
+  assert.equal(allowedValidation.success, true, "Expected ECM drone to allow locking the active jammer");
+
+  targetSession.notifications.length = 0;
+  advanceScene(scene, 5_100);
+  assert.ok(findNotification(targetSession, "OnJamEnd"), "Expected ECM drone jam expiry notification");
+  assert.ok(findNotification(targetSession, "OnEwarEnd"), "Expected ECM drone tactical expiry notification");
+
+  const restoredValidation = scene.validateTargetLockRequest(
+    targetSession,
+    targetShipEntity,
+    controllerShipEntity,
+  );
+  assert.equal(restoredValidation.success, true, "Expected normal locking to return after ECM drone expiry");
 });
 
 test("drone combat FX remain visible to observers under TiDi without backstepping behind live history", { concurrency: false }, () => {

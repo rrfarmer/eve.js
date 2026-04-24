@@ -59,7 +59,7 @@ function restoreMiningSiteConfig(snapshot) {
   Object.assign(config, snapshot);
 }
 
-test("scene bootstrap adds deterministic ice and gas runtime content with live mineable state", (t) => {
+test("scene bootstrap adds deterministic generated ice runtime content with live mineable state", (t) => {
   const originalConfig = snapshotMiningSiteConfig();
   t.after(() => {
     restoreMiningSiteConfig(originalConfig);
@@ -90,26 +90,21 @@ test("scene bootstrap adds deterministic ice and gas runtime content with live m
     entity.generatedMiningSiteKind === "ice" &&
     entity.generatedMiningSiteAnchor !== true
   ));
-  const gasMineables = generatedEntities.filter((entity) => (
-    entity.generatedMiningSiteKind === "gas" &&
-    entity.generatedMiningSiteAnchor !== true
-  ));
 
   assert.ok(iceMineables.length > 0, "expected generated ice mineables");
-  assert.ok(gasMineables.length > 0, "expected generated gas mineables");
 
   const iceState = getMineableState(scene, iceMineables[0].itemID);
-  const gasState = getMineableState(scene, gasMineables[0].itemID);
   assert.ok(iceState, "expected live mining state for generated ice");
-  assert.ok(gasState, "expected live mining state for generated gas");
   assert.equal(iceState.yieldKind, "ice");
-  assert.equal(gasState.yieldKind, "gas");
   assert.ok(iceState.originalQuantity > 0);
-  assert.ok(gasState.originalQuantity > 0);
 
   const summary = summarizeSceneMiningState(scene);
   assert.ok(summary.iceCount >= iceMineables.length);
-  assert.ok(summary.gasCount >= gasMineables.length);
+  assert.equal(
+    generatedEntities.some((entity) => entity.generatedMiningSiteKind === "gas"),
+    false,
+    "expected gas to be materialized through dungeon signatures, not generated mining anomalies",
+  );
 
   const firstIceIDs = iceMineables.map((entity) => entity.itemID).sort((left, right) => left - right);
   const resetResult = resetSceneMiningState(scene, {
@@ -126,4 +121,94 @@ test("scene bootstrap adds deterministic ice and gas runtime content with live m
     .map((entity) => entity.itemID)
     .sort((left, right) => left - right);
   assert.deepEqual(secondIceIDs, firstIceIDs, "expected deterministic resource-site entity IDs after reset");
+});
+
+test("generated mining ice sites never anchor from the sun in Zarzakh fallback scenes", (t) => {
+  const originalConfig = snapshotMiningSiteConfig();
+  t.after(() => {
+    restoreMiningSiteConfig(originalConfig);
+    runtime._testing.clearScenes();
+  });
+
+  Object.assign(config, {
+    miningGeneratedIceSitesEnabled: true,
+    miningGeneratedGasSitesEnabled: false,
+    miningIceSitesHighSecPerSystem: 0,
+    miningIceSitesLowSecPerSystem: 0,
+    miningIceSitesNullSecPerSystem: 1,
+    miningIceSitesWormholePerSystem: 0,
+    miningIceChunksPerSite: 3,
+  });
+
+  runtime._testing.clearScenes();
+  const zarzakhSystemID = 30100000;
+  const scene = runtime.ensureScene(zarzakhSystemID);
+  const anchors = miningResourceSiteService._testing.getAnchorCandidates(scene);
+
+  assert.ok(anchors.length > 0, "expected fallback anchors for Zarzakh");
+  assert.equal(
+    anchors.some((anchor) => String(anchor.itemName || "").trim() === "Zarzakh - Star"),
+    false,
+    "expected Zarzakh fallback anchors to exclude the sun",
+  );
+
+  const generatedAnchors = miningResourceSiteService._testing
+    .listGeneratedResourceSiteEntities(scene)
+    .filter((entity) => entity && entity.generatedMiningSiteAnchor === true);
+  assert.ok(generatedAnchors.length > 0, "expected generated ice site anchors in Zarzakh");
+  assert.equal(
+    generatedAnchors.every((entity) => {
+      const x = Number(entity.position && entity.position.x) || 0;
+      const y = Number(entity.position && entity.position.y) || 0;
+      const z = Number(entity.position && entity.position.z) || 0;
+      return Math.sqrt((x * x) + (y * y) + (z * z)) > 326_000_000;
+    }),
+    true,
+    "expected generated Zarzakh ice sites to spawn outside the local sun radius",
+  );
+});
+
+test("generated mining site geometry clamps field centers and mineables outside the local sun exclusion radius", () => {
+  const exclusionScene = {
+    staticEntities: [
+      {
+        kind: "sun",
+        groupID: 6,
+        radius: 300_000_000,
+        position: { x: 0, y: 0, z: 0 },
+      },
+    ],
+  };
+  const exclusionRadius = miningResourceSiteService._testing.resolveSunExclusionRadius(exclusionScene);
+  assert.ok(exclusionRadius > 300_000_000);
+
+  const clampedCenter = miningResourceSiteService._testing.clampPositionOutsideSun(
+    exclusionScene,
+    { x: 50_000_000, y: 0, z: 0 },
+    100_000,
+  );
+  const centerDistance = Math.sqrt(
+    (Number(clampedCenter.x) || 0) ** 2 +
+    (Number(clampedCenter.y) || 0) ** 2 +
+    (Number(clampedCenter.z) || 0) ** 2
+  );
+  assert.ok(
+    centerDistance >= exclusionRadius + 100_000,
+    "expected clamped site centers to stay outside the sun exclusion radius",
+  );
+
+  const clampedMineable = miningResourceSiteService._testing.clampPositionOutsideSun(
+    exclusionScene,
+    { x: 10_000_000, y: 10_000_000, z: 0 },
+    40_000,
+  );
+  const mineableDistance = Math.sqrt(
+    (Number(clampedMineable.x) || 0) ** 2 +
+    (Number(clampedMineable.y) || 0) ** 2 +
+    (Number(clampedMineable.z) || 0) ** 2
+  );
+  assert.ok(
+    mineableDistance >= exclusionRadius + 40_000,
+    "expected clamped mineables to stay outside the sun exclusion radius",
+  );
 });

@@ -3,17 +3,17 @@
  *
  * Handles encoding/decoding of EVE macho network addresses.
  *
- * Address types use numeric IDs:
- *   1 = Any (unbound service call)
- *   2 = Node
- *   3 = Client
+ * Address types use the same numeric IDs as the retail client:
+ *   1 = Node
+ *   2 = Client
  *   4 = Broadcast
+ *   8 = Any (service/unbound)
  *
- * Field order for the Crucible client (confirmed from network data):
- *   ANY:       [type, callID, service, null?]           — service LAST
- *   NODE:      [type, nodeID, callID, service]          — service LAST
- *   CLIENT:    [type, clientID, callID, service]        — service LAST
- *   BROADCAST: [type, broadcastID, narrowTo, idtype]
+ * Field order matches machoNetAddress.__getstate__ in the client:
+ *   ANY:       [type, service, callID]
+ *   NODE:      [type, nodeID, service, callID]
+ *   CLIENT:    [type, clientID, callID, service]
+ *   BROADCAST: [type, broadcastID, narrowcast, idtype]
  *
  * Both encoding and decoding use PyObject("macho.MachoAddress", tuple).
  */
@@ -21,7 +21,6 @@
 const path = require("path");
 const log = require(path.join(__dirname, "../utils/logger"));
 
-// ─── Inline strVal helper ───────────────────────────────────────────────────
 function strVal(v) {
   if (v === null || v === undefined) return null;
   if (typeof v === "string") return v;
@@ -31,18 +30,12 @@ function strVal(v) {
   return null;
 }
 
-// ─── Address type constants ─────────────────────────────────────────────────
-const ADDR_TYPE_ANY = 1;
-const ADDR_TYPE_NODE = 2;
-const ADDR_TYPE_CLIENT = 3;
+const ADDR_TYPE_NODE = 1;
+const ADDR_TYPE_CLIENT = 2;
 const ADDR_TYPE_BROADCAST = 4;
-const ADDR_TYPE_SERVICE = 8;
+const ADDR_TYPE_ANY = 8;
 
-/**
- * Decode a macho address from a decoded marshal value.
- */
 function decodeAddress(tup) {
-  // Unwrap PyObject wrapper
   if (tup && typeof tup === "object" && tup.type === "object" && tup.args) {
     tup = tup.args;
   }
@@ -53,25 +46,15 @@ function decodeAddress(tup) {
   const addrType = typeof tup[0] === "number" ? tup[0] : 0;
 
   switch (addrType) {
-    case ADDR_TYPE_ANY:
-      // Crucible format: [1, callID, service, null?] — 3 or 4 elements
-      return {
-        type: "any",
-        callID: tup.length > 1 ? tup[1] : 0,
-        service: tup.length > 2 ? strVal(tup[2]) : null,
-      };
-
     case ADDR_TYPE_NODE:
-      // Crucible format: [2, nodeID, callID, service] — 4 elements
       return {
         type: "node",
         nodeID: tup.length > 1 ? tup[1] : 0,
-        callID: tup.length > 2 ? tup[2] : 0,
-        service: tup.length > 3 ? strVal(tup[3]) : null,
+        service: tup.length > 2 ? strVal(tup[2]) : null,
+        callID: tup.length > 3 ? tup[3] : 0,
       };
 
     case ADDR_TYPE_CLIENT:
-      // Crucible format: [3, clientID, callID, service] — 4 elements
       return {
         type: "client",
         clientID: tup.length > 1 ? tup[1] : 0,
@@ -80,7 +63,6 @@ function decodeAddress(tup) {
       };
 
     case ADDR_TYPE_BROADCAST:
-      // [4, broadcastID, narrowTo, idtype]
       return {
         type: "broadcast",
         broadcastID: tup.length > 1 ? strVal(tup[1]) : null,
@@ -88,10 +70,9 @@ function decodeAddress(tup) {
         idtype: tup.length > 3 ? strVal(tup[3]) : null,
       };
 
-    case ADDR_TYPE_SERVICE:
-      // Type 8 observed post-handshake: [8, "config", null]
+    case ADDR_TYPE_ANY:
       return {
-        type: "service",
+        type: "any",
         service: tup.length > 1 ? strVal(tup[1]) : null,
         callID: tup.length > 2 ? tup[2] : 0,
       };
@@ -102,31 +83,24 @@ function decodeAddress(tup) {
   }
 }
 
-/**
- * Encode a macho address as PyObject("macho.MachoAddress", tuple).
- * Uses Crucible field ordering (service always last).
- */
 function encodeAddress(addr) {
   let tuple;
 
   switch (addr.type) {
     case "any":
-      // [type, callID, service, null]
-      tuple = [ADDR_TYPE_ANY, addr.callID || null, addr.service || null, null];
+      tuple = [ADDR_TYPE_ANY, addr.service || null, addr.callID || null];
       break;
 
     case "node":
-      // [type, nodeID, callID, service]
       tuple = [
         ADDR_TYPE_NODE,
         addr.nodeID != null ? addr.nodeID : 1,
-        addr.callID || null,
         addr.service || null,
+        addr.callID || null,
       ];
       break;
 
     case "client":
-      // [type, clientID, callID, service]
       tuple = [
         ADDR_TYPE_CLIENT,
         typeof addr.clientID === "bigint"
@@ -140,7 +114,6 @@ function encodeAddress(addr) {
       break;
 
     case "broadcast":
-      // [type, broadcastID, narrowTo, idtype]
       tuple = [
         ADDR_TYPE_BROADCAST,
         addr.broadcastID || null,
@@ -150,16 +123,14 @@ function encodeAddress(addr) {
       break;
 
     case "service":
-      // [8, service, null]
-      tuple = [ADDR_TYPE_SERVICE, addr.service || null, null];
+      tuple = [ADDR_TYPE_ANY, addr.service || null, null];
       break;
 
     default:
-      tuple = [ADDR_TYPE_ANY, null, null, null];
+      tuple = [ADDR_TYPE_ANY, null, null];
       break;
   }
 
-  // Wrap in PyObject to match C++ PyAddress::Encode()
   return {
     type: "object",
     name: "carbon.common.script.net.machoNetPacket.MachoAddress",
@@ -172,7 +143,6 @@ module.exports = {
   ADDR_TYPE_NODE,
   ADDR_TYPE_CLIENT,
   ADDR_TYPE_BROADCAST,
-  ADDR_TYPE_SERVICE,
   decodeAddress,
   encodeAddress,
   strVal,

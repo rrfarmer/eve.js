@@ -40,7 +40,7 @@ function getMarketGroupsRows() {
       null,
       MARKET_GROUP_ROOT_ID,
       "Ships",
-      "Ships available in the EvEJS sandbox market.",
+      "Ships available in the EveJS Elysian sandbox market.",
       null,
       false,
       null,

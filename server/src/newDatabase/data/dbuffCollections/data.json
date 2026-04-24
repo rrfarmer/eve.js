@@ -1,0 +1,4405 @@
+{
+  "source": {
+    "provider": "EVE Static Data JSONL",
+    "authority": "eve-online-static-data-3294658-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
+    "generatedAt": "2026-04-09T16:52:07.645Z",
+    "buildNumber": 3294658,
+    "releaseDate": "2026-04-09T11:29:37Z",
+    "jsonlSync": {
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
+      "syncedAt": "2026-04-09T16:52:07.646Z",
+      "buildNumber": 3294658,
+      "releaseDate": "2026-04-09T11:29:37Z"
+    }
+  },
+  "counts": {
+    "collectionCount": 229
+  },
+  "collectionsByID": {
+    "1": {
+      "collectionID": 1,
+      "aggregateMode": "Maximum",
+      "operation": 4,
+      "operationName": "PostMul",
+      "developerDescription": "[PROTOTYPE]Test Multi Buff",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        },
+        {
+          "dogmaAttributeID": 76
+        }
+      ],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 68
+        },
+        {
+          "dogmaAttributeID": 84
+        }
+      ],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 20,
+          "groupID": 46
+        },
+        {
+          "dogmaAttributeID": 105,
+          "groupID": 52
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3427
+        },
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3305
+        }
+      ]
+    },
+    "2": {
+      "collectionID": 2,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "[PROTOTYPE]Test Boost Speed",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "3": {
+      "collectionID": 3,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Velocity penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 3171
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "4": {
+      "collectionID": 4,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Warp penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 104
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "5": {
+      "collectionID": 5,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Disallow Cloak",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2454
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "6": {
+      "collectionID": 6,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Disallow jump/dock",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2354
+        },
+        {
+          "dogmaAttributeID": 2453
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "7": {
+      "collectionID": 7,
+      "aggregateMode": "Minimum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "QA Anti-targeting debuff",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 192
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "8": {
+      "collectionID": 8,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "PANIC: Shield Resistance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 271
+        },
+        {
+          "dogmaAttributeID": 272
+        },
+        {
+          "dogmaAttributeID": 273
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "9": {
+      "collectionID": 9,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "PANIC: Shield Recharge time",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 479
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "10": {
+      "collectionID": 10,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Shield Burst: Shield Harmonizing: Shield Resistance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 271
+        },
+        {
+          "dogmaAttributeID": 272
+        },
+        {
+          "dogmaAttributeID": 273
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "11": {
+      "collectionID": 11,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Shield Burst: Active Shielding: Repair Duration/Capacitor",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3416
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3422
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 24571
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 3416
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 3422
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 24571
+        }
+      ]
+    },
+    "12": {
+      "collectionID": 12,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Shield Burst: Shield Extension: Shield HP",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "13": {
+      "collectionID": 13,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Armor Burst: Armor Energizing: Armor Resistance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 267
+        },
+        {
+          "dogmaAttributeID": 268
+        },
+        {
+          "dogmaAttributeID": 269
+        },
+        {
+          "dogmaAttributeID": 270
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "14": {
+      "collectionID": 14,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Armor Burst: Rapid Repair: Repair Duration/Capacitor",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3393
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 16069
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 24568
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 3393
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 16069
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 24568
+        }
+      ]
+    },
+    "15": {
+      "collectionID": 15,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Armor Burst: Armor Reinforcement: Armor HP",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "16": {
+      "collectionID": 16,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Information Burst: Sensor Optimization: Scan Resolution",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "17": {
+      "collectionID": 17,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Information Burst: Electronic Superiority: EWAR Range and Strength",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 201
+        },
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 208
+        },
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 379
+        },
+        {
+          "dogmaAttributeID": 238,
+          "groupID": 201
+        },
+        {
+          "dogmaAttributeID": 239,
+          "groupID": 201
+        },
+        {
+          "dogmaAttributeID": 240,
+          "groupID": 201
+        },
+        {
+          "dogmaAttributeID": 241,
+          "groupID": 201
+        },
+        {
+          "dogmaAttributeID": 309,
+          "groupID": 208
+        },
+        {
+          "dogmaAttributeID": 349,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 351,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 547,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 554,
+          "groupID": 379
+        },
+        {
+          "dogmaAttributeID": 566,
+          "groupID": 208
+        },
+        {
+          "dogmaAttributeID": 596,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 767,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 847,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 848,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 2044,
+          "groupID": 201
+        },
+        {
+          "dogmaAttributeID": 2044,
+          "groupID": 208
+        },
+        {
+          "dogmaAttributeID": 2044,
+          "groupID": 291
+        },
+        {
+          "dogmaAttributeID": 2044,
+          "groupID": 379
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "18": {
+      "collectionID": 18,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Information Burst: Electronic Hardening: Sensor Strength",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 208
+        },
+        {
+          "dogmaAttributeID": 209
+        },
+        {
+          "dogmaAttributeID": 210
+        },
+        {
+          "dogmaAttributeID": 211
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "19": {
+      "collectionID": 19,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Information Burst: Electronic Hardening: RSD/RWD Resistance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2112
+        },
+        {
+          "dogmaAttributeID": 2113
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "20": {
+      "collectionID": 20,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Skirmish Burst: Evasive Maneuvers: Signature Radius",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "21": {
+      "collectionID": 21,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Skirmish Burst: Interdiction Maneuvers: Tackle Range",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3435
+        }
+      ]
+    },
+    "22": {
+      "collectionID": 22,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Skirmish Burst: Rapid Deployment: AB/MWD Speed Increase",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 20,
+          "skillID": 3450
+        },
+        {
+          "dogmaAttributeID": 20,
+          "skillID": 3454
+        }
+      ]
+    },
+    "23": {
+      "collectionID": 23,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Mining Burst: Mining Laser Field Enhancement: Mining Range",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3386
+        },
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 16281
+        },
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 25544
+        }
+      ]
+    },
+    "24": {
+      "collectionID": 24,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Mining Burst: Mining Laser Optimization: Mining Capacitor/Duration",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3386
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 16281
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 25544
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 3386
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 16281
+        },
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25544
+        }
+      ]
+    },
+    "25": {
+      "collectionID": 25,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Mining Burst: Mining Equipment Preservation: Crystal Volatility",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 783,
+          "skillID": 3386
+        }
+      ]
+    },
+    "26": {
+      "collectionID": 26,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Information Burst: Sensor Optimization: Targeting Range",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 76
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "27": {
+      "collectionID": 27,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Stasis Webification Burst",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "28": {
+      "collectionID": 28,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Turret Max Range",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3300
+        }
+      ]
+    },
+    "29": {
+      "collectionID": 29,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Turret Falloff Range",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 158,
+          "skillID": 3300
+        }
+      ]
+    },
+    "30": {
+      "collectionID": 30,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Turret Tracking",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3300
+        }
+      ]
+    },
+    "31": {
+      "collectionID": 31,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Missile Velocity",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 37,
+          "skillID": 3319
+        }
+      ]
+    },
+    "32": {
+      "collectionID": 32,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Missile Duration",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 281,
+          "skillID": 3319
+        }
+      ]
+    },
+    "33": {
+      "collectionID": 33,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Missile Explosion Velocity",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 653,
+          "skillID": 3319
+        }
+      ]
+    },
+    "34": {
+      "collectionID": 34,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weapon Disruption Burst: Missile Explosion Radius",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 654,
+          "skillID": 3319
+        }
+      ]
+    },
+    "35": {
+      "collectionID": 35,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sensor Dampening Burst: Scan Resolution penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "36": {
+      "collectionID": 36,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sensor Dampening Burst: Max Target Range",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 76
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "37": {
+      "collectionID": 37,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Target Illumination Burst",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "38": {
+      "collectionID": 38,
+      "aggregateMode": "Minimum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "ECM Burst",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 192
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "39": {
+      "collectionID": 39,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Avatar Effect Generator : Capacitor Recharge bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 55
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "40": {
+      "collectionID": 40,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Avatar Effect Generator : Kinetic resistance bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 109
+        },
+        {
+          "dogmaAttributeID": 269
+        },
+        {
+          "dogmaAttributeID": 273
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "41": {
+      "collectionID": 41,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Avatar Effect Generator : EM resistance penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 113
+        },
+        {
+          "dogmaAttributeID": 267
+        },
+        {
+          "dogmaAttributeID": 271
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "42": {
+      "collectionID": 42,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Erebus Effect Generator : Armor HP bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "43": {
+      "collectionID": 43,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Erebus Effect Generator : Explosive resistance bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 111
+        },
+        {
+          "dogmaAttributeID": 268
+        },
+        {
+          "dogmaAttributeID": 272
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "44": {
+      "collectionID": 44,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Erebus Effect Generator : Thermal resistance penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 110
+        },
+        {
+          "dogmaAttributeID": 270
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "45": {
+      "collectionID": 45,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Ragnarok Effect Generator : Signature Radius bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "46": {
+      "collectionID": 46,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Ragnarok Effect Generator : Thermal resistance bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 110
+        },
+        {
+          "dogmaAttributeID": 270
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "47": {
+      "collectionID": 47,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Ragnarok Effect Generator : Explosive resistance penaly",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 111
+        },
+        {
+          "dogmaAttributeID": 268
+        },
+        {
+          "dogmaAttributeID": 272
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "48": {
+      "collectionID": 48,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Leviathan Effect Generator : Shield HP bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "49": {
+      "collectionID": 49,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Leviathan Effect Generator : EM resistance bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 113
+        },
+        {
+          "dogmaAttributeID": 267
+        },
+        {
+          "dogmaAttributeID": 271
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "50": {
+      "collectionID": 50,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Leviathan Effect Generator : Kinetic resistance penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 109
+        },
+        {
+          "dogmaAttributeID": 269
+        },
+        {
+          "dogmaAttributeID": 273
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "51": {
+      "collectionID": 51,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Avatar Effect Generator : Velocity penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "52": {
+      "collectionID": 52,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Erebus Effect Generator : Shield RR penalty",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 3422
+        }
+      ]
+    },
+    "53": {
+      "collectionID": 53,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Leviathan Effect Generator : Armor RR penalty",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 16069
+        }
+      ]
+    },
+    "54": {
+      "collectionID": 54,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Ragnarok Effect Generator : Laser and Hybrid Optimal penalty",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 53
+        },
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 74
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "55": {
+      "collectionID": 55,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "PANIC: Scan Resolution penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "56": {
+      "collectionID": 56,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "PANIC: Mass increase",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 4
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "57": {
+      "collectionID": 57,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Disallow tether",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2343
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "58": {
+      "collectionID": 58,
+      "aggregateMode": "Minimum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "PANIC: Drone damage penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2580
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "59": {
+      "collectionID": 59,
+      "aggregateMode": "Maximum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "PANIC: Disallow weapons",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 3300
+        },
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 3421
+        }
+      ]
+    },
+    "60": {
+      "collectionID": 60,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Skirmish Burst: Evasive Maneuvers: Agility",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 70
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "61": {
+      "collectionID": 61,
+      "aggregateMode": "Maximum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "PANIC: Disallow entosis",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 24242
+        }
+      ]
+    },
+    "79": {
+      "collectionID": 79,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_bioluminescence_cloud",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "80": {
+      "collectionID": 80,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_caustic_cloud_inertia",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 70
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "81": {
+      "collectionID": 81,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_caustic_cloud_velocity",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "84": {
+      "collectionID": 84,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_trig_platform_tracking_speed",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 160
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3300
+        }
+      ]
+    },
+    "88": {
+      "collectionID": 88,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_filament_cloud_shield_booster_shield_bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2498
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 3416
+        }
+      ]
+    },
+    "89": {
+      "collectionID": 89,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_filament_cloud_shield_booster_duration",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2495
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 3416
+        }
+      ]
+    },
+    "90": {
+      "collectionID": 90,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_electric_storm_EM_resistance_penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 113
+        },
+        {
+          "dogmaAttributeID": 267
+        },
+        {
+          "dogmaAttributeID": 271
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "92": {
+      "collectionID": 92,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_electric_storm_capacitor_recharge_bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 55
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "93": {
+      "collectionID": 93,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_xenon_gas_explosive_resistance_penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 111
+        },
+        {
+          "dogmaAttributeID": 268
+        },
+        {
+          "dogmaAttributeID": 272
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "94": {
+      "collectionID": 94,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_xenon_gas_shield_hp_bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "95": {
+      "collectionID": 95,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_infernal_thermal_resistance_penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 110
+        },
+        {
+          "dogmaAttributeID": 270
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "96": {
+      "collectionID": 96,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_infernal_armor_hp_bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "97": {
+      "collectionID": 97,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_darkness_turret_range_penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 54
+        },
+        {
+          "dogmaAttributeID": 158
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3300
+        },
+        {
+          "dogmaAttributeID": 158,
+          "skillID": 3300
+        }
+      ]
+    },
+    "98": {
+      "collectionID": 98,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_darkness_velocity_bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "99": {
+      "collectionID": 99,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_caustic_toxin_kinetic_resistance_penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 109
+        },
+        {
+          "dogmaAttributeID": 269
+        },
+        {
+          "dogmaAttributeID": 273
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "100": {
+      "collectionID": 100,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Weather_caustic_toxin_scan_resolution_bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "101": {
+      "collectionID": 101,
+      "aggregateMode": "Minimum",
+      "operation": 4,
+      "operationName": "PostMul",
+      "developerDescription": "Industrial Core Mining Drone Signal Interference",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 2585,
+          "skillID": 28585
+        },
+        {
+          "dogmaAttributeID": 2586,
+          "skillID": 28585
+        }
+      ]
+    },
+    "2103": {
+      "collectionID": 2103,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Damage Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 64,
+          "skillID": 3300
+        },
+        {
+          "dogmaAttributeID": 64,
+          "skillID": 3436
+        },
+        {
+          "dogmaAttributeID": 114,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 116,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 117,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 118,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2104": {
+      "collectionID": 2104,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Wreck Warp Scramble",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 104
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2106": {
+      "collectionID": 2106,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "ESS: Disables MJDs + MWDs",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 3454
+        },
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 4385
+        }
+      ]
+    },
+    "2108": {
+      "collectionID": 2108,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Webifier Range Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 65
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2109": {
+      "collectionID": 2109,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Module Heat Damage Reduction",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1211
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2110": {
+      "collectionID": 2110,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Webifier Strength Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 20,
+          "groupID": 65
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2111": {
+      "collectionID": 2111,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Thermal and Kinetic Missile Damage Bonuus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 117,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 118,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2112": {
+      "collectionID": 2112,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Remote Assistance/Repair Impedance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2116
+        },
+        {
+          "dogmaAttributeID": 2135
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2113": {
+      "collectionID": 2113,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Stabilized cloak to prevent decloak bursts",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 3117
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2140": {
+      "collectionID": 2140,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Overheat Bonus - No EWAR",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1181
+        },
+        {
+          "dogmaAttributeID": 1205
+        },
+        {
+          "dogmaAttributeID": 1206
+        },
+        {
+          "dogmaAttributeID": 1208
+        },
+        {
+          "dogmaAttributeID": 1210
+        },
+        {
+          "dogmaAttributeID": 1222
+        },
+        {
+          "dogmaAttributeID": 1223
+        },
+        {
+          "dogmaAttributeID": 1230
+        },
+        {
+          "dogmaAttributeID": 1231
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2141": {
+      "collectionID": 2141,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Link-with-ship damage resistance bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 109
+        },
+        {
+          "dogmaAttributeID": 110
+        },
+        {
+          "dogmaAttributeID": 111
+        },
+        {
+          "dogmaAttributeID": 113
+        },
+        {
+          "dogmaAttributeID": 267
+        },
+        {
+          "dogmaAttributeID": 268
+        },
+        {
+          "dogmaAttributeID": 269
+        },
+        {
+          "dogmaAttributeID": 270
+        },
+        {
+          "dogmaAttributeID": 271
+        },
+        {
+          "dogmaAttributeID": 272
+        },
+        {
+          "dogmaAttributeID": 273
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2142": {
+      "collectionID": 2142,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Small Energy Turret Damage Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 64,
+          "skillID": 3303
+        }
+      ]
+    },
+    "2143": {
+      "collectionID": 2143,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Nos and Neut Drain Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 90,
+          "groupID": 68
+        },
+        {
+          "dogmaAttributeID": 97,
+          "groupID": 71
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2144": {
+      "collectionID": 2144,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Turret Damage Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 64,
+          "skillID": 3300
+        }
+      ]
+    },
+    "2145": {
+      "collectionID": 2145,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Missile Damage Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 114,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 116,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 117,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 118,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2146": {
+      "collectionID": 2146,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Afterburner Speed Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 20,
+          "skillID": 3450
+        }
+      ]
+    },
+    "2147": {
+      "collectionID": 2147,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusVelocity",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2148": {
+      "collectionID": 2148,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusInertia",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 70
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2149": {
+      "collectionID": 2149,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusCapShieldRecharge",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 55
+        },
+        {
+          "dogmaAttributeID": 479
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2150": {
+      "collectionID": 2150,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusModuleCycle",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 51
+        },
+        {
+          "dogmaAttributeID": 73
+        },
+        {
+          "dogmaAttributeID": 1795
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2151": {
+      "collectionID": 2151,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusTracking",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3300
+        },
+        {
+          "dogmaAttributeID": 653,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2152": {
+      "collectionID": 2152,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Proving HP Addition",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 9
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2153": {
+      "collectionID": 2153,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Turret Tracking",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3300
+        }
+      ]
+    },
+    "2154": {
+      "collectionID": 2154,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Turret Falloff",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 158,
+          "skillID": 3300
+        }
+      ]
+    },
+    "2155": {
+      "collectionID": 2155,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "[AIR] Mining amount penelty",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 77,
+          "skillID": 3386
+        }
+      ]
+    },
+    "2158": {
+      "collectionID": 2158,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Turret Optimal",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3300
+        }
+      ]
+    },
+    "2159": {
+      "collectionID": 2159,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Turret Cap Use",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3300
+        }
+      ]
+    },
+    "2160": {
+      "collectionID": 2160,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving HP All",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 9
+        },
+        {
+          "dogmaAttributeID": 263
+        },
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2161": {
+      "collectionID": 2161,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Velocity Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2162": {
+      "collectionID": 2162,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Inertia Penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 70
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2163": {
+      "collectionID": 2163,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Capacitor Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 482
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2164": {
+      "collectionID": 2164,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Armor/Shield HP Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        },
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2165": {
+      "collectionID": 2165,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Missile Flight Time Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 281,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2166": {
+      "collectionID": 2166,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Mass Increase",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 4
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2167": {
+      "collectionID": 2167,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusCapRecharge",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 55
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2168": {
+      "collectionID": 2168,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusSigRadius",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2169": {
+      "collectionID": 2169,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "SpacetimeNexusTurretMissileDamage",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 64,
+          "skillID": 3300
+        },
+        {
+          "dogmaAttributeID": 114,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 116,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 117,
+          "skillID": 3319
+        },
+        {
+          "dogmaAttributeID": 118,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2171": {
+      "collectionID": 2171,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Sensor Strength Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 208
+        },
+        {
+          "dogmaAttributeID": 209
+        },
+        {
+          "dogmaAttributeID": 210
+        },
+        {
+          "dogmaAttributeID": 211
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2172": {
+      "collectionID": 2172,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Signature Radius Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2174": {
+      "collectionID": 2174,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "AOE_Beacon_proving_tachyon_signatureradius_cloud",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2176": {
+      "collectionID": 2176,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Proving Armor HP Addition",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2177": {
+      "collectionID": 2177,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Proving Shield HP Addition",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2178": {
+      "collectionID": 2178,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Kinetic Missile Damage Bonuus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 117,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2179": {
+      "collectionID": 2179,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Small Hybrid Turret Damage Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 64,
+          "skillID": 3301
+        }
+      ]
+    },
+    "2180": {
+      "collectionID": 2180,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving Small Hybrid Turret Optimal Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3301
+        }
+      ]
+    },
+    "2184": {
+      "collectionID": 2184,
+      "aggregateMode": "Maximum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "Proving Nos Override",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 1945
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2185": {
+      "collectionID": 2185,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Tethering Restricted By Security",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2343
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2186": {
+      "collectionID": 2186,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving AB/MWD Speed Increase",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 20,
+          "skillID": 3450
+        },
+        {
+          "dogmaAttributeID": 20,
+          "skillID": 3454
+        }
+      ]
+    },
+    "2187": {
+      "collectionID": 2187,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Proving AB/MWD Cap Need Reduction",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3450
+        },
+        {
+          "dogmaAttributeID": 6,
+          "skillID": 3454
+        }
+      ]
+    },
+    "2201": {
+      "collectionID": 2201,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Remote Repair Impedance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2116
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2405": {
+      "collectionID": 2405,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Insurgency Suppression Bonus: Interdiction Range",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 65
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "skillID": 3449
+        }
+      ]
+    },
+    "2414": {
+      "collectionID": 2414,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "CDCloudVelocity",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2415": {
+      "collectionID": 2415,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "CDCloudInertia",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 70
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2416": {
+      "collectionID": 2416,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "CDCloudCapShieldRecharge",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 55
+        },
+        {
+          "dogmaAttributeID": 479
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2417": {
+      "collectionID": 2417,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "CDCloudModuleCycle",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 51
+        },
+        {
+          "dogmaAttributeID": 73
+        },
+        {
+          "dogmaAttributeID": 1795
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2418": {
+      "collectionID": 2418,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "CDCloudTracking",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3300
+        },
+        {
+          "dogmaAttributeID": 653,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2419": {
+      "collectionID": 2419,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Anti-Tachyon Cloud Velocity Penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2420": {
+      "collectionID": 2420,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Anti-Tachyon Cloud Inertia Penalty",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 70
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2421": {
+      "collectionID": 2421,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Anti-Tachyon Cloud Signature Radius  Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2426": {
+      "collectionID": 2426,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Disable MJDs",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "skillID": 4385
+        }
+      ]
+    },
+    "2427": {
+      "collectionID": 2427,
+      "aggregateMode": "Minimum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "Set Speed Limit",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2033
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2428": {
+      "collectionID": 2428,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "MJFG Blocked",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 5694
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2429": {
+      "collectionID": 2429,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Disable Tractor Beam Repeating Activation",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 1014,
+          "groupID": 650
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2433": {
+      "collectionID": 2433,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Shield HP Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2434": {
+      "collectionID": 2434,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Capacitor Capacity Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 482
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2435": {
+      "collectionID": 2435,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Armor HP Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2436": {
+      "collectionID": 2436,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Overheating Bonus - Includes Ewar",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1181
+        },
+        {
+          "dogmaAttributeID": 1205
+        },
+        {
+          "dogmaAttributeID": 1206
+        },
+        {
+          "dogmaAttributeID": 1208
+        },
+        {
+          "dogmaAttributeID": 1210
+        },
+        {
+          "dogmaAttributeID": 1222
+        },
+        {
+          "dogmaAttributeID": 1223
+        },
+        {
+          "dogmaAttributeID": 1225
+        },
+        {
+          "dogmaAttributeID": 1226
+        },
+        {
+          "dogmaAttributeID": 1230
+        },
+        {
+          "dogmaAttributeID": 1231
+        },
+        {
+          "dogmaAttributeID": 1935
+        },
+        {
+          "dogmaAttributeID": 1936
+        },
+        {
+          "dogmaAttributeID": 1937
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2437": {
+      "collectionID": 2437,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Capacitor Recharge Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 55
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2438": {
+      "collectionID": 2438,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Targeting and DScan Range Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 76
+        },
+        {
+          "dogmaAttributeID": 5796
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2439": {
+      "collectionID": 2439,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Scan Resolution Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2440": {
+      "collectionID": 2440,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Sov System Modifier Warp Speed Addition",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2441": {
+      "collectionID": 2441,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Shield Booster Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 3416
+        },
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 21802
+        }
+      ]
+    },
+    "2442": {
+      "collectionID": 2442,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sov System Modifier Armor Repairer Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 3393
+        },
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 21803
+        }
+      ]
+    },
+    "2464": {
+      "collectionID": 2464,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Expedition Burst: Probe Strength ",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6118,
+          "skillID": 3412
+        }
+      ]
+    },
+    "2465": {
+      "collectionID": 2465,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Expedition Burst: Directional Scanner, Hacking and Salvager Range",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 5796
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 538
+        },
+        {
+          "dogmaAttributeID": 54,
+          "groupID": 1122
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2466": {
+      "collectionID": 2466,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Expedition Burst: Maximum Scan Deviation Modifier",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6119,
+          "skillID": 3412
+        }
+      ]
+    },
+    "2468": {
+      "collectionID": 2468,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Expedition Burst: Virus Coherence",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 1909,
+          "groupID": 538
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2473": {
+      "collectionID": 2473,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Disable Smart Bomb Activation",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "groupID": 72
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2474": {
+      "collectionID": 2474,
+      "aggregateMode": "Maximum",
+      "operation": 8,
+      "operationName": "PostAssignment",
+      "developerDescription": "Mining Burst: Enhanced Mining Scanner",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 5979
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2480": {
+      "collectionID": 2480,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Connected to PhaseStabilizer",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 6042
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2481": {
+      "collectionID": 2481,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Expedition Burst: Salvager duration bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2482": {
+      "collectionID": 2482,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 1 - Warp Speed",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2483": {
+      "collectionID": 2483,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 2 - Heat Damage Reduction",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1211
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2484": {
+      "collectionID": 2484,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 3 - Structure Hitpoint Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 9
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2485": {
+      "collectionID": 2485,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 4 - Web Resistance",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2115
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2486": {
+      "collectionID": 2486,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 5 - Max Velocity",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2487": {
+      "collectionID": 2487,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 6 - Warp Speed",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2488": {
+      "collectionID": 2488,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 7 - Probe Strength",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6118,
+          "skillID": 3412
+        }
+      ]
+    },
+    "2489": {
+      "collectionID": 2489,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 8 - Warp Speed",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2490": {
+      "collectionID": 2490,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 9 - Salvager Cycle Time",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2491": {
+      "collectionID": 2491,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 10 - Salvager Cycle Time",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2492": {
+      "collectionID": 2492,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 11 - Salvager Cycle Time",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2493": {
+      "collectionID": 2493,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 12 - Salvager Cycle Time",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2494": {
+      "collectionID": 2494,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 13 - Salvager Cycle Time",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2495": {
+      "collectionID": 2495,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 14 - Salvager Cycle Time",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 73,
+          "skillID": 25863
+        }
+      ]
+    },
+    "2496": {
+      "collectionID": 2496,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 15 - Warp Speed Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2497": {
+      "collectionID": 2497,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 16 - Shield and Armor Hitpoint Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 263
+        },
+        {
+          "dogmaAttributeID": 265
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2498": {
+      "collectionID": 2498,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 17 - Molea Cemetery",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 2535,
+          "skillID": 3348
+        }
+      ]
+    },
+    "2499": {
+      "collectionID": 2499,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 18 - Probe Strength",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6118,
+          "skillID": 3412
+        }
+      ]
+    },
+    "2500": {
+      "collectionID": 2500,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 19 - Maximum Velocity",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2501": {
+      "collectionID": 2501,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Landmark Bonus 20 - Probe Strength Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 6118,
+          "skillID": 3412
+        }
+      ]
+    },
+    "2502": {
+      "collectionID": 2502,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 1 - Gamma",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2045
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2503": {
+      "collectionID": 2503,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 2 - Plasma",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1211
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2504": {
+      "collectionID": 2504,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 3 - Exotic",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2505": {
+      "collectionID": 2505,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 4 - Electric",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 482
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2506": {
+      "collectionID": 2506,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Sov Modifier Bonus 1 - Gamma Neut Resistances",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2045
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2507": {
+      "collectionID": 2507,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Sov Modifier Bonus 2 - Plasma",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1211
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2508": {
+      "collectionID": 2508,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Sov Modifier Bonus 3 - exotic",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2509": {
+      "collectionID": 2509,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Sov Modifier Bonus 4 - Electric",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 482
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2510": {
+      "collectionID": 2510,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Wormhole Bonus 1 - Black Hole",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2115
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2511": {
+      "collectionID": 2511,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Wormhole Bonus 2 - Red Giant",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1211
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2512": {
+      "collectionID": 2512,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Wormhole Bonus 3 - Wolf Rayet",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3306
+        }
+      ]
+    },
+    "2513": {
+      "collectionID": 2513,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Wormhole Bonus 4 - Pulsar",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2045
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2514": {
+      "collectionID": 2514,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Wormhole Bonus 5 - Cataclysmic",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 482
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2515": {
+      "collectionID": 2515,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Wormhole Bonus 6 - Magnetar",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2112
+        },
+        {
+          "dogmaAttributeID": 2113
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2516": {
+      "collectionID": 2516,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Mining Burst: Mining Crit Chance",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 5967,
+          "skillID": 3386
+        },
+        {
+          "dogmaAttributeID": 5967,
+          "skillID": 16281
+        }
+      ]
+    },
+    "2517": {
+      "collectionID": 2517,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Mining Burst: Mining Residue Chance Reduction",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 3154,
+          "skillID": 3386
+        },
+        {
+          "dogmaAttributeID": 3154,
+          "skillID": 16281
+        },
+        {
+          "dogmaAttributeID": 3154,
+          "skillID": 25544
+        }
+      ]
+    },
+    "2518": {
+      "collectionID": 2518,
+      "aggregateMode": "Minimum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 5 - Winter Nexus Storm",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 110
+        },
+        {
+          "dogmaAttributeID": 270
+        },
+        {
+          "dogmaAttributeID": 274
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2519": {
+      "collectionID": 2519,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 21",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2520": {
+      "collectionID": 2520,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 22",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2521": {
+      "collectionID": 2521,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 23",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2522": {
+      "collectionID": 2522,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 24",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2523": {
+      "collectionID": 2523,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 25",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2524": {
+      "collectionID": 2524,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 27",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2525": {
+      "collectionID": 2525,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 28",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2526": {
+      "collectionID": 2526,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 26",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2527": {
+      "collectionID": 2527,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 29",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2528": {
+      "collectionID": 2528,
+      "aggregateMode": "Maximum",
+      "operation": 7,
+      "operationName": "PreAssignment",
+      "developerDescription": "Sisters of EVE Landmark Bonus 30",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2529": {
+      "collectionID": 2529,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Gallente Elections Warp Speed Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2530": {
+      "collectionID": 2530,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Hybrid Turret Tracking",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3301
+        },
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3304
+        },
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3307
+        },
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 21666
+        }
+      ]
+    },
+    "2533": {
+      "collectionID": 2533,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Gallente Elections Local Armor Repair",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 3393
+        },
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 21803
+        }
+      ]
+    },
+    "2534": {
+      "collectionID": 2534,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Triglavian System Effect - Maximum Locked Targets Percentage",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 192
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2535": {
+      "collectionID": 2535,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Triglavian System Effect - Warp Speed Multiplier Percentage",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 600
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2536": {
+      "collectionID": 2536,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Horde Mode - Smart Bomb Blocker",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "groupID": 72
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2537": {
+      "collectionID": 2537,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Horde Mode - Micro Jump Field Generator Blocker",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [
+        {
+          "dogmaAttributeID": 1349,
+          "groupID": 1533
+        }
+      ],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2538": {
+      "collectionID": 2538,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Triglavian System Effect - Remote Armor Repair Percentage",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 16069
+        },
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 24568
+        }
+      ]
+    },
+    "2539": {
+      "collectionID": 2539,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Triglavian System Effect - Remote Shield Boost Percentage",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 3422
+        },
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 24571
+        }
+      ]
+    },
+    "2548": {
+      "collectionID": 2548,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Heat Damage Reduction",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1211
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2549": {
+      "collectionID": 2549,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Overload Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [
+        {
+          "dogmaAttributeID": 1181
+        },
+        {
+          "dogmaAttributeID": 1205
+        },
+        {
+          "dogmaAttributeID": 1206
+        },
+        {
+          "dogmaAttributeID": 1208
+        },
+        {
+          "dogmaAttributeID": 1210
+        },
+        {
+          "dogmaAttributeID": 1222
+        },
+        {
+          "dogmaAttributeID": 1223
+        },
+        {
+          "dogmaAttributeID": 1225
+        },
+        {
+          "dogmaAttributeID": 1226
+        },
+        {
+          "dogmaAttributeID": 1230
+        },
+        {
+          "dogmaAttributeID": 1231
+        },
+        {
+          "dogmaAttributeID": 1935
+        },
+        {
+          "dogmaAttributeID": 1936
+        },
+        {
+          "dogmaAttributeID": 1937
+        }
+      ],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2550": {
+      "collectionID": 2550,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Signature Radius Reduction",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 552
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2551": {
+      "collectionID": 2551,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Capacitor Capacity Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 482
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2552": {
+      "collectionID": 2552,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Ship Velocity Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 37
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2553": {
+      "collectionID": 2553,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Tracking Speed Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 160,
+          "skillID": 3300
+        }
+      ]
+    },
+    "2554": {
+      "collectionID": 2554,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Missile Explosion Radius Reduction",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 654,
+          "skillID": 3319
+        }
+      ]
+    },
+    "2555": {
+      "collectionID": 2555,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Scan Resolution Bonus",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 564
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2556": {
+      "collectionID": 2556,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Local Armor Repair Amount Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 3393
+        },
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 21803
+        }
+      ]
+    },
+    "2557": {
+      "collectionID": 2557,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Local Shield Boost Amount Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 3416
+        },
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 21802
+        }
+      ]
+    },
+    "2558": {
+      "collectionID": 2558,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Remote Armor Repair Amount Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 16069
+        },
+        {
+          "dogmaAttributeID": 84,
+          "skillID": 24568
+        }
+      ]
+    },
+    "2559": {
+      "collectionID": 2559,
+      "aggregateMode": "Maximum",
+      "operation": 6,
+      "operationName": "PostPercent",
+      "developerDescription": "Horde Mode - Remote Shield Boost Amount Bonus",
+      "itemModifiers": [],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": [
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 3422
+        },
+        {
+          "dogmaAttributeID": 68,
+          "skillID": 24571
+        }
+      ]
+    },
+    "2560": {
+      "collectionID": 2560,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Horde Mode - Warp Drive Blocker",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 104
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    },
+    "2561": {
+      "collectionID": 2561,
+      "aggregateMode": "Maximum",
+      "operation": 2,
+      "operationName": "ModAdd",
+      "developerDescription": "Horde Mode - Cloaking Devices Blocker",
+      "itemModifiers": [
+        {
+          "dogmaAttributeID": 2454
+        }
+      ],
+      "locationModifiers": [],
+      "locationGroupModifiers": [],
+      "locationCategoryModifiers": [],
+      "locationRequiredSkillModifiers": []
+    }
+  }
+}

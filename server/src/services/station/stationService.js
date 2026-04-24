@@ -11,6 +11,7 @@
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const worldData = require(path.join(__dirname, "../../space/worldData"));
 const {
   getStationRecord,
   buildStationServiceMask,
@@ -105,6 +106,40 @@ class StationService extends BaseService {
     return {
       type: "list",
       items: getStationGuestTuples(stationID),
+    };
+  }
+
+  Handle_GetStationsForOwner(args, session) {
+    const ownerID = Number(args && args.length > 0 ? args[0] : 0) || 0;
+    log.debug(`[StationSvc] GetStationsForOwner(${ownerID})`);
+
+    if (!ownerID) {
+      return {
+        type: "list",
+        items: [],
+      };
+    }
+
+    const rows = worldData
+      .getStationsForOwner(ownerID)
+      .map((station) => getStationRecord(session, station.stationID))
+      .map((station) =>
+        buildKeyVal([
+          ["stationID", Number(station.stationID) || 0],
+          ["stationName", station.stationName || ""],
+          ["solarSystemID", Number(station.solarSystemID) || 0],
+          ["constellationID", Number(station.constellationID) || 0],
+          ["regionID", Number(station.regionID) || 0],
+          ["stationTypeID", Number(station.stationTypeID) || 0],
+          ["ownerID", Number(station.ownerID) || ownerID],
+          ["corporationID", Number(station.corporationID) || ownerID],
+          ["security", Number(station.security || 0)],
+        ])
+      );
+
+    return {
+      type: "list",
+      items: rows,
     };
   }
 

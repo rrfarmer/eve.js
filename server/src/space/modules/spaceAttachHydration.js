@@ -4,6 +4,10 @@ const log = require(path.join(__dirname, "../../utils/logger"));
 const {
   buildSpaceAttachHydrationPlan,
 } = require(path.join(__dirname, "./moduleLoadParity"));
+const {
+  buildShipModuleParityManifest,
+  shouldEnableLateFittedReplayForManifest,
+} = require(path.join(__dirname, "./moduleClientParityAuthority"));
 
 function queuePostSpaceAttachFittingHydration(
   session,
@@ -12,7 +16,9 @@ function queuePostSpaceAttachFittingHydration(
 ) {
   const {
     describeSessionHydrationState,
+    requestPendingShipFittingReplayFromHud,
     tryFlushPendingShipFittingReplay,
+    tryFlushPendingShipChargeDogmaReplay,
   } = require(path.join(__dirname, "../../services/chat/commandSessionEffects"));
   const {
     clearDeferredDockedShipSessionChange,
@@ -43,24 +49,45 @@ function queuePostSpaceAttachFittingHydration(
     return false;
   }
 
+  const resolvedCharacterID =
+    Number(
+      session.characterID ||
+      session.charid ||
+      session.userid ||
+      0,
+    ) || 0;
+  const moduleParityManifest = buildShipModuleParityManifest(
+    resolvedCharacterID,
+    resolvedShipID,
+    {
+      attachProfileID: options.hydrationProfile,
+    },
+  );
+
   const inventoryBootstrapPending = options.inventoryBootstrapPending === true;
-  const hydrationPlan = buildSpaceAttachHydrationPlan(
+  let hydrationPlan = buildSpaceAttachHydrationPlan(
     options.hydrationProfile ||
       (options.enableChargeDogmaReplay === false ? "capsule" : "transition"),
     {
       enableChargeDogmaReplay: options.enableChargeDogmaReplay,
+      useRealChargeInventoryHudRows: options.useRealChargeInventoryHudRows,
       chargeDogmaReplayMode: options.chargeDogmaReplayMode,
       queueModuleReplay: options.queueModuleReplay,
+      awaitShipInventoryPrimeBeforeReplay:
+        options.awaitShipInventoryPrimeBeforeReplay,
       awaitPostLoginHudTurretBootstrap:
         options.awaitPostLoginHudTurretBootstrap,
       rememberBlockedChargeHudBootstrap:
         options.rememberBlockedChargeHudBootstrap,
       syntheticFitTransition: options.syntheticFitTransition,
+      emitOnlineEffects: options.emitOnlineEffects,
       allowLateFittingReplay: options.allowLateFittingReplay,
       allowLateChargeRefresh: options.allowLateChargeRefresh,
       lateChargeDogmaReplayMode: options.lateChargeDogmaReplayMode,
       lateChargeFinalizeReplayBudget:
         options.lateChargeFinalizeReplayBudget,
+      implicitHudBootstrapDelayMs:
+        options.implicitHudBootstrapDelayMs,
       allowMichelleGuardChargeRefresh:
         options.allowMichelleGuardChargeRefresh,
     },
@@ -69,41 +96,57 @@ function queuePostSpaceAttachFittingHydration(
     hydrationPlan.enableChargeDogmaReplay === true ||
     hydrationPlan.queueModuleReplay === true;
   const effectiveInventoryBootstrapPending =
-    inventoryBootstrapPending && hasSharedHydrationWork;
+    inventoryBootstrapPending &&
+    hasSharedHydrationWork &&
+    hydrationPlan.awaitShipInventoryPrimeBeforeReplay === true;
+  const shipInventoryPrimedByDefault =
+    hasSharedHydrationWork !== true ||
+    hydrationPlan.awaitShipInventoryPrimeBeforeReplay !== true;
 
-  // Keep the shared bootstrap explicit per attach type:
-  // - stargate, solar, undock, and legacy transition rely on the shared
-  //   in-space replay path: one fitted-module inventory replay plus one
-  //   tuple-backed charge prime-and-repair bootstrap after attach
-  // - login now differs intentionally: the stock client login path already
-  //   instantiates the loaded charge tuples during MakeShipActive +
-  //   LoadItemsInLocation(shipID), and the HUD rack seeds charges directly
-  //   from shipItem.sublocations, so login stays on that stock path with no
-  //   shared synthetic module replay and no shared synthetic charge replay
-  // - loaded charges stay tuple-backed whenever a profile enables shared
-  //   charge bootstrap
+  // Keep the bootstrap explicit per attach type:
+  // - login, stargate, /solar, and undock keep the stock tuple-backed charge state for
+  //   dogma/ammo logic, but their post-HUD repair replays real loaded charge
+  //   inventory rows so the rack buttons bind to a stable loaded integer item
+  // - stargate and other legacy transition attach paths still use the shared
+  //   in-space replay path only when they stay on the `transition` profile
+  //   rather than one of the real-HUD charge-row profiles above
+  // - loaded charges stay tuple-backed whenever a profile enables shared charge
+  //   bootstrap instead of the real-HUD row lane
   //
   // Late self-rearming fitting/charge replays are profile-gated and disabled by
   // default; the live parity path should stabilize from the first bootstrap
   // instead of layering extra repair passes on top.
   session._space.loginInventoryBootstrapPending =
     effectiveInventoryBootstrapPending;
-  session._space.loginShipInventoryPrimed = hasSharedHydrationWork !== true;
-  session._space.loginShipInventoryListed = hasSharedHydrationWork !== true;
+  session._space.loginShipInventoryPrimed = shipInventoryPrimedByDefault;
+  session._space.loginShipInventoryListed = shipInventoryPrimedByDefault;
   session._space.loginChargeDogmaReplayPending =
     hydrationPlan.enableChargeDogmaReplay;
-  // The inflight rack's first loaded-ammo render comes from godma ship
-  // sublocations, not from real loaded-charge inventory rows. Keep the shared
-  // charge bootstrap tuple-backed for every in-space attach path.
+  // Login now deliberately splits the two clients:
+  // - stock tuple-backed charge state for clientDogmaLocation / ammo logic
+  // - real loaded charge inventory rows for the module HUD after bootstrap
+  session._space.useRealChargeInventoryHudRows =
+    hydrationPlan.useRealChargeInventoryHudRows === true;
   session._space.loginChargeDogmaReplayMode =
     hydrationPlan.chargeDogmaReplayMode;
-  session._space.loginChargeDogmaReplayFlushed = false;
+  session._space.loginChargeDogmaReplayFlushed =
+    hydrationPlan.enableChargeDogmaReplay !== true;
   session._space.loginChargeDogmaReplayHudBootstrapSeen = false;
   session._space.loginRememberBlockedChargeHudBootstrap =
     hydrationPlan.rememberBlockedChargeHudBootstrap === true;
   session._space.loginChargeHydrationProfile = hydrationPlan.profileID;
+  session._space.loginModuleParityManifest = moduleParityManifest;
+  session._space.loginLateFittedReplayItemIDs =
+    moduleParityManifest.lateFittedModuleReplayItemIDs;
+  session._space.pendingHardpointActivationBootstrapModuleIDs = new Set(
+    moduleParityManifest.lateFittedModuleReplayItemIDs,
+  );
   session._space.loginAllowLateFittingReplay =
-    hydrationPlan.allowLateFittingReplay === true;
+    hydrationPlan.allowLateFittingReplay === true ||
+    shouldEnableLateFittedReplayForManifest(
+      hydrationPlan.profileID,
+      moduleParityManifest,
+    );
   session._space.loginAllowLateChargeRefresh =
     hydrationPlan.allowLateChargeRefresh === true;
   session._space.loginLateChargeDogmaReplayMode =
@@ -116,6 +159,10 @@ function queuePostSpaceAttachFittingHydration(
   session._space.loginAllowMichelleGuardChargeRefresh =
     hydrationPlan.allowMichelleGuardChargeRefresh === true;
   session._space.loginFittingReplayHudBootstrapSeen = false;
+  session._space.loginImplicitHudBootstrapDelayMs = Math.max(
+    0,
+    Number(hydrationPlan.implicitHudBootstrapDelayMs) || 0,
+  );
   session._space.loginFittingHudFinalizePending = false;
   session._space.loginFittingHudFinalizeWindowEndsAtMs = 0;
   session._space.loginFittingHudFinalizeRemainingReplays = 0;
@@ -157,13 +204,19 @@ function queuePostSpaceAttachFittingHydration(
       ? {
           shipID: resolvedShipID,
           includeOfflineModules: true,
-          includeCharges: false,
-          emitChargeInventoryRows: false,
-          emitOnlineEffects: options.emitOnlineEffects === true,
+          includeCharges: hydrationPlan.useRealChargeInventoryHudRows === true,
+          onlyCharges: hydrationPlan.useRealChargeInventoryHudRows === true,
+          onlyScannerProbeLaunchers: false,
+          emitChargeInventoryRows:
+            hydrationPlan.useRealChargeInventoryHudRows === true,
+          allowInSpaceChargeInventoryRows:
+            hydrationPlan.useRealChargeInventoryHudRows === true,
+          emitOnlineEffects: hydrationPlan.emitOnlineEffects === true,
           syntheticFitTransition: hydrationPlan.syntheticFitTransition === true,
           awaitBeyonceBound: options.awaitBeyonceBound !== false,
           awaitInitialBallpark: options.awaitInitialBallpark !== false,
-          awaitPostLoginShipInventoryList: true,
+          awaitPostLoginShipInventoryList:
+            hydrationPlan.awaitShipInventoryPrimeBeforeReplay === true,
           awaitPostLoginHudTurretBootstrap:
             hydrationPlan.awaitPostLoginHudTurretBootstrap === true,
         }
@@ -177,18 +230,56 @@ function queuePostSpaceAttachFittingHydration(
     `chargeMode=${session._space.loginChargeDogmaReplayMode} ` +
     `queueModuleReplay=${hydrationPlan.queueModuleReplay === true} ` +
     `rememberBlockedChargeHud=${hydrationPlan.rememberBlockedChargeHudBootstrap === true} ` +
-    `lateFittingReplay=${hydrationPlan.allowLateFittingReplay === true} ` +
+    `lateFittingReplay=${session._space.loginAllowLateFittingReplay === true} ` +
+    `lateFittingReplayItems=${JSON.stringify(
+      session._space.loginLateFittedReplayItemIDs,
+    )} ` +
     `lateChargeRefresh=${hydrationPlan.allowLateChargeRefresh === true} ` +
     `lateChargeMode=${hydrationPlan.lateChargeDogmaReplayMode} ` +
     `lateChargeBudget=${Math.max(
       0,
       Number(hydrationPlan.lateChargeFinalizeReplayBudget) || 0,
     )} ` +
+    `moduleParityFamilies=${JSON.stringify(
+      moduleParityManifest.familyCounts,
+    )} ` +
+    `implicitHudDelayMs=${Math.max(
+      0,
+      Number(hydrationPlan.implicitHudBootstrapDelayMs) || 0,
+    )} ` +
     `${describeSessionHydrationState(session, resolvedShipID)}`,
   );
 
   if (session._pendingCommandShipFittingReplay) {
     tryFlushPendingShipFittingReplay(session);
+    if (
+      session._pendingCommandShipFittingReplay &&
+      hydrationPlan.awaitPostLoginHudTurretBootstrap === true &&
+      hydrationPlan.useRealChargeInventoryHudRows === true &&
+      hydrationPlan.implicitHudBootstrapDelayMs > 0
+    ) {
+      requestPendingShipFittingReplayFromHud(session, resolvedShipID, {
+        delayMs: hydrationPlan.implicitHudBootstrapDelayMs,
+        reason: `spaceAttach.${hydrationPlan.profileID}.implicitHudBootstrap`,
+      });
+    }
+  }
+  if (
+    hydrationPlan.enableChargeDogmaReplay === true &&
+    session._space.loginShipInventoryPrimed === true &&
+    !session._pendingCommandShipFittingReplay &&
+    hydrationPlan.awaitPostLoginHudTurretBootstrap !== true
+  ) {
+    setTimeout(() => {
+      if (
+        !session ||
+        !session._space ||
+        session._space.loginChargeDogmaReplayPending !== true
+      ) {
+        return;
+      }
+      tryFlushPendingShipChargeDogmaReplay(session, resolvedShipID);
+    }, 0);
   }
   return true;
 }

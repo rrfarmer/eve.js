@@ -21,9 +21,36 @@ const {
 const {
   listCharacterItems,
   getItemMetadata,
+  grantItemsToCharacterLocation,
+  ITEM_FLAGS,
+  updateInventoryItem,
 } = require(path.join(
   repoRoot,
   "server/src/services/inventory/itemStore",
+));
+const {
+  searchBlueprintDefinitions,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/industry/industryStaticData",
+));
+const {
+  INDUSTRY_INSTALLED_LOCATION_ID,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/industry/industryConstants",
+));
+const {
+  getWrapByID,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureAssetSafetyState",
+));
+const {
+  createStructure,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureState",
 ));
 const {
   CONTAINER_GLOBAL_ID,
@@ -116,7 +143,37 @@ function extractRowsetObjects(value) {
   });
 }
 
-function resolveStationRoot(item, itemById) {
+function isDockableAssetFlag(flagID) {
+  const numericFlagID = Number(flagID || 0);
+  return numericFlagID === 1 || numericFlagID === 4 || numericFlagID === 36;
+}
+
+function isHiddenPersonalAssetLocationForTest(locationID, characterID) {
+  const numericLocationID = Number(locationID || 0);
+  if (!Number.isFinite(numericLocationID) || numericLocationID <= 0) {
+    return true;
+  }
+
+  if (numericLocationID === INDUSTRY_INSTALLED_LOCATION_ID) {
+    return true;
+  }
+
+  if (numericLocationID === Number(characterID || 0)) {
+    return true;
+  }
+
+  if (worldData.getSolarSystemByID(numericLocationID)) {
+    return true;
+  }
+
+  if (getWrapByID(numericLocationID, { refresh: false })) {
+    return true;
+  }
+
+  return false;
+}
+
+function resolveVisibleAssetRoot(item, itemById, characterID) {
   const seen = new Set();
   let currentItem = item;
 
@@ -130,12 +187,27 @@ function resolveStationRoot(item, itemById) {
       return locationID;
     }
 
+    if (worldData.getStructureByID(locationID)) {
+      return locationID;
+    }
+
     if (seen.has(locationID)) {
       return null;
     }
     seen.add(locationID);
 
-    currentItem = itemById.get(locationID) || null;
+    const parentItem = itemById.get(locationID) || null;
+    if (!parentItem) {
+      if (
+        isDockableAssetFlag(currentItem.flagID) &&
+        !isHiddenPersonalAssetLocationForTest(locationID, characterID)
+      ) {
+        return locationID;
+      }
+      return null;
+    }
+
+    currentItem = parentItem;
   }
 
   return null;
@@ -144,17 +216,23 @@ function resolveStationRoot(item, itemById) {
 function buildExpectedAssetSnapshot(characterID) {
   const items = listCharacterItems(characterID);
   const itemById = new Map(items.map((item) => [Number(item.itemID || 0), item]));
+  const rootLocationByItemID = new Map(
+    items.map((item) => [
+      Number(item.itemID || 0),
+      resolveVisibleAssetRoot(item, itemById, characterID),
+    ]),
+  );
   const recursiveDockedItems = items.filter((item) => (
-    isVisibleAssetItem(item) && resolveStationRoot(item, itemById) !== null
+    isVisibleAssetItem(item) && rootLocationByItemID.get(Number(item.itemID || 0)) !== null
   ));
   const topLevelDockedItems = recursiveDockedItems.filter((item) =>
-    worldData.getStationByID(Number(item.locationID || 0)),
+    Number(item.locationID || 0) === rootLocationByItemID.get(Number(item.itemID || 0)),
   );
 
   const stationCounts = {};
   for (const item of topLevelDockedItems) {
-    const stationID = Number(item.locationID || 0);
-    stationCounts[stationID] = (stationCounts[stationID] || 0) + 1;
+    const rootLocationID = rootLocationByItemID.get(Number(item.itemID || 0));
+    stationCounts[rootLocationID] = (stationCounts[rootLocationID] || 0) + 1;
   }
 
   let assetWorth = 0;
@@ -188,6 +266,7 @@ function buildExpectedAssetSnapshot(characterID) {
   return {
     recursiveDockedItems,
     topLevelDockedItems,
+    rootLocationByItemID,
     stationCounts,
     assetWorth: Math.round(assetWorth * 100) / 100,
     plexWorth: Math.round(plexWorth * 100) / 100,
@@ -249,6 +328,16 @@ function buildSession(characterID) {
   };
 }
 
+function readTable(tableName) {
+  const result = database.read(tableName, "/");
+  return result && result.success ? JSON.parse(JSON.stringify(result.data)) : {};
+}
+
+function writeTable(tableName, payload) {
+  const result = database.write(tableName, "/", payload);
+  assert.equal(result.success, true, `Failed to restore ${tableName}`);
+}
+
 test("charMgr global asset moniker resolves and binds ListStations with station item counts", async () => {
   const candidate = getDockedAssetCandidate();
   const session = buildSession(candidate.characterID);
@@ -288,7 +377,7 @@ test("charMgr global asset moniker resolves and binds ListStations with station 
   assert.deepEqual(
     actualCounts,
     candidate.snapshot.stationCounts,
-    "Expected ListStations itemCount values to match direct docked station assets",
+    "Expected ListStations itemCount values to match every visible top-level personal asset root",
   );
 
   const currentStationRow = stationRows.find(
@@ -338,7 +427,9 @@ test("bound charMgr global asset methods return top-level station assets, recurs
     .map((item) => Number(item.itemID || 0))
     .sort((left, right) => left - right);
   const expectedStationIds = candidate.snapshot.topLevelDockedItems
-    .filter((item) => Number(item.locationID || 0) === candidate.stationID)
+    .filter(
+      (item) => candidate.snapshot.rootLocationByItemID.get(Number(item.itemID || 0)) === candidate.stationID,
+    )
     .map((item) => Number(item.itemID || 0))
     .sort((left, right) => left - right);
   const expectedRecursiveIds = candidate.snapshot.recursiveDockedItems
@@ -350,7 +441,7 @@ test("bound charMgr global asset methods return top-level station assets, recurs
       .map((row) => Number(row.itemID || 0))
       .sort((left, right) => left - right),
     expectedTopLevelIds,
-    "Expected List() to return every top-level docked asset and only top-level docked assets",
+    "Expected List() to return every visible top-level personal asset and only those items",
   );
   assert.deepEqual(
     stationRows
@@ -364,11 +455,173 @@ test("bound charMgr global asset methods return top-level station assets, recurs
       .map((row) => Number(row.itemID || 0))
       .sort((left, right) => left - right),
     expectedRecursiveIds,
-    "Expected ListIncludingContainers() to expose every docked asset rooted in a station",
+    "Expected ListIncludingContainers() to expose every visible personal asset rooted in a valid dockable location",
   );
   assert.deepEqual(
     assetWorth,
     [candidate.snapshot.assetWorth, candidate.snapshot.plexWorth],
     "Expected GetAssetWorth() to match the live docked asset snapshot",
   );
+});
+
+test("installed industry blueprints stay hidden from personal asset views", async () => {
+  const itemsSnapshot = readTable("items");
+  try {
+    const candidate = getDockedAssetCandidate();
+    const session = buildSession(candidate.characterID);
+    const service = new CharMgrService();
+
+    const applyResult = applyCharacterToSession(session, candidate.characterID, {
+      emitNotifications: false,
+      logSelection: false,
+    });
+    assert.equal(applyResult.success, true);
+
+    const definition = searchBlueprintDefinitions("rifter", 1)[0];
+    assert.ok(definition && Number(definition.blueprintTypeID || 0) > 0);
+
+    const grantResult = grantItemsToCharacterLocation(
+      candidate.characterID,
+      candidate.stationID,
+      ITEM_FLAGS.HANGAR,
+      [{
+        itemType: definition.blueprintTypeID,
+        quantity: 1,
+        options: {
+          singleton: 1,
+          itemName: "Installed Assets Leak Check",
+        },
+      }],
+    );
+    assert.equal(grantResult.success, true);
+
+    const blueprintItem = grantResult.data.items[0];
+    assert.ok(blueprintItem && Number(blueprintItem.itemID || 0) > 0);
+
+    const installMoveResult = updateInventoryItem(blueprintItem.itemID, (currentItem) => ({
+      ...currentItem,
+      locationID: INDUSTRY_INSTALLED_LOCATION_ID,
+    }));
+    assert.equal(installMoveResult.success, true);
+
+    const bindResult = await service.Handle_MachoBindObject(
+      [[candidate.characterID, CONTAINER_GLOBAL_ID], null],
+      session,
+      null,
+    );
+    const boundID = extractBoundID(bindResult);
+    assert.ok(boundID, "Expected global asset bind to return a bound object id");
+    session.currentBoundObjectID = boundID;
+
+    const topLevelRows = extractPackedRows(service.Handle_List([], session, null));
+    const recursiveRows = extractPackedRows(
+      service.Handle_ListIncludingContainers([], session, null),
+    );
+    const stationRows = extractPackedRows(
+      service.Handle_ListStationItems([candidate.stationID], session, null),
+    );
+
+    const leakedItemID = Number(blueprintItem.itemID || 0);
+    assert.ok(
+      !topLevelRows.some((row) => Number(row.itemID || 0) === leakedItemID),
+      "Expected installed blueprints to stay out of top-level personal assets",
+    );
+    assert.ok(
+      !recursiveRows.some((row) => Number(row.itemID || 0) === leakedItemID),
+      "Expected installed blueprints to stay out of recursive personal assets",
+    );
+    assert.ok(
+      !stationRows.some((row) => Number(row.itemID || 0) === leakedItemID),
+      "Expected installed blueprints to stay out of station personal assets",
+    );
+    assert.ok(
+      !recursiveRows.some(
+        (row) => Number(row.locationID || 0) === INDUSTRY_INSTALLED_LOCATION_ID,
+      ),
+      "Expected installed industry locations to stay hidden from personal assets",
+    );
+  } finally {
+    writeTable("items", itemsSnapshot);
+  }
+});
+
+test("structure-backed personal assets resolve through real structure metadata", async () => {
+  const itemsSnapshot = readTable("items");
+  const structuresSnapshot = readTable("structures");
+  try {
+    const candidate = getDockedAssetCandidate();
+    const session = buildSession(candidate.characterID);
+    const service = new CharMgrService();
+
+    const applyResult = applyCharacterToSession(session, candidate.characterID, {
+      emitNotifications: false,
+      logSelection: false,
+    });
+    assert.equal(applyResult.success, true);
+
+    const structureResult = createStructure({
+      typeID: 35825,
+      ownerCorpID: Number(session.corporationID || session.corpid || 0),
+      solarSystemID: Number(session.solarsystemid2 || 0),
+      regionID: Number(session.regionid || 0),
+      name: "Asset Root Metadata Structure",
+      itemName: "Asset Root Metadata Structure",
+    });
+    assert.equal(structureResult.success, true);
+    const structure = structureResult.data;
+
+    const grantResult = grantItemsToCharacterLocation(
+      candidate.characterID,
+      structure.structureID,
+      ITEM_FLAGS.HANGAR,
+      [{
+        itemType: 606,
+        quantity: 1,
+        options: {
+          singleton: 1,
+          itemName: "Structure Asset Root Check",
+        },
+      }],
+    );
+    assert.equal(grantResult.success, true);
+
+    const grantedItem = grantResult.data.items[0];
+    assert.ok(grantedItem && Number(grantedItem.itemID || 0) > 0);
+
+    const bindResult = await service.Handle_MachoBindObject(
+      [[candidate.characterID, CONTAINER_GLOBAL_ID], ["ListStations", [], null]],
+      session,
+      null,
+    );
+    const boundID = extractBoundID(bindResult);
+    assert.ok(boundID, "Expected global assets bind to return a bound object id");
+    session.currentBoundObjectID = boundID;
+
+    const stationRows = extractRowsetObjects(bindResult[1]);
+    const structureRow = stationRows.find(
+      (row) => Number(row.stationID || 0) === Number(structure.structureID || 0),
+    );
+    assert.ok(structureRow, "Expected structure-backed assets to appear as a root row");
+    assert.equal(
+      Number(structureRow.typeID || 0),
+      Number(structure.typeID || 0),
+      "Expected structure root rows to use the real structure typeID",
+    );
+    assert.equal(
+      Number(structureRow.solarSystemID || 0),
+      Number(structure.solarSystemID || 0),
+      "Expected structure root rows to use the real structure solarSystemID",
+    );
+
+    const structureItems = extractPackedRows(
+      service.Handle_ListStationItems([structure.structureID], session, null),
+    );
+    assert.ok(
+      structureItems.some((row) => Number(row.itemID || 0) === Number(grantedItem.itemID || 0)),
+      "Expected ListStationItems(structureID) to expose personal assets stored in that structure",
+    );
+  } finally {
+    writeTable("items", itemsSnapshot);
+    writeTable("structures", structuresSnapshot);
+  }
 });

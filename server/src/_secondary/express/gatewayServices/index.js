@@ -23,6 +23,9 @@ const {
 const {
   createShipLogoGatewayService,
 } = require("./shipLogoGatewayService");
+const {
+  createSkillPlanGatewayService,
+} = require("./skillPlanGatewayService");
 
 function createGatewayServiceRegistry(context) {
   const services = [
@@ -38,6 +41,7 @@ function createGatewayServiceRegistry(context) {
     createSovereigntyGatewayService(context),
     createMercenaryDenGatewayService(context),
     createLocalChatGatewayService(context),
+    createSkillPlanGatewayService(context),
     createCompatibilityGatewayService(context),
   ];
 

@@ -1,13 +1,22 @@
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
+const https = require("https");
 const net = require("net");
 const http2 = require("http2");
 const crypto = require("crypto");
 
 const config = require("../../config");
 const log = require("../../utils/logger");
-const { handleGatewayStream } = require("./publicGatewayLocal");
+
+let gatewayStreamHandler = null;
+
+function getGatewayStreamHandler() {
+  if (!gatewayStreamHandler) {
+    ({ handleGatewayStream: gatewayStreamHandler } = require("./publicGatewayLocal"));
+  }
+  return gatewayStreamHandler;
+}
 
 function shouldEnableLocalInterceptByDefault() {
   try {
@@ -34,19 +43,25 @@ function parseBooleanEnv(value, fallback = false) {
   return fallback;
 }
 
-const ENABLE_LOCAL_INTERCEPT = parseBooleanEnv(
-  process.env.EVEJS_PROXY_LOCAL_INTERCEPT,
-  shouldEnableLocalInterceptByDefault(),
-);
-const EXPRESS_PROXY_ENABLED = parseBooleanEnv(
-  process.env.EVEJS_EXPRESS_PROXY_ENABLED,
-  true,
-);
-const LOCAL_INTERCEPT_HOSTS = new Set([
-  "dev-public-gateway.evetech.net",
-  "public-gateway.evetech.net",
-]);
-const BLOCKED_PROXY_HOSTS = parseHostPatternList(config.proxyBlockedHosts);
+function parseOptionalUrl(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return null;
+  }
+  try {
+    return new URL(normalized);
+  } catch {
+    return null;
+  }
+}
+
+function parseNonNegativeIntegerEnv(value, fallback) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
 
 function parseHostPatternList(value) {
   if (typeof value !== "string") {
@@ -76,10 +91,40 @@ function hostMatchesPattern(hostname, pattern) {
   }
 
   if (normalizedPattern.startsWith(".")) {
-    return normalizedHost.endsWith(normalizedPattern);
+    return (
+      normalizedHost === normalizedPattern.slice(1) ||
+      normalizedHost.endsWith(normalizedPattern)
+    );
   }
 
   return normalizedHost === normalizedPattern;
+}
+
+function hostMatchesAnyPattern(hostname, patterns) {
+  if (!Array.isArray(patterns) || patterns.length === 0) {
+    return false;
+  }
+
+  return patterns.some((pattern) => hostMatchesPattern(hostname, pattern));
+}
+
+function hostExistsInCollection(hostname, collection) {
+  const normalizedHost = String(hostname || "").trim().toLowerCase();
+  if (!normalizedHost) {
+    return false;
+  }
+
+  if (collection instanceof Set) {
+    return collection.has(normalizedHost);
+  }
+
+  if (Array.isArray(collection)) {
+    return collection.some(
+      (entry) => String(entry || "").trim().toLowerCase() === normalizedHost,
+    );
+  }
+
+  return false;
 }
 
 function shouldInterceptHost(hostname) {
@@ -95,6 +140,39 @@ function shouldBlockHost(hostname) {
   return BLOCKED_PROXY_HOSTS.some((pattern) =>
     hostMatchesPattern(hostname, pattern),
   );
+}
+
+function shouldAllowListedHost(hostname, allowedHosts) {
+  return hostMatchesAnyPattern(hostname, allowedHosts);
+}
+
+function normalizeUnhandledProxyHostPolicy(policy) {
+  return String(policy || "block").trim().toLowerCase() === "forward"
+    ? "forward"
+    : "block";
+}
+
+function shouldDenyUnhandledProxyHost(hostname, options = {}) {
+  const normalizedHost = String(hostname || "").trim().toLowerCase();
+  if (!normalizedHost) {
+    return true;
+  }
+
+  const interceptHosts = options.interceptHosts || LOCAL_INTERCEPT_HOSTS;
+  const allowedHosts = Array.isArray(options.allowedHosts)
+    ? options.allowedHosts
+    : ALLOWED_PROXY_HOSTS;
+  const policy = normalizeUnhandledProxyHostPolicy(options.policy);
+
+  if (hostExistsInCollection(normalizedHost, interceptHosts)) {
+    return false;
+  }
+
+  if (shouldAllowListedHost(normalizedHost, allowedHosts)) {
+    return false;
+  }
+
+  return policy !== "forward";
 }
 
 function makeResponsePayload(req) {
@@ -155,19 +233,26 @@ function isLoopbackHost(hostname) {
   return host === "localhost" || host === "127.0.0.1" || host === "::1";
 }
 
-function pipeHttpProxyRequest(req, res, targetUrl) {
+function getUrlPort(targetUrl) {
+  const parsedPort = Number.parseInt(targetUrl.port || "", 10);
+  if (Number.isFinite(parsedPort) && parsedPort > 0) {
+    return parsedPort;
+  }
+  return targetUrl.protocol === "https:" ? 443 : 80;
+}
+
+function pipeHttpRequest(req, res, targetUrl) {
+  const requestImpl = targetUrl.protocol === "https:" ? https : http;
   const targetHost = targetUrl.hostname;
-  const targetPort =
-    Number.parseInt(targetUrl.port || "", 10) ||
-    (targetUrl.protocol === "https:" ? 443 : 80);
+  const targetPort = getUrlPort(targetUrl);
 
   const headers = { ...req.headers };
   headers.host = targetUrl.host;
   delete headers["proxy-connection"];
 
-  log.proxy(`${req.method} ${targetUrl.href} → ${targetHost}:${targetPort}`);
+  log.proxy(`${req.method} ${targetUrl.href} -> ${targetHost}:${targetPort}`);
 
-  const upstreamReq = http.request(
+  const upstreamReq = requestImpl.request(
     {
       host: targetHost,
       port: targetPort,
@@ -252,7 +337,7 @@ function loadLocalTlsOptions() {
   };
 }
 
-function createLocalSecureResponder(httpsPort) {
+function createLocalSecureResponder(httpsPort, bindHost) {
   const { tlsOptions, certPem } = loadLocalTlsOptions();
 
   try {
@@ -273,7 +358,9 @@ function createLocalSecureResponder(httpsPort) {
   });
 
   secureServer.on("secureConnection", (tlsSocket) => {
-    log.http2Log(`tls established ${tlsSocket.remoteAddress} ALPN=${tlsSocket.alpnProtocol || "none"}`);
+    log.http2Log(
+      `tls established ${tlsSocket.remoteAddress} ALPN=${tlsSocket.alpnProtocol || "none"}`,
+    );
   });
 
   secureServer.on("stream", (stream, headers) => {
@@ -282,13 +369,18 @@ function createLocalSecureResponder(httpsPort) {
     const authority = headers[":authority"] || headers.host || "";
     const contentType = String(headers["content-type"] || "");
 
-    log.http2Log(`${method} ${routePath} host=${authority} type=${contentType || "none"}`);
+    log.http2Log(
+      `${method} ${routePath} host=${authority} type=${contentType || "none"}`,
+    );
 
     stream.on("error", (err) => {
       log.http2Err(`stream error: ${err.message}`);
     });
 
-    if (contentType.includes("application/grpc") && handleGatewayStream(stream, headers)) {
+    if (
+      contentType.includes("application/grpc") &&
+      getGatewayStreamHandler()(stream, headers)
+    ) {
       return;
     }
 
@@ -316,7 +408,7 @@ function createLocalSecureResponder(httpsPort) {
           stream.sendTrailers({
             "grpc-status": "12",
             "grpc-message": encodeURIComponent(
-              `eve.js local gateway has no handler for ${routePath}`,
+              `EveJS Elysian local gateway has no handler for ${routePath}`,
             ),
           });
         } catch (err) {
@@ -346,17 +438,24 @@ function createLocalSecureResponder(httpsPort) {
     log.http2Err(`server error: ${err.message}`);
   });
 
-  secureServer.listen(httpsPort, "127.0.0.1", () => {
-    log.debug(`local https responder listening on 127.0.0.1:${httpsPort}`);
+  secureServer.listen(httpsPort, bindHost, () => {
+    log.debug(`local https responder listening on ${bindHost}:${httpsPort}`);
   });
 }
 
-function wireTunnel(clientSocket, upstreamSocket, head, label) {
+function wireTunnel(clientSocket, upstreamSocket, head, label, options = {}) {
   let upBytes = 0;
   let downBytes = 0;
+  const idleTimeoutMs = Number.isFinite(options.idleTimeoutMs)
+    ? options.idleTimeoutMs
+    : DEFAULT_PROXY_TUNNEL_IDLE_TIMEOUT_MS;
 
   clientSocket.setNoDelay(true);
+  clientSocket.setKeepAlive(true, SOCKET_KEEPALIVE_INITIAL_DELAY_MS);
+  clientSocket.setTimeout(0);
   upstreamSocket.setNoDelay(true);
+  upstreamSocket.setKeepAlive(true, SOCKET_KEEPALIVE_INITIAL_DELAY_MS);
+  upstreamSocket.setTimeout(idleTimeoutMs > 0 ? idleTimeoutMs : 0);
 
   if (head && head.length > 0) {
     upstreamSocket.write(head);
@@ -374,20 +473,16 @@ function wireTunnel(clientSocket, upstreamSocket, head, label) {
   upstreamSocket.pipe(clientSocket);
   clientSocket.pipe(upstreamSocket);
 
-  upstreamSocket.setTimeout(30000);
-
-  upstreamSocket.on("timeout", () => {
-    log.proxyErr(`tunnel timeout ${label} ▲${upBytes}B ▼${downBytes}B`);
-    upstreamSocket.destroy();
-    clientSocket.destroy();
-  });
+  if (idleTimeoutMs > 0) {
+    upstreamSocket.on("timeout", () => {
+      log.proxyErr(`tunnel timeout ${label} ▲${upBytes}B ▼${downBytes}B`);
+      upstreamSocket.destroy();
+      clientSocket.destroy();
+    });
+  }
 
   upstreamSocket.on("close", () => {
     log.proxy(`tunnel closed ${label} ▲${upBytes}B ▼${downBytes}B`);
-  });
-
-  clientSocket.on("close", () => {
-    // upstream close already logs the summary — skip duplicate
   });
 
   upstreamSocket.on("error", (err) => {
@@ -399,6 +494,106 @@ function wireTunnel(clientSocket, upstreamSocket, head, label) {
     log.proxyErr(`tunnel client error ${label} ${err.message}`);
     upstreamSocket.destroy();
   });
+}
+
+function buildForwardTargetUrl(upstreamBaseUrl, requestPath) {
+  return new URL(String(requestPath || "/"), upstreamBaseUrl);
+}
+
+function resolveListenUrl() {
+  try {
+    return new URL(config.microservicesPublicBaseUrl);
+  } catch {
+    return new URL("http://127.0.0.1:26002/");
+  }
+}
+
+function resolveBindHost(listenUrl) {
+  const configuredBindHost = String(config.microservicesBindHost || "").trim();
+  if (configuredBindHost) {
+    return configuredBindHost;
+  }
+  return isLoopbackHost(listenUrl.hostname) ? "127.0.0.1" : listenUrl.hostname;
+}
+
+const ENABLE_LOCAL_INTERCEPT = parseBooleanEnv(
+  process.env.EVEJS_PROXY_LOCAL_INTERCEPT,
+  shouldEnableLocalInterceptByDefault(),
+);
+const EXPRESS_PROXY_ENABLED = parseBooleanEnv(
+  process.env.EVEJS_EXPRESS_PROXY_ENABLED,
+  true,
+);
+const PROXY_FORWARD_UPSTREAM_URL = parseOptionalUrl(
+  process.env.EVEJS_PROXY_UPSTREAM_BASE_URL,
+);
+const PROXY_GATEWAY_MODE = String(
+  process.env.EVEJS_PROXY_GATEWAY_MODE ||
+    (PROXY_FORWARD_UPSTREAM_URL ? "forward" : "local"),
+)
+  .trim()
+  .toLowerCase();
+const DEFAULT_PROXY_TUNNEL_IDLE_TIMEOUT_MS = parseNonNegativeIntegerEnv(
+  process.env.EVEJS_PROXY_TUNNEL_IDLE_TIMEOUT_MS,
+  30_000,
+);
+const INTERCEPT_PROXY_TUNNEL_IDLE_TIMEOUT_MS = parseNonNegativeIntegerEnv(
+  process.env.EVEJS_PROXY_INTERCEPT_TUNNEL_IDLE_TIMEOUT_MS,
+  0,
+);
+const SOCKET_KEEPALIVE_INITIAL_DELAY_MS = parseNonNegativeIntegerEnv(
+  process.env.EVEJS_PROXY_SOCKET_KEEPALIVE_INITIAL_DELAY_MS,
+  15_000,
+);
+const LOCAL_INTERCEPT_HOSTS = new Set([
+  "dev-public-gateway.evetech.net",
+  "public-gateway.evetech.net",
+]);
+const BLOCKED_PROXY_HOSTS = parseHostPatternList(config.proxyBlockedHosts);
+const ALLOWED_PROXY_HOSTS = (() => {
+  const configured = parseHostPatternList(config.proxyAllowedHosts);
+  const derived = [];
+  const imageUrl = parseOptionalUrl(config.imageServerUrl);
+  if (imageUrl && imageUrl.hostname && !isLoopbackHost(imageUrl.hostname)) {
+    derived.push(imageUrl.hostname);
+  }
+  return [...configured, ...derived];
+})();
+const PROXY_UNHANDLED_HOST_POLICY = normalizeUnhandledProxyHostPolicy(
+  config.proxyUnhandledHostPolicy,
+);
+
+function shouldHandleInterceptLocally() {
+  return ENABLE_LOCAL_INTERCEPT && PROXY_GATEWAY_MODE !== "forward";
+}
+
+function shouldForwardInterceptToUpstream() {
+  return (
+    ENABLE_LOCAL_INTERCEPT &&
+    PROXY_GATEWAY_MODE === "forward" &&
+    Boolean(PROXY_FORWARD_UPSTREAM_URL)
+  );
+}
+
+function getGatewayUpstreamTarget(defaultPort) {
+  if (!PROXY_FORWARD_UPSTREAM_URL) {
+    return null;
+  }
+
+  const configuredHost = String(
+    process.env.EVEJS_PROXY_GATEWAY_UPSTREAM_HOST || "",
+  ).trim();
+  const configuredPort = Number.parseInt(
+    process.env.EVEJS_PROXY_GATEWAY_UPSTREAM_PORT || "",
+    10,
+  );
+
+  return {
+    host: configuredHost || PROXY_FORWARD_UPSTREAM_URL.hostname,
+    port: Number.isFinite(configuredPort) && configuredPort > 0
+      ? configuredPort
+      : defaultPort,
+  };
 }
 
 function startServer() {
@@ -413,7 +608,7 @@ function startServer() {
       Number.parseInt(targetUrl.port || "80", 10) === 26001;
 
     if (shouldForwardLoopbackImage) {
-      pipeHttpProxyRequest(req, res, targetUrl);
+      pipeHttpRequest(req, res, targetUrl);
       return;
     }
 
@@ -423,37 +618,76 @@ function startServer() {
     }
 
     if (targetUrl && ENABLE_LOCAL_INTERCEPT && shouldInterceptHost(targetUrl.hostname)) {
-      log.proxy(`intercept ${req.method} ${targetUrl.href} → local`);
-      next();
-      return;
+      if (shouldHandleInterceptLocally()) {
+        log.proxy(`intercept ${req.method} ${targetUrl.href} -> local`);
+        next();
+        return;
+      }
+
+      if (shouldForwardInterceptToUpstream()) {
+        const upstreamTargetUrl = buildForwardTargetUrl(
+          PROXY_FORWARD_UPSTREAM_URL,
+          `${targetUrl.pathname}${targetUrl.search}`,
+        );
+        log.proxy(`intercept ${req.method} ${targetUrl.href} -> upstream ${upstreamTargetUrl.href}`);
+        pipeHttpRequest(req, res, upstreamTargetUrl);
+        return;
+      }
     }
 
     if (targetUrl) {
-      pipeHttpProxyRequest(req, res, targetUrl);
+      if (shouldDenyUnhandledProxyHost(targetUrl.hostname, {
+        interceptHosts: LOCAL_INTERCEPT_HOSTS,
+        allowedHosts: ALLOWED_PROXY_HOSTS,
+        policy: PROXY_UNHANDLED_HOST_POLICY,
+      })) {
+        blockHttpProxyRequest(req, res, targetUrl);
+        return;
+      }
+      pipeHttpRequest(req, res, targetUrl);
       return;
     }
 
     log.proxy(`${req.method} ${req.url} host=${req.headers.host || "?"}`);
-
     next();
   });
 
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (req, res) => {
-    res.status(200).json({ status: "ok", service: "express-secondary" });
+    res.status(200).json({
+      status: "ok",
+      service: "express-secondary",
+      gatewayMode: shouldForwardInterceptToUpstream()
+        ? "forward"
+        : shouldHandleInterceptLocally()
+          ? "local"
+          : "transparent",
+      upstreamBaseUrl: PROXY_FORWARD_UPSTREAM_URL
+        ? PROXY_FORWARD_UPSTREAM_URL.toString()
+        : null,
+    });
   });
 
   app.all(/.*/, (req, res) => {
+    if (PROXY_FORWARD_UPSTREAM_URL) {
+      const upstreamTargetUrl = buildForwardTargetUrl(
+        PROXY_FORWARD_UPSTREAM_URL,
+        req.url,
+      );
+      pipeHttpRequest(req, res, upstreamTargetUrl);
+      return;
+    }
     res.status(200).json(makeResponsePayload(req));
   });
 
-  const redirectUrl = new URL(config.microservicesRedirectUrl);
-  const httpPort = Number.parseInt(redirectUrl.port, 10);
+  const listenUrl = resolveListenUrl();
+  const httpPort = getUrlPort(listenUrl);
   const httpsPort = httpPort + 1;
+  const bindHost = resolveBindHost(listenUrl);
 
-  if (ENABLE_LOCAL_INTERCEPT) {
-    createLocalSecureResponder(httpsPort);
+  if (shouldHandleInterceptLocally()) {
+    createLocalSecureResponder(httpsPort, bindHost);
   }
 
   const proxyServer = http.createServer(app);
@@ -472,7 +706,7 @@ function startServer() {
       log.proxy(`CONNECT ${targetRaw} -> BLOCKED local policy`);
       clientSocket.write(
         "HTTP/1.1 403 Forbidden\r\n" +
-        "Proxy-Agent: eve.js\r\n" +
+        "Proxy-Agent: EveJS Elysian\r\n" +
         "X-EveJS-Proxy-Blocked: true\r\n" +
         "\r\n",
       );
@@ -480,16 +714,46 @@ function startServer() {
       return;
     }
 
-    const interceptLocal = ENABLE_LOCAL_INTERCEPT && shouldInterceptHost(host);
-    const connectHost = interceptLocal ? "127.0.0.1" : host;
-    const connectPort = interceptLocal ? httpsPort : port;
+    const interceptTarget = ENABLE_LOCAL_INTERCEPT && shouldInterceptHost(host);
+    if (!interceptTarget && shouldDenyUnhandledProxyHost(host, {
+      interceptHosts: LOCAL_INTERCEPT_HOSTS,
+      allowedHosts: ALLOWED_PROXY_HOSTS,
+      policy: PROXY_UNHANDLED_HOST_POLICY,
+    })) {
+      log.proxy(`CONNECT ${targetRaw} -> BLOCKED unhandled host policy`);
+      clientSocket.write(
+        "HTTP/1.1 403 Forbidden\r\n" +
+        "Proxy-Agent: EveJS Elysian\r\n" +
+        "X-EveJS-Proxy-Blocked: true\r\n" +
+        "\r\n",
+      );
+      clientSocket.destroy();
+      return;
+    }
 
-    log.proxy(`CONNECT ${targetRaw} → ${interceptLocal ? "LOCAL" : "REMOTE"} ${connectHost}:${connectPort}`);
+    let connectHost = host;
+    let connectPort = port;
+    let modeLabel = "REMOTE";
+
+    if (interceptTarget && shouldHandleInterceptLocally()) {
+      connectHost = bindHost;
+      connectPort = httpsPort;
+      modeLabel = "LOCAL";
+    } else if (interceptTarget && shouldForwardInterceptToUpstream()) {
+      const upstreamTarget = getGatewayUpstreamTarget(httpsPort);
+      if (upstreamTarget) {
+        connectHost = upstreamTarget.host;
+        connectPort = upstreamTarget.port;
+        modeLabel = "UPSTREAM";
+      }
+    }
+
+    log.proxy(`CONNECT ${targetRaw} -> ${modeLabel} ${connectHost}:${connectPort}`);
 
     const upstreamSocket = net.connect(connectPort, connectHost, () => {
       clientSocket.write(
         "HTTP/1.1 200 Connection Established\r\n" +
-        "Proxy-Agent: eve.js\r\n" +
+        "Proxy-Agent: EveJS Elysian\r\n" +
         "\r\n",
       );
 
@@ -498,6 +762,11 @@ function startServer() {
         upstreamSocket,
         head,
         `${targetRaw} via ${connectHost}:${connectPort}`,
+        {
+          idleTimeoutMs: interceptTarget
+            ? INTERCEPT_PROXY_TUNNEL_IDLE_TIMEOUT_MS
+            : DEFAULT_PROXY_TUNNEL_IDLE_TIMEOUT_MS,
+        },
       );
     });
 
@@ -514,11 +783,15 @@ function startServer() {
     log.proxyErr(`server error: ${err.message}`);
   });
 
-  proxyServer.listen(httpPort, "127.0.0.1");
+  proxyServer.listen(httpPort, bindHost);
 
   log.debug(
     `express proxy mode: ${
-      ENABLE_LOCAL_INTERCEPT ? "local intercept enabled" : "transparent forward"
+      shouldForwardInterceptToUpstream()
+        ? "forward intercept enabled"
+        : shouldHandleInterceptLocally()
+          ? "local intercept enabled"
+          : "transparent forward"
     }`,
   );
 }
@@ -528,6 +801,16 @@ module.exports = {
   serviceName: "expressServer",
   exec() {
     startServer();
-    log.debug(`express server is running on ${config.microservicesRedirectUrl}`);
+    log.debug(`express server is running on ${config.microservicesPublicBaseUrl}`);
   },
+};
+
+module.exports.__testHooks = {
+  hostMatchesPattern,
+  hostMatchesAnyPattern,
+  parseHostPatternList,
+  shouldAllowListedHost,
+  shouldBlockHost,
+  shouldDenyUnhandledProxyHost,
+  normalizeUnhandledProxyHostPolicy,
 };

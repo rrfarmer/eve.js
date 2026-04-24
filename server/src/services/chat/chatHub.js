@@ -11,6 +11,9 @@ const {
   moveSessionToCurrentLocalRoom,
   refreshSessionChatRolePresence: refreshXmppSessionChatRolePresence,
 } = require("./xmppStubServer");
+const {
+  getXmppConferenceDomain,
+} = require("./xmppConfig");
 const chatRuntime = require(path.join(
   __dirname,
   "../../_secondary/chat/chatRuntime",
@@ -57,8 +60,6 @@ const CHANNEL_CHAR_HEADERS = [
 ];
 const EXTRA_CHAR_HEADERS = ["ownerID", "ownerName", "typeID"];
 
-const CONFERENCE_DOMAIN = "conference.localhost";
-
 function buildList(items) {
   return { type: "list", items };
 }
@@ -104,7 +105,7 @@ function buildLocalChannel(channelID) {
     displayName: persistedRecord.displayName || "Local",
     motd:
       persistedRecord.motd ||
-      "<br>eve.js Local Chat<br>Commands: /help, /wallet, /where, /who, /ship <name|typeID>, /laser, /lesmis, /gmships, /gmskills",
+      "<br>EveJS Elysian Local Chat<br>Commands: /help, /wallet, /where, /who, /ship <name|typeID>, /laser, /lesmis, /gmships, /gmskills, /backintime, /expertsystem",
     comparisonKey: channelName,
     memberless: false,
     password: null,
@@ -518,7 +519,7 @@ function buildRoomJid(roomNameOrJid) {
   if (trimmed.includes("@")) {
     return trimmed;
   }
-  return `${trimmed}@${CONFERENCE_DOMAIN}`;
+  return `${trimmed}@${getXmppConferenceDomain()}`;
 }
 
 function resolveSystemMessageTarget(session, specificChannel = null) {

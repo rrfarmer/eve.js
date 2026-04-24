@@ -29,11 +29,11 @@ function fileTimeToMs(value) {
   return Number((BigInt(value) - FILETIME_EPOCH_OFFSET) / 10000n);
 }
 
-function buildSession() {
+function buildSession(overrides = {}) {
   const notifications = [];
   const sessionChanges = [];
   return {
-    clientID: 65451,
+    clientID: overrides.clientID ?? 65451,
     characterID: 0,
     _notifications: notifications,
     _sessionChanges: sessionChanges,
@@ -49,11 +49,15 @@ function buildSession() {
   };
 }
 
-function attachCharacterToSourceScene(sourceSystemID = 30000142) {
-  const scene = spaceRuntime.ensureScene(sourceSystemID);
-  const session = buildSession();
+function attachCharacterToScene(
+  systemID = 30000142,
+  characterID = 140000004,
+  clientID = 65451,
+) {
+  const scene = spaceRuntime.ensureScene(systemID);
+  const session = buildSession({ clientID });
 
-  const applyResult = applyCharacterToSession(session, 140000004, {
+  const applyResult = applyCharacterToSession(session, characterID, {
     emitNotifications: false,
     logSelection: false,
   });
@@ -66,10 +70,21 @@ function attachCharacterToSourceScene(sourceSystemID = 30000142) {
     broadcast: false,
     emitSimClockRebase: false,
     spawnStopped: true,
+    initialStateSent: true,
+    initialBallparkVisualsSent: true,
+    initialBallparkClockSynced: true,
   });
   assert.ok(shipEntity);
 
   return { scene, session, shipEntity };
+}
+
+function attachCharacterToSourceScene(
+  sourceSystemID = 30000142,
+  characterID = 140000004,
+  clientID = 65451,
+) {
+  return attachCharacterToScene(sourceSystemID, characterID, clientID);
 }
 
 function prepareOpenGate(scene) {
@@ -104,6 +119,16 @@ function getDestinyEvents(session, eventName) {
       return Array.isArray(items) ? items : [];
     })
     .filter((entry) => Array.isArray(entry) && entry[1] && entry[1][0] === eventName);
+}
+
+function getDestinyEventArgs(session, eventName) {
+  return getDestinyEvents(session, eventName).map((entry) => entry[1][1]);
+}
+
+function findSpecialFxArgs(session, guid) {
+  return getDestinyEventArgs(session, "OnSpecialFX").find(
+    (args) => Array.isArray(args) && args[5] === guid,
+  );
 }
 
 function withMockedNow(initialNowMs, callback) {
@@ -247,6 +272,121 @@ test("startStargateJump still allows an open gate", () => {
 
   assert.equal(result.success, true);
   assert.equal(result.data.sourceGateID, reopenedGate.itemID);
+});
+
+test("source-side observer GateActivity uses a short one-shot duration", () => {
+  const {
+    scene,
+    session: pilotSession,
+    shipEntity: pilotShipEntity,
+  } = attachCharacterToSourceScene(30000142, 140000004, 65451);
+  const openGate = prepareOpenGate(scene);
+
+  pilotShipEntity.position = { ...openGate.position };
+  pilotShipEntity.velocity = { x: 0, y: 0, z: 0 };
+  pilotShipEntity.mode = "STOP";
+  pilotShipEntity.speedFraction = 0;
+  const broadcastCalls = [];
+  const originalBroadcastSpecialFx = scene.broadcastSpecialFx.bind(scene);
+  scene.broadcastSpecialFx = (entityID, guid, options, visibilityEntity) => {
+    broadcastCalls.push({
+      entityID,
+      guid,
+      options,
+      visibilityEntityID: visibilityEntity && visibilityEntity.itemID,
+    });
+    return {
+      stamp: 1234,
+      deliveredCount: guid === "effects.GateActivity" ? 1 : 2,
+    };
+  };
+
+  let result;
+  try {
+    result = spaceRuntime.startStargateJump(pilotSession, openGate.itemID);
+  } finally {
+    scene.broadcastSpecialFx = originalBroadcastSpecialFx;
+  }
+  assert.equal(result.success, true);
+
+  const jumpOutCall = broadcastCalls.find((call) => call.guid === "effects.JumpOut");
+  const observerGateActivity = broadcastCalls.find(
+    (call) => call.guid === "effects.GateActivity",
+  );
+  assert.ok(jumpOutCall, "jump start should still emit JumpOut");
+  assert.ok(observerGateActivity, "jump start should emit observer GateActivity");
+  assert.equal(
+    observerGateActivity.entityID,
+    openGate.itemID,
+    "GateActivity should stay anchored to the source gate ball",
+  );
+  assert.equal(
+    observerGateActivity.options.duration,
+    1,
+    "observer GateActivity should use a minimal one-shot duration so later jumps can retrigger the flash",
+  );
+});
+
+test("destination-side observer GateActivity stays short while JumpIn keeps its long duration", () => {
+  const sourceScene = spaceRuntime.ensureScene(30000142);
+  const openGate = prepareOpenGate(sourceScene);
+  const sourceGate = worldData.getStargateByID(openGate.itemID);
+  const destinationGate = worldData.getStargateByID(sourceGate.destinationID);
+  assert.ok(destinationGate);
+
+  const {
+    session: arrivingPilotSession,
+    shipEntity: arrivingPilotShipEntity,
+  } = attachCharacterToScene(destinationGate.solarSystemID, 140000004, 65453);
+
+  arrivingPilotShipEntity.position = { ...destinationGate.position };
+  arrivingPilotShipEntity.velocity = { x: 0, y: 0, z: 0 };
+  arrivingPilotShipEntity.mode = "STOP";
+  arrivingPilotShipEntity.speedFraction = 0;
+  const destinationScene = spaceRuntime.getSceneForSession(arrivingPilotSession);
+  const broadcastCalls = [];
+  const originalBroadcastSpecialFx = destinationScene.broadcastSpecialFx.bind(destinationScene);
+  destinationScene.broadcastSpecialFx = (entityID, guid, options, visibilityEntity) => {
+    broadcastCalls.push({
+      entityID,
+      guid,
+      options,
+      visibilityEntityID: visibilityEntity && visibilityEntity.itemID,
+    });
+    return {
+      stamp: 5678,
+      deliveredCount: 1,
+    };
+  };
+
+  let result;
+  try {
+    result = spaceRuntime.emitStargateArrivalObserverFx(
+      arrivingPilotSession,
+      destinationGate.itemID,
+      arrivingPilotShipEntity.itemID,
+    );
+  } finally {
+    destinationScene.broadcastSpecialFx = originalBroadcastSpecialFx;
+  }
+  assert.equal(result.success, true);
+
+  const observerGateActivity = broadcastCalls.find(
+    (call) => call.guid === "effects.GateActivity",
+  );
+  const observerJumpIn = broadcastCalls.find((call) => call.guid === "effects.JumpIn");
+  assert.ok(observerGateActivity, "destination observer should receive gate activity");
+  assert.ok(observerJumpIn, "destination observer should receive JumpIn");
+  assert.equal(
+    observerGateActivity.options.duration,
+    1,
+    "destination GateActivity should also use the minimal one-shot duration",
+  );
+  assert.equal(
+    observerJumpIn.options.duration,
+    5000,
+    "JumpIn should keep its authored long-duration observer presentation",
+  );
 });
 
 test("cross-TiDi jump to a normal system keeps a continuous session clock during bootstrap", () => {

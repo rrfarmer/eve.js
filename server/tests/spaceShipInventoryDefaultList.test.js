@@ -381,7 +381,7 @@ test("space login keeps explicit List(flag=None) on the stock ship inventory pat
   }
 });
 
-test("space login GetAllInfo keeps tuple charge rows out of shipInfo and leaves them in shipState", () => {
+test("space login GetAllInfo keeps both tuple and real charge rows out of shipInfo and leaves charges in shipState", () => {
   const candidate = getInSpaceCandidate();
   const session = buildSession(candidate);
   const dogma = new DogmaService();
@@ -424,14 +424,71 @@ test("space login GetAllInfo keeps tuple charge rows out of shipInfo and leaves 
   for (const loadedCharge of candidate.loadedCharges) {
     assert.equal(
       shipInfoItemIDs.includes(Number(loadedCharge.itemID) || 0),
-      true,
-      `expected login GetAllInfo.shipInfo to include loaded charge ${loadedCharge.itemID} before the later ship inventory list`,
+      false,
+      `expected login GetAllInfo.shipInfo to keep real loaded charge ${loadedCharge.itemID} off the in-space HUD bootstrap path`,
     );
   }
   assert.deepEqual(
     shipStateChargeFlags,
     expectedChargeFlags,
     "expected login GetAllInfo.shipState to keep charge sublocations on the stock shipState path",
+  );
+});
+
+test("space login GetAllInfo marshals ship capacitor stats as reals for in-space fitting panels", () => {
+  const candidate = getInSpaceCandidate();
+  const session = buildSession(candidate);
+  const dogma = new DogmaService();
+  session._loginInventoryBootstrapPending = true;
+
+  const applyResult = applyCharacterToSession(session, candidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  assert.equal(applyResult.success, true);
+  assert.equal(restoreSpaceSession(session), true);
+  assert.ok(session._space, "expected login restore to attach the space session");
+
+  const allInfo = dogma.Handle_GetAllInfo([true, true, null], session);
+  const shipInfo = getKeyValEntry(allInfo, "shipInfo");
+  const shipInfoEntry = extractDictEntries(shipInfo).find(
+    (entry) => Number(Array.isArray(entry) ? entry[0] : 0) === Number(candidate.ship.itemID),
+  )?.[1];
+  assert.ok(shipInfoEntry, "expected in-space GetAllInfo.shipInfo to include the active ship");
+
+  const shipAttributes = getKeyValEntry(shipInfoEntry, "attributes");
+  const shipAttributeEntries = new Map(extractDictEntries(shipAttributes));
+  const rechargeRateValue = shipAttributeEntries.get(55);
+  const capacitorCapacityValue = shipAttributeEntries.get(482);
+  const derivedAttributes = calculateShipDerivedAttributes(
+    candidate.characterID,
+    candidate.ship,
+  );
+
+  assert.deepEqual(
+    rechargeRateValue && rechargeRateValue.type,
+    "real",
+    "expected in-space ship recharge rate to stay marshaled as a real so fitting capacitor math avoids Python 2 integer division",
+  );
+  assert.equal(
+    Number.isFinite(Number(rechargeRateValue && rechargeRateValue.value)),
+    true,
+    "expected in-space ship recharge rate marshal value to stay numeric",
+  );
+  assert.equal(
+    Number(rechargeRateValue && rechargeRateValue.value) > 0,
+    true,
+    "expected in-space ship recharge rate marshal value to stay positive",
+  );
+  assert.deepEqual(
+    capacitorCapacityValue && capacitorCapacityValue.type,
+    "real",
+    "expected in-space ship capacitor capacity to stay marshaled as a real for fitting capacitor parity",
+  );
+  assert.equal(
+    Number(capacitorCapacityValue && capacitorCapacityValue.value),
+    Number(derivedAttributes.resourceState.capacitorCapacity) || 0,
+    "expected in-space ship capacitor capacity marshal value to stay aligned with the derived ship state",
   );
 });
 
@@ -448,12 +505,12 @@ test("post-login ship inventory requests do not add synthetic replay churn while
   assert.equal(applyResult.success, true);
   assert.equal(restoreSpaceSession(session), true);
   assert.equal(
-    session._pendingCommandShipFittingReplay,
-    null,
-    "expected login restore to stay on the stock ship inventory load path without queuing a synthetic fitted-module replay",
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected login restore to arm the delayed charge-only HUD replay",
   );
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   session._space.beyonceBound = true;
   session._space.initialStateSent = true;
   session.notifications.length = 0;
@@ -477,7 +534,7 @@ test("post-login ship inventory requests do not add synthetic replay churn while
   );
   assert.equal(session._space.loginInventoryBootstrapPending, false);
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   assert.equal(
     session.notifications.some((notification) => notification.name === "OnGodmaShipEffect"),
     false,
@@ -489,9 +546,13 @@ test("post-login ship inventory requests do not add synthetic replay churn while
   assert.deepEqual(
     replayedItemIDs,
     [],
-    "expected the first login ship inventory request to avoid synthetic fitted-module replay churn",
+    "expected login ship inventory requests to avoid replay churn before the later HUD bootstrap clears the deferred fitted-module replay",
   );
-  assert.equal(session._pendingCommandShipFittingReplay, null);
+  assert.equal(
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected the charge-only HUD replay to stay armed until the later HUD bootstrap",
+  );
   for (const loadedCharge of candidate.loadedCharges) {
     assert.equal(
       extractOnItemChangeRawItemIDs(session.notifications).some(
@@ -529,12 +590,12 @@ test("post-login ship inventory ListByFlags does not add replay churn on the sto
   assert.equal(applyResult.success, true);
   assert.equal(restoreSpaceSession(session), true);
   assert.equal(
-    session._pendingCommandShipFittingReplay,
-    null,
-    "expected login restore to keep synthetic fitted-module replay disabled before fitting ListByFlags hydration",
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected login restore to keep the delayed charge-only HUD replay armed before fitting ListByFlags hydration",
   );
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   session._space.beyonceBound = true;
   session._space.initialStateSent = true;
   session.notifications.length = 0;
@@ -554,7 +615,7 @@ test("post-login ship inventory ListByFlags does not add replay churn on the sto
   assert.deepEqual(
     replayedItemIDsAfterPrime,
     [],
-    "expected the first login ship inventory request to avoid synthetic fitted-module replay before ListByFlags",
+    "expected the first login ship inventory request to avoid flushing the deferred fitted-module replay before ListByFlags",
   );
 
   const fittingFlags = Array.from(
@@ -574,15 +635,19 @@ test("post-login ship inventory ListByFlags does not add replay churn on the sto
   );
   assert.equal(session._space.loginInventoryBootstrapPending, false);
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   assert.deepEqual(
     [...new Set(extractOnItemChangeItemIDs(session.notifications))].sort(
       (left, right) => left - right,
     ),
     [],
-    "expected fitting ListByFlags to avoid adding synthetic fitted-module replay churn",
+    "expected fitting ListByFlags to avoid flushing the deferred fitted-module replay before the HUD bootstrap",
   );
-  assert.equal(session._pendingCommandShipFittingReplay, null);
+  assert.equal(
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected fitting ListByFlags to keep the delayed charge-only HUD replay armed until the later HUD bootstrap",
+  );
   for (const loadedCharge of candidate.loadedCharges) {
     assert.equal(
       extractOnItemChangeRawItemIDs(session.notifications).some(
@@ -600,6 +665,93 @@ test("post-login ship inventory ListByFlags does not add replay churn on the sto
       ),
       0,
       `expected fitting ListByFlags to avoid tuple-backed charge replay churn for slot ${loadedCharge.flagID} before the HUD bootstrap`,
+    );
+  }
+});
+
+test("settled in-space full ship lists restate tuple charge rows once for fitting consumers", () => {
+  const candidate = getInSpaceCandidate();
+  const service = new InvBrokerService();
+  const session = buildSession(candidate);
+
+  const applyResult = applyCharacterToSession(session, candidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  assert.equal(applyResult.success, true);
+  assert.equal(restoreSpaceSession(session), true);
+  assert.ok(session._space, "expected space restore to attach a live _space state");
+  session._space.beyonceBound = true;
+  session._space.initialStateSent = true;
+  session._space.loginShipInventoryPrimed = true;
+  session._space.loginInventoryBootstrapPending = false;
+  session._space.loginChargeDogmaReplayPending = false;
+  session._space.loginChargeDogmaReplayFlushed = true;
+  session._space.useRealChargeInventoryHudRows = true;
+  session._pendingCommandShipFittingReplay = null;
+  session.notifications.length = 0;
+
+  bindShipInventory(service, session, candidate.ship.itemID);
+
+  service.Handle_List([], session, {
+    type: "dict",
+    entries: [
+      ["flag", null],
+      ["machoVersion", 1],
+    ],
+  });
+
+  for (const loadedCharge of candidate.loadedCharges) {
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session.notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ) >= 1,
+      true,
+      `expected the first settled full ship list to restate tuple charge slot ${loadedCharge.flagID} for fitting consumers`,
+    );
+    assert.equal(
+      extractOnItemChangeRawItemIDs(session.notifications).some(
+        (itemID) => Number(itemID) === Number(loadedCharge.itemID),
+      ),
+      false,
+      `expected the settled fitting repair to avoid replaying real loaded charge row ${loadedCharge.itemID}`,
+    );
+  }
+
+  const tupleReplayCountsAfterFirstList = new Map(
+    candidate.loadedCharges.map((loadedCharge) => [
+      `${Number(loadedCharge.flagID) || 0}:${Number(loadedCharge.typeID) || 0}`,
+      countRawOnItemChangesByTupleKey(
+        session.notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+    ]),
+  );
+
+  service.Handle_List([], session, {
+    type: "dict",
+    entries: [
+      ["flag", null],
+      ["machoVersion", 1],
+    ],
+  });
+
+  for (const loadedCharge of candidate.loadedCharges) {
+    const repairKey = `${Number(loadedCharge.flagID) || 0}:${Number(loadedCharge.typeID) || 0}`;
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session.notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      Number(tupleReplayCountsAfterFirstList.get(repairKey) || 0),
+      `expected repeated settled full ship lists to avoid restating unchanged tuple charge slot ${loadedCharge.flagID}`,
     );
   }
 });

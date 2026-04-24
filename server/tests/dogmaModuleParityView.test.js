@@ -9,6 +9,9 @@ const DogmaService = require(path.join(
 ));
 const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
 const {
+  getActiveShipRecord,
+} = require(path.join(repoRoot, "server/src/services/character/characterState"));
+const {
   buildInventoryItem,
 } = require(path.join(repoRoot, "server/src/services/inventory/itemStore"));
 const {
@@ -45,6 +48,7 @@ const ATTRIBUTE_CAPACITOR_NEED = getAttributeIDByNames("capacitorNeed") || 6;
 const ATTRIBUTE_SHIELD_BONUS = getAttributeIDByNames("shieldBonus") || 68;
 const ATTRIBUTE_ARMOR_DAMAGE_AMOUNT =
   getAttributeIDByNames("armorDamageAmount") || 84;
+const ATTRIBUTE_MAX_RANGE = getAttributeIDByNames("maxRange") || 54;
 
 function resolveExactItem(name) {
   const result = resolveItemByName(name);
@@ -417,5 +421,29 @@ test("dogma module attributes keep ancillary armor repair bonus on the runtime s
   assert.equal(
     loaded[ATTRIBUTE_ARMOR_DAMAGE_AMOUNT],
     baseline[ATTRIBUTE_ARMOR_DAMAGE_AMOUNT],
+  );
+});
+
+test("dogma module attributes reflect live command burst range bonuses instead of the raw 15 km base", () => {
+  const service = new DogmaService();
+  const characterID = 140000001;
+  const activeShip = getActiveShipRecord(characterID);
+  assert.ok(activeShip && Number(activeShip.itemID) > 0, "Expected a seeded active ship for the parity character");
+
+  const burstModule = buildFittedModule(
+    "Mining Foreman Burst II",
+    982700011,
+    activeShip.itemID,
+    27,
+  );
+  const baseline = service._buildInventoryItemAttributes(burstModule, null);
+  const live = service._buildInventoryItemAttributes(burstModule, {
+    characterID,
+  });
+
+  assert.equal(Number(baseline[ATTRIBUTE_MAX_RANGE]), 15000);
+  assert.ok(
+    Number(live[ATTRIBUTE_MAX_RANGE]) > 30000,
+    "Expected live burst maxRange to include leadership/fleet hull bonuses instead of the raw 15 km base",
   );
 });

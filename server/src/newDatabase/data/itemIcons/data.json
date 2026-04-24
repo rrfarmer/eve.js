@@ -2,8 +2,8 @@
   "meta": {
     "version": 1,
     "description": "Cached iconID to res path authority for local store/catalog image seeding.",
-    "updatedAt": "2026-04-01T15:13:09.782Z",
-    "sourceSnapshot": "eve-online-static-data-3284752-jsonl"
+    "updatedAt": "2026-04-09T16:56:00.470Z",
+    "sourceSnapshot": "eve-online-static-data-3294658-jsonl"
   },
   "iconsByID": {
     "0": "res:/ui/texture/icons/7_64_15.png",

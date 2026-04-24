@@ -12,11 +12,22 @@ const CharMgrService = require(path.join(
   repoRoot,
   "server/src/services/character/charMgrService",
 ));
+const ConfigService = require(path.join(
+  repoRoot,
+  "server/src/services/config/configService",
+));
 const PaperDollServerService = require(path.join(
   repoRoot,
   "server/src/services/character/paperDollServerService",
 ));
 const {
+  clonePaperDollPayload,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/character/paperDollPayloads",
+));
+const {
+  applyCharacterToSession,
   getCharacterRecord,
 } = require(path.join(
   repoRoot,
@@ -39,15 +50,40 @@ function extractListItems(value) {
     : [];
 }
 
+function getDictEntry(value, key) {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const entries = value.args && Array.isArray(value.args.entries)
+    ? value.args.entries
+    : Array.isArray(value.entries)
+      ? value.entries
+      : [];
+  const entry = entries.find(([entryKey]) => entryKey === key);
+  return entry ? entry[1] : undefined;
+}
+
+function getRowValue(row, column) {
+  const header = extractListItems(getDictEntry(row, "header"));
+  const line = extractListItems(getDictEntry(row, "line"));
+  const columnIndex = header.indexOf(column);
+  return columnIndex >= 0 ? line[columnIndex] : undefined;
+}
+
 test("modern CreateCharacterWithDoll stores identity and paper-doll metadata on parity", async (t) => {
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalItems = cloneValue(database.read("items", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
+  const originalNotifications = cloneValue(database.read("notifications", "/").data);
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
 
   t.after(() => {
+    database.write("identityState", "/", originalIdentityState);
     database.write("characters", "/", originalCharacters);
     database.write("items", "/", originalItems);
     database.write("skills", "/", originalSkills);
+    database.write("notifications", "/", originalNotifications);
     database.flushAllSync();
   });
 
@@ -86,6 +122,8 @@ test("modern CreateCharacterWithDoll stores identity and paper-doll metadata on 
       ],
     },
   };
+  const normalizedAppearanceInfo = clonePaperDollPayload(appearanceInfo);
+  const normalizedPortraitInfo = clonePaperDollPayload(portraitInfo);
 
   const existingCharacterCount = charService.Handle_GetNumCharacters([], session);
   const newCharacterId = charService.Handle_CreateCharacterWithDoll(
@@ -111,8 +149,8 @@ test("modern CreateCharacterWithDoll stores identity and paper-doll metadata on 
   assert.equal(record.ancestryID, 3);
   assert.equal(record.schoolID, 11);
   assert.equal(record.paperDollState, 0);
-  assert.deepEqual(record.appearanceInfo, appearanceInfo);
-  assert.deepEqual(record.portraitInfo, portraitInfo);
+  assert.deepEqual(record.appearanceInfo, normalizedAppearanceInfo);
+  assert.deepEqual(record.portraitInfo, normalizedPortraitInfo);
 
   assert.equal(
     charService.Handle_GetNumCharacters([], session),
@@ -120,7 +158,7 @@ test("modern CreateCharacterWithDoll stores identity and paper-doll metadata on 
   );
 
   const storedAppearance = paperDollServer.Handle_GetPaperDollData([newCharacterId], session);
-  assert.deepEqual(storedAppearance, appearanceInfo);
+  assert.deepEqual(storedAppearance, normalizedAppearanceInfo);
 
   const portraitTuple = paperDollServer.Handle_GetPaperDollPortraitDataFor(
     [newCharacterId],
@@ -128,7 +166,7 @@ test("modern CreateCharacterWithDoll stores identity and paper-doll metadata on 
   );
   const portraitItems = extractListItems(portraitTuple[0]);
   assert.equal(portraitItems.length, 1);
-  assert.deepEqual(portraitItems[0], portraitInfo);
+  assert.deepEqual(portraitItems[0], normalizedPortraitInfo);
 
   const paperDollState = charMgrService.Handle_GetPaperdollState(
     [newCharacterId],
@@ -147,11 +185,15 @@ test("paperDollServer recustomization updates and char identity updates round-tr
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalItems = cloneValue(database.read("items", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
+  const originalNotifications = cloneValue(database.read("notifications", "/").data);
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
 
   t.after(() => {
+    database.write("identityState", "/", originalIdentityState);
     database.write("characters", "/", originalCharacters);
     database.write("items", "/", originalItems);
     database.write("skills", "/", originalSkills);
+    database.write("notifications", "/", originalNotifications);
     database.flushAllSync();
   });
 
@@ -202,6 +244,8 @@ test("paperDollServer recustomization updates and char identity updates round-tr
       ],
     },
   };
+  const normalizedLimitedAppearanceInfo = clonePaperDollPayload(limitedAppearanceInfo);
+  const normalizedLimitedPortraitInfo = clonePaperDollPayload(limitedPortraitInfo);
 
   paperDollServer.Handle_UpdateExistingCharacterLimited(
     [charId, limitedAppearanceInfo, limitedPortraitInfo, true],
@@ -209,8 +253,8 @@ test("paperDollServer recustomization updates and char identity updates round-tr
   );
 
   let record = getCharacterRecord(charId);
-  assert.deepEqual(record.appearanceInfo, limitedAppearanceInfo);
-  assert.deepEqual(record.portraitInfo, limitedPortraitInfo);
+  assert.deepEqual(record.appearanceInfo, normalizedLimitedAppearanceInfo);
+  assert.deepEqual(record.portraitInfo, normalizedLimitedPortraitInfo);
   assert.equal(record.paperDollState, 0);
 
   charService.Handle_UpdateCharacterGender([charId, 0], ownerSession);
@@ -232,5 +276,85 @@ test("paperDollServer recustomization updates and char identity updates round-tr
   assert.equal(ownerSession.raceID, updatedBloodlineProfile.raceID);
 
   const storedAppearance = paperDollServer.Handle_GetPaperDollData([charId], ownerSession);
-  assert.deepEqual(storedAppearance, limitedAppearanceInfo);
+  assert.deepEqual(storedAppearance, normalizedLimitedAppearanceInfo);
+});
+
+test("female characters stay female across selection, public info, owner prime, and session apply", async (t) => {
+  const originalCharacters = cloneValue(database.read("characters", "/").data);
+  const originalItems = cloneValue(database.read("items", "/").data);
+  const originalSkills = cloneValue(database.read("skills", "/").data);
+  const originalNotifications = cloneValue(database.read("notifications", "/").data);
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
+
+  t.after(() => {
+    database.write("identityState", "/", originalIdentityState);
+    database.write("characters", "/", originalCharacters);
+    database.write("items", "/", originalItems);
+    database.write("skills", "/", originalSkills);
+    database.write("notifications", "/", originalNotifications);
+    database.flushAllSync();
+  });
+
+  const charService = new CharService();
+  const charMgrService = new CharMgrService();
+  const configService = new ConfigService();
+  const ownerSession = {
+    userid: 910003,
+    charid: null,
+    characterID: null,
+  };
+
+  const charId = charService.Handle_CreateCharacterWithDoll(
+    [
+      "Female Paperdoll Parity",
+      8,
+      7,
+      0,
+      1,
+      { type: "object", name: "util.KeyVal", args: { type: "dict", entries: [["modifiers", { type: "list", items: [] }]] } },
+      { type: "object", name: "util.KeyVal", args: { type: "dict", entries: [["backgroundID", 1001]] } },
+      11,
+    ],
+    ownerSession,
+  );
+
+  const selectionPayload = charService.Handle_GetCharacterSelectionData([], ownerSession);
+  const selectionCharacters = extractListItems(selectionPayload[2]);
+  const selectedCharacter = selectionCharacters.find(
+    (entry) => getDictEntry(entry, "characterID") === charId,
+  );
+  assert.ok(selectedCharacter, "expected created female character in selection payload");
+  assert.equal(getDictEntry(selectedCharacter, "gender"), 0);
+  assert.equal(getDictEntry(selectedCharacter, "finishedSkills"), 0);
+
+  const selectionInfo = charService.Handle_GetCharacterToSelect([charId], ownerSession);
+  assert.equal(getDictEntry(selectionInfo, "gender"), 0);
+
+  const publicInfo = charMgrService.Handle_GetPublicInfo([charId], ownerSession);
+  assert.equal(getDictEntry(publicInfo, "gender"), 0);
+
+  const privateInfo = charMgrService.Handle_GetPrivateInfo([charId], ownerSession);
+  assert.equal(getRowValue(privateInfo, "gender"), 0);
+
+  const ownerRows = configService.Handle_GetMultiOwnersEx([[charId]], ownerSession);
+  assert.equal(ownerRows[1][0][3], 0);
+
+  const liveSession = {
+    userid: ownerSession.userid,
+    characterID: 0,
+    charid: 0,
+    role: 0,
+    corprole: 0,
+    rolesAtAll: 0,
+    rolesAtBase: 0,
+    rolesAtHQ: 0,
+    rolesAtOther: 0,
+  };
+  const applyResult = applyCharacterToSession(liveSession, charId, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  assert.equal(applyResult.success, true);
+  assert.equal(liveSession.genderID, 0);
+  assert.equal(liveSession.genderid, 0);
 });

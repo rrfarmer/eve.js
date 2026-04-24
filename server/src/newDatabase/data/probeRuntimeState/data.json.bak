@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "nextProbeSequence": 11,
+  "charactersByID": {
+    "140000003": {
+      "characterID": 140000003,
+      "lastUpdatedAtMs": 1775952323780,
+      "probesByID": {}
+    },
+    "140000005": {
+      "characterID": 140000005,
+      "lastUpdatedAtMs": 1777001777536,
+      "probesByID": {
+        "990000000010": {
+          "probeID": 990000000010,
+          "systemID": 31000864,
+          "typeID": 30488,
+          "launchShipID": 2990000976,
+          "launcherItemID": 2990000986,
+          "launcherFlagID": 30,
+          "pos": [
+            469931950080,
+            206335983616,
+            295547961344
+          ],
+          "destination": [
+            469931950080,
+            206335983616,
+            295547961344
+          ],
+          "scanRange": 1196782965600,
+          "rangeStep": 6,
+          "state": 1,
+          "expiry": "134214789668570000",
+          "lastSeenAtMs": 1777001777536
+        }
+      }
+    },
+    "140000177": {
+      "characterID": 140000177,
+      "lastUpdatedAtMs": 1776176352495,
+      "probesByID": {}
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "nextCustomCorporationID": 98000003,
+    "nextCustomCorporationID": 98000004,
     "npcSeedVersion": 1
   },
   "records": {
@@ -8507,7 +8507,7 @@
       "factionID": null,
       "raceID": null,
       "deleted": 0,
-      "shares": 1266,
+      "shares": 1273,
       "taxRate": 0.05,
       "loyaltyPointTaxRate": 0.1,
       "friendlyFire": 0,
@@ -8523,7 +8523,7 @@
       "color2": null,
       "color3": null,
       "typeface": null,
-      "memberCount": 1
+      "memberCount": 2
     },
     "98000002": {
       "corporationID": 98000002,

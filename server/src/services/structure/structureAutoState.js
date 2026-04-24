@@ -369,6 +369,52 @@ function runJobNow(jobID) {
   if (job.mode === "destroy") {
     return executeDestroyStep(job, structure);
   }
+  if (typeof job.executeStep === "function") {
+    let result = null;
+    try {
+      result = job.executeStep(job, structure);
+    } catch (error) {
+      structureLog.logAutomationEvent(
+        job,
+        `custom step threw ${error.stack || error.message}`,
+        "ERR",
+      );
+      return stopJobInternal(job, `custom step threw ${error.message}`, "failed");
+    }
+
+    if (!result || result.success !== true) {
+      const errorMsg = result && result.errorMsg ? result.errorMsg : "UNKNOWN_ERROR";
+      structureLog.logAutomationEvent(job, `custom step failed error=${errorMsg}`, "ERR");
+      return stopJobInternal(job, `custom step failed: ${errorMsg}`, "failed");
+    }
+
+    if (result.skipStructureSync !== true) {
+      if (result.syncSystemID) {
+        syncStructureRuntime(result.syncSystemID);
+      } else if (structure) {
+        syncStructureRuntime(structure);
+      }
+    }
+
+    job.lastAction = result.actionLabel || `${job.mode} step`;
+    job.lastActionAt = Date.now();
+    if (result.logMessage) {
+      structureLog.logAutomationEvent(job, result.logMessage, result.logLevel || "INF");
+    }
+
+    if (result.completed === true) {
+      return stopJobInternal(
+        job,
+        result.completionReason || "custom automation completed",
+        "completed",
+      );
+    }
+
+    return {
+      success: true,
+      data: result.data || null,
+    };
+  }
   return stopJobInternal(job, `unknown automation mode=${job.mode}`, "failed");
 }
 
@@ -400,6 +446,48 @@ function createJob(mode, structureID, session, options = {}) {
 
   activeJobs.set(job.jobID, job);
   structureLog.logAutomationEvent(job, `STARTED intervalMs=${AUTO_INTERVAL_MS}`);
+  return job;
+}
+
+function createCustomJob(mode, structureID, session, executeStep, options = {}) {
+  const existingJob = getJobByStructureID(structureID);
+  if (existingJob) {
+    stopJobInternal(existingJob, "replaced by a new automation request", "replaced");
+  }
+
+  const intervalMs = normalizePositiveInt(options.intervalMs, AUTO_INTERVAL_MS);
+  const job = {
+    jobID: nextJobID++,
+    mode,
+    structureID: normalizePositiveInt(structureID, 0),
+    session: cloneSessionForAutomation(session),
+    startedAt: Date.now(),
+    lastActionAt: 0,
+    lastAction: null,
+    prepared: options.prepared === true,
+    intervalMs,
+    timer: null,
+    executeStep,
+  };
+
+  if (options.metadata && typeof options.metadata === "object") {
+    Object.assign(job, options.metadata);
+  }
+
+  job.timer = setInterval(() => {
+    runJobNow(job.jobID);
+  }, intervalMs);
+  if (typeof job.timer.unref === "function") {
+    job.timer.unref();
+  }
+
+  activeJobs.set(job.jobID, job);
+  structureLog.logAutomationEvent(job, `STARTED intervalMs=${intervalMs}`);
+
+  if (options.runImmediately === true) {
+    runJobNow(job.jobID);
+  }
+
   return job;
 }
 
@@ -516,6 +604,7 @@ module.exports = {
   AUTO_INTERVAL_MS,
   startAutoOnline,
   startAutoDestroy,
+  createCustomJob,
   stopAutomation,
   listActiveJobs,
   _testing: {

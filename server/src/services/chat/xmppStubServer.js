@@ -28,6 +28,13 @@ const { executeChatCommand, DEFAULT_MOTD_MESSAGE } = require(path.join(
   __dirname,
   "./chatCommands",
 ));
+const {
+  buildXmppConferenceJid,
+  buildXmppUserJid,
+  escapeRegExp,
+  getXmppConferenceDomain,
+  getXmppDomain,
+} = require(path.join(__dirname, "./xmppConfig"));
 
 let server = null;
 let messageSequence = 0;
@@ -172,7 +179,7 @@ function parsePlainAuth(xml) {
 }
 
 function buildBoundJid(client) {
-  return `${client.userName || "capsuleer"}@localhost/evejs`;
+  return buildXmppUserJid(client.userName || "capsuleer", "evejs");
 }
 
 function nextMessageId() {
@@ -311,14 +318,15 @@ function getLocalRoomNameForClient(client) {
 }
 
 function buildConferenceRoomJid(roomName) {
-  return `${roomName}@conference.localhost`;
+  return buildXmppConferenceJid(roomName);
 }
 
 function isConferenceServiceJid(value) {
   const normalizedValue = String(value || "").trim().toLowerCase();
+  const conferenceDomain = getXmppConferenceDomain().toLowerCase();
   return (
-    normalizedValue === "conference.localhost" ||
-    normalizedValue === "conference.localhost@conference.localhost"
+    normalizedValue === conferenceDomain ||
+    normalizedValue === `${conferenceDomain}@${conferenceDomain}`
   );
 }
 
@@ -355,21 +363,22 @@ function normalizeRoomJid(roomJid, client = null) {
   }
 
   if (isConferenceServiceJid(rawRoomJid)) {
-    return "conference.localhost";
+    return getXmppConferenceDomain();
   }
 
-  if (rawRoomJid === "local" || rawRoomJid === "local@conference.localhost") {
+  const conferenceDomain = getXmppConferenceDomain();
+  if (rawRoomJid === "local" || rawRoomJid === `local@${conferenceDomain}`) {
     return buildConferenceRoomJid(
       client ? getLocalRoomNameForClient(client) : getLocalRoomNameForSession(null),
     );
   }
 
-  if (rawRoomJid === "corp" || rawRoomJid === "corp@conference.localhost") {
+  if (rawRoomJid === "corp" || rawRoomJid === `corp@${conferenceDomain}`) {
     const session = client ? findSessionForClient(client) : null;
     return buildConferenceRoomJid(getCorpRoomNameForSession(session));
   }
 
-  if (rawRoomJid === "fleet" || rawRoomJid === "fleet@conference.localhost") {
+  if (rawRoomJid === "fleet" || rawRoomJid === `fleet@${conferenceDomain}`) {
     const session = client ? findSessionForClient(client) : null;
     const roomName = getFleetRoomNameForSession(session);
     return roomName ? buildConferenceRoomJid(roomName) : rawRoomJid;
@@ -377,7 +386,7 @@ function normalizeRoomJid(roomJid, client = null) {
 
   if (
     rawRoomJid === "alliance" ||
-    rawRoomJid === "alliance@conference.localhost"
+    rawRoomJid === `alliance@${conferenceDomain}`
   ) {
     const session = client ? findSessionForClient(client) : null;
     const roomName = getAllianceRoomNameForSession(session);
@@ -386,9 +395,9 @@ function normalizeRoomJid(roomJid, client = null) {
 
   if (
     rawRoomJid === "militia" ||
-    rawRoomJid === "militia@conference.localhost" ||
+    rawRoomJid === `militia@${conferenceDomain}` ||
     rawRoomJid === "faction" ||
-    rawRoomJid === "faction@conference.localhost"
+    rawRoomJid === `faction@${conferenceDomain}`
   ) {
     const session = client ? findSessionForClient(client) : null;
     const roomName = getFactionRoomNameForSession(session);
@@ -404,7 +413,10 @@ function normalizeRoomJid(roomJid, client = null) {
     return buildConferenceRoomJid(rawRoomJid);
   }
 
-  const legacyLocalMatch = /^solarsystemid2?_(\d+)@conference\.localhost$/i.exec(
+  const legacyLocalMatch = new RegExp(
+    `^solarsystemid2?_(\\d+)@${escapeRegExp(getXmppConferenceDomain())}$`,
+    "i",
+  ).exec(
     rawRoomJid,
   );
   if (legacyLocalMatch) {
@@ -413,7 +425,10 @@ function normalizeRoomJid(roomJid, client = null) {
     );
   }
 
-  const legacyCorpMatch = /^corpid_(\d+)@conference\.localhost$/i.exec(rawRoomJid);
+  const legacyCorpMatch = new RegExp(
+    `^corpid_(\\d+)@${escapeRegExp(getXmppConferenceDomain())}$`,
+    "i",
+  ).exec(rawRoomJid);
   if (legacyCorpMatch) {
     return buildConferenceRoomJid(`corp_${legacyCorpMatch[1]}`);
   }
@@ -447,7 +462,7 @@ function getRoomDescriptor(roomJid, client = null) {
   const normalizedRoomJid = normalizeRoomJid(roomJid, client);
   if (isConferenceServiceJid(normalizedRoomJid)) {
     return {
-      normalizedRoomJid: "conference.localhost",
+      normalizedRoomJid: getXmppConferenceDomain(),
       roomName: "",
       kind: "service",
       roomID: 0,
@@ -574,7 +589,7 @@ function getUserDataForCharacterId(charId) {
 
   return {
     charId,
-    userJid: `${charId}@localhost`,
+    userJid: buildXmppUserJid(charId),
     characterName: charData.characterName || String(charId),
     corporationID: Number(charData.corporationID || 0),
     allianceID: Number(charData.allianceID || 0),
@@ -643,10 +658,62 @@ function getDistinctRoomCharacterIds(roomJid) {
   return characterIDs;
 }
 
+function getConnectedClientsForLocalRoom(
+  roomName,
+  { excludeClient = null, roomJid = "" } = {},
+) {
+  const normalizedRoomName = normalizeString(roomName, "").trim();
+  if (!normalizedRoomName) {
+    return [];
+  }
+
+  const visibleCharacterIDs = new Set(
+    chatRuntime
+      .getVisibleLocalSessions(normalizedRoomName)
+      .map((session) => getCharacterIDForSession(session))
+      .filter((characterID) => characterID > 0),
+  );
+  if (visibleCharacterIDs.size === 0) {
+    return [];
+  }
+
+  const normalizedRoomJid = roomJid
+    ? normalizeRoomJid(roomJid)
+    : buildConferenceRoomJid(normalizedRoomName);
+  const recipients = [];
+  for (const client of connectedClients) {
+    if (
+      !client ||
+      client === excludeClient ||
+      !client.socket ||
+      client.socket.destroyed ||
+      !client.boundJid
+    ) {
+      continue;
+    }
+
+    const characterID = getClientCharacterId(client);
+    if (!visibleCharacterIDs.has(characterID)) {
+      continue;
+    }
+
+    if (normalizedRoomJid && !client.rooms.has(normalizedRoomJid)) {
+      addRoomMember(normalizedRoomJid, client);
+    }
+    recipients.push(client);
+  }
+
+  return recipients;
+}
+
 function getRoomOccupantCount(roomJid, client = null) {
   const descriptor = getRoomDescriptor(roomJid, client);
   if (descriptor.suppressPresenceBroadcast) {
     return 0;
+  }
+
+  if (descriptor.kind === "local" && descriptor.roomName) {
+    return chatRuntime.getVisibleLocalSessions(descriptor.roomName).length;
   }
 
   return getDistinctRoomCharacterIds(descriptor.normalizedRoomJid).length;
@@ -961,7 +1028,7 @@ function buildRoomConfigResultXml(client, roomJid, requestId, record) {
 }
 
 function buildRoomInviteXml(roomJid, inviterCharacterID, recipient, reason = "") {
-  const fromJid = `${inviterCharacterID || 0}@localhost`;
+  const fromJid = buildXmppUserJid(inviterCharacterID || 0);
   return [
     `<message from='${escapeXml(roomJid)}'`,
     ` to='${escapeXml(recipient.boundJid)}'>`,
@@ -991,6 +1058,37 @@ function sendRoomInvite(roomName, inviterCharacterID, targetCharacterID, reason 
     sent = true;
   }
   return sent;
+}
+
+function inviteCharacterToRoom(
+  roomName,
+  inviterCharacterID,
+  targetCharacterID,
+  reason = "",
+) {
+  const normalizedRoomName = normalizeString(roomName, "").trim();
+  const normalizedTargetCharacterID = Number(targetCharacterID || 0);
+  if (!normalizedRoomName || normalizedTargetCharacterID <= 0) {
+    return false;
+  }
+
+  try {
+    chatRuntime.inviteCharacterToChannel(
+      normalizedRoomName,
+      normalizedTargetCharacterID,
+    );
+  } catch (error) {
+    log.debug(
+      `[XMPP] Failed to persist room invite room=${normalizedRoomName} char=${normalizedTargetCharacterID}: ${error.message}`,
+    );
+  }
+
+  return sendRoomInvite(
+    normalizedRoomName,
+    inviterCharacterID,
+    normalizedTargetCharacterID,
+    reason,
+  );
 }
 
 function removeRoomMember(roomJid, client) {
@@ -1042,6 +1140,15 @@ function removeClientFromRoom(roomJid, client, options = {}) {
   if (session && descriptor.roomName) {
     try {
       chatRuntime.leaveChannel(session, descriptor.roomName);
+      if (
+        descriptor.kind === "local" &&
+        options.syncLocalMembership !== false
+      ) {
+        chatRuntime.leaveLocalLsc(session, {
+          roomName: descriptor.roomName,
+          solarSystemID: descriptor.roomID,
+        });
+      }
     } catch (error) {
       log.debug(
         `[XMPP] Ignored room leave runtime error room=${descriptor.roomName} char=${charId}: ${error.message}`,
@@ -1090,12 +1197,13 @@ function removeClientFromRooms(client, options = {}) {
   client.rooms.clear();
 }
 
-function buildRoomMessageXml(roomJid, sender, message, recipient) {
+function buildRoomMessageXml(roomJid, sender, message, recipient, options = {}) {
+  const messageId = normalizeString(options.messageId, "").trim() || nextMessageId();
   return [
     `<message from='${escapeXml(roomJid)}/${escapeXml(sender)}'`,
     ` to='${escapeXml(recipient.boundJid)}'`,
     " type='groupchat'",
-    ` id='${escapeXml(nextMessageId())}'>`,
+    ` id='${escapeXml(messageId)}'>`,
     `<body>${escapeXml(message)}</body>`,
     "</message>",
   ].join("");
@@ -1108,16 +1216,25 @@ function deliverRoomMessage(roomJid, sender, message, recipients = null, options
   }
 
   const createdAtMs = Math.max(0, Number(options.createdAtMs) || Date.now());
+  const messageId = normalizeString(options.messageId, "").trim() || nextMessageId();
 
   for (const member of members) {
-    sendXml(member, buildRoomMessageXml(roomJid, sender, message, member));
+    sendXml(
+      member,
+      buildRoomMessageXml(roomJid, sender, message, member, {
+        messageId,
+      }),
+    );
     noteRoomMessageDelivered(member, roomJid, createdAtMs);
   }
 }
 
 function sendAdminCommand(client, roomJid, payload) {
   const messageText = JSON.stringify(payload);
-  sendXml(client, buildRoomMessageXml(roomJid, "admin", messageText, client));
+  sendXml(
+    client,
+    buildRoomMessageXml(roomJid, "admin", messageText, client),
+  );
 }
 
 function sendSystemMessageToClient(client, roomJid, message) {
@@ -1156,7 +1273,7 @@ function buildRoomPresenceXml(roomJid, charId, recipient, options = {}) {
   const available = options.available !== false;
   const userData = getUserDataForCharacterId(charId);
   const nick = String(charId || "").trim() || "capsuleer";
-  const userJid = `${nick}@localhost`;
+  const userJid = buildXmppUserJid(nick);
   const requestId = nextMessageId();
   const itemRole = available ? "participant" : "none";
   const affiliation = options.affiliation || "member";
@@ -1251,12 +1368,12 @@ function buildConferenceDiscoItemXml(record) {
 function buildConferenceServiceInfoResultXml(client, requestId, node = "") {
   return [
     `<iq type='result' id='${escapeXml(requestId)}'`,
-    " from='conference.localhost'",
+    ` from='${escapeXml(getXmppConferenceDomain())}'`,
     ` to='${escapeXml(client.boundJid)}'>`,
     node
       ? `<query xmlns='http://jabber.org/protocol/disco#info' node='${escapeXml(node)}'>`
       : "<query xmlns='http://jabber.org/protocol/disco#info'>",
-    "<identity category='conference' type='text' name='conference.localhost'/>",
+    `<identity category='conference' type='text' name='${escapeXml(getXmppConferenceDomain())}'/>`,
     "<feature var='http://jabber.org/protocol/muc'/>",
     "</query>",
     "</iq>",
@@ -1348,7 +1465,7 @@ function buildConferenceNodeInfoResultXml(client, requestId, node, session) {
 
   return [
     `<iq type='result' id='${escapeXml(requestId)}'`,
-    " from='conference.localhost'",
+    ` from='${escapeXml(getXmppConferenceDomain())}'`,
     ` to='${escapeXml(client.boundJid)}'>`,
     `<query xmlns='http://jabber.org/protocol/disco#info' node='${escapeXml(node)}'>`,
     `<identity category='conference' type='${escapeXml(roomIdentityType)}' name='${escapeXml(roomLabel)}'/>`,
@@ -1380,7 +1497,7 @@ function buildConferenceDiscoItemsResultXml(client, requestId, node, records = [
 
   return [
     `<iq type='result' id='${escapeXml(requestId)}'`,
-    " from='conference.localhost'",
+    ` from='${escapeXml(getXmppConferenceDomain())}'`,
     ` to='${escapeXml(client.boundJid)}'>`,
     node
       ? `<query xmlns='http://jabber.org/protocol/disco#items' node='${escapeXml(node)}'>`
@@ -1454,7 +1571,7 @@ function buildRoomAdminResultXml(client, roomJid, requestId, requestedAffiliatio
       (!normalizedAffiliation || normalizedAffiliation === "owner")
     ) {
       items.push(
-        `<item affiliation='owner' jid='${escapeXml(`${record.ownerCharacterID}@localhost`)}' nick='${escapeXml(record.ownerCharacterID)}'/>`,
+        `<item affiliation='owner' jid='${escapeXml(buildXmppUserJid(record.ownerCharacterID))}' nick='${escapeXml(record.ownerCharacterID)}'/>`,
       );
     }
     if (!normalizedAffiliation || normalizedAffiliation === "admin") {
@@ -1467,7 +1584,7 @@ function buildRoomAdminResultXml(client, roomJid, requestId, requestedAffiliatio
           continue;
         }
         items.push(
-          `<item affiliation='admin' jid='${escapeXml(`${adminCharacterID}@localhost`)}' nick='${escapeXml(adminCharacterID)}'/>`,
+          `<item affiliation='admin' jid='${escapeXml(buildXmppUserJid(adminCharacterID))}' nick='${escapeXml(adminCharacterID)}'/>`,
         );
       }
     }
@@ -1478,7 +1595,7 @@ function buildRoomAdminResultXml(client, roomJid, requestId, requestedAffiliatio
         ...(record.allowedParticipantCharacterIDs || []),
       ])) {
         items.push(
-          `<item affiliation='member' jid='${escapeXml(`${memberCharacterID}@localhost`)}' nick='${escapeXml(memberCharacterID)}'/>`,
+          `<item affiliation='member' jid='${escapeXml(buildXmppUserJid(memberCharacterID))}' nick='${escapeXml(memberCharacterID)}'/>`,
         );
       }
     }
@@ -1487,7 +1604,7 @@ function buildRoomAdminResultXml(client, roomJid, requestId, requestedAffiliatio
         Object.keys(record.bannedCharacters || {}),
       )) {
         items.push(
-          `<item affiliation='outcast' jid='${escapeXml(`${characterID}@localhost`)}' nick='${escapeXml(characterID)}'/>`,
+          `<item affiliation='outcast' jid='${escapeXml(buildXmppUserJid(characterID))}' nick='${escapeXml(characterID)}'/>`,
         );
       }
     }
@@ -1580,11 +1697,11 @@ function buildExpiringRecordItemXml(entry) {
   const createdAtMs = Math.max(0, Number(entry.createdAtMs) || 0);
   const expiresAtMs = Math.max(0, Number(entry.untilMs) || 0);
   const byCharacterID = Number(entry.byCharacterID || 0) || 0;
-  const byJid = byCharacterID > 0 ? `${byCharacterID}@localhost` : "";
+  const byJid = byCharacterID > 0 ? buildXmppUserJid(byCharacterID) : "";
 
   return [
     "<item",
-    ` jid='${escapeXml(`${entry.characterID}@localhost`)}'`,
+    ` jid='${escapeXml(buildXmppUserJid(entry.characterID))}'`,
     ` nick='${escapeXml(entry.characterID)}'`,
     ` name='${escapeXml(userData && userData.characterName || String(entry.characterID))}'`,
     reason ? ` reason='${escapeXml(reason)}'` : "",
@@ -1605,7 +1722,7 @@ function buildExpiringRecordSearchResultXml(
 ) {
   return [
     `<iq type='result' id='${escapeXml(requestId)}'`,
-    " from='localhost'",
+    ` from='${escapeXml(getXmppDomain())}'`,
     ` to='${escapeXml(client.boundJid)}'>`,
     `<query xmlns='urn:xmpp:expiring_record#search' room='${escapeXml(roomJid)}' category='${escapeXml(category)}'>`,
     entries.map(buildExpiringRecordItemXml).join(""),
@@ -1624,7 +1741,7 @@ function handleExpiringRecordSearchIq(client, xml) {
   const record = getDescriptorRecord(descriptor, session);
 
   if (!session || !record || !chatRuntime.isChannelAdmin(session, record)) {
-    sendXml(client, buildIqErrorXml(client, "localhost", requestId));
+    sendXml(client, buildIqErrorXml(client, getXmppDomain(), requestId));
     return;
   }
 
@@ -1726,12 +1843,20 @@ function joinClientToRoom(client, session, charId, roomName) {
 
 function moveSessionToCurrentLocalRoom(session) {
   if (!session) {
-    return;
+    return false;
   }
 
-  const currentRoomJid = buildConferenceRoomJid(getLocalRoomNameForSession(session));
+  const charId = Number(session.characterID || 0);
+  const currentRoomName = getLocalRoomNameForSession(session);
+  const currentRoomJid = buildConferenceRoomJid(currentRoomName);
+  let changed = false;
+
+  if (!charId || !currentRoomName || !currentRoomJid) {
+    return false;
+  }
+
   for (const client of connectedClients) {
-    if (getClientCharacterId(client) !== Number(session.characterID || 0)) {
+    if (getClientCharacterId(client) !== charId) {
       continue;
     }
 
@@ -1743,13 +1868,30 @@ function moveSessionToCurrentLocalRoom(session) {
         continue;
       }
       removeClientFromRoom(roomJid, client, {
-        broadcastPresence: false,
+        notifySelf: true,
+        session,
+        charId,
+        syncLocalMembership: false,
       });
+      changed = true;
+      if (client.lastRoomJid === roomJid) {
+        client.lastRoomJid = [...client.rooms][0] || "";
+      }
     }
 
-    addRoomMember(currentRoomJid, client);
-    client.lastRoomJid = currentRoomJid;
+    if (!client.boundJid) {
+      client.lastRoomJid = currentRoomJid;
+      continue;
+    }
+
+    if (!client.rooms.has(currentRoomJid)) {
+      changed = joinClientToRoom(client, session, charId, currentRoomName) || changed;
+    } else {
+      client.lastRoomJid = currentRoomJid;
+    }
   }
+
+  return changed;
 }
 
 function unregisterCharacterSession(session) {
@@ -1822,6 +1964,9 @@ function handleJoinPresence(client, xml) {
       chatRuntime.joinChannel(session, descriptor.roomName, {
         providedPassword,
       });
+      if (descriptor.kind === "local") {
+        chatRuntime.joinLocalLsc(session);
+      }
     } catch (error) {
       sendSystemMessageToClient(
         client,
@@ -1835,11 +1980,16 @@ function handleJoinPresence(client, xml) {
   client.lastRoomJid =
     descriptor.normalizedRoomJid || client.lastRoomJid || normalizeRoomJid("", client);
   client.nick = nick;
-  const existingRecipients = roomMembers.has(descriptor.normalizedRoomJid)
-    ? [...roomMembers.get(descriptor.normalizedRoomJid)].filter(
-        (member) => member !== client,
-      )
-    : [];
+  const existingRecipients = descriptor.kind === "local" && descriptor.roomName
+    ? getConnectedClientsForLocalRoom(descriptor.roomName, {
+        excludeClient: client,
+        roomJid: descriptor.normalizedRoomJid,
+      })
+    : roomMembers.has(descriptor.normalizedRoomJid)
+      ? [...roomMembers.get(descriptor.normalizedRoomJid)].filter(
+          (member) => member !== client,
+        )
+      : [];
   addRoomMember(descriptor.normalizedRoomJid, client);
 
   sendXml(
@@ -1920,6 +2070,7 @@ function handleJoinPresence(client, xml) {
 }
 
 function handleGroupMessage(client, xml) {
+  const requestId = normalizeString(extractId(xml), "").trim();
   const messageType = extractAttr(xml, "type").toLowerCase();
   const rawTo = extractAttr(xml, "to");
   const body = extractBody(xml);
@@ -2062,18 +2213,23 @@ function handleGroupMessage(client, xml) {
     return;
   }
 
-  if (!client.rooms.has(roomJid)) {
-    addRoomMember(roomJid, client);
-  }
-
   const senderCharacterId =
     getClientCharacterId(client, session) ||
     parseCharacterId(client.nick) ||
     parseCharacterId(client.userName) ||
     1;
 
+  if (!client.rooms.has(roomJid)) {
+    if (descriptor.kind === "local" && session && descriptor.roomName) {
+      joinClientToRoom(client, session, senderCharacterId, descriptor.roomName);
+    } else {
+      addRoomMember(roomJid, client);
+    }
+  }
+
   log.debug(`[XMPP] Message from ${senderCharacterId}: ${body}`);
   deliverRoomMessage(roomJid, senderCharacterId, body, null, {
+    messageId: requestId,
     createdAtMs:
       Number(sendResult && sendResult.entry && sendResult.entry.createdAtMs) || Date.now(),
   });
@@ -2081,11 +2237,11 @@ function handleGroupMessage(client, xml) {
 
 function handleEveUserDataIq(client, xml) {
   const id = extractId(xml);
-  const requestedJid = extractAttr(xml, "jid") || `${client.userName}@localhost`;
+  const requestedJid = extractAttr(xml, "jid") || buildXmppUserJid(client.userName);
   const userData = getUserDataForJid(requestedJid);
   const resultXml = [
     `<iq type='result' id='${escapeXml(id)}'`,
-    ` from='localhost'`,
+    ` from='${escapeXml(getXmppDomain())}'`,
     ` to='${escapeXml(client.boundJid)}'>`,
     `<query xmlns='urn:xmpp:eve_user_data' jid='${escapeXml(requestedJid)}'>`,
     buildEveUserDataElement(userData),
@@ -2405,7 +2561,7 @@ function handleSocket(socket) {
     stage: "stream1",
     userName: "capsuleer",
     password: "",
-    boundJid: "capsuleer@localhost/evejs",
+    boundJid: buildXmppUserJid("capsuleer", "evejs"),
     nick: "capsuleer",
     lastRoomJid: "",
     localWelcomeSent: false,
@@ -2424,7 +2580,7 @@ function handleSocket(socket) {
       if (client.stage === "stream1" && client.buffer.includes("<stream:stream")) {
         sendXml(
           client,
-          "<?xml version='1.0'?><stream:stream from='localhost' id='evejs' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features>",
+          `<?xml version='1.0'?><stream:stream from='${escapeXml(getXmppDomain())}' id='evejs' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features>`,
         );
         client.buffer = "";
         client.stage = "auth";
@@ -2452,7 +2608,7 @@ function handleSocket(socket) {
       ) {
         sendXml(
           client,
-          "<?xml version='1.0'?><stream:stream from='localhost' id='evejs2' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></stream:features>",
+          `<?xml version='1.0'?><stream:stream from='${escapeXml(getXmppDomain())}' id='evejs2' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></stream:features>`,
         );
         client.buffer = "";
         client.stage = "bind";
@@ -2536,6 +2692,7 @@ function startXmppStub() {
 }
 
 module.exports = {
+  inviteCharacterToRoom,
   refreshSessionChatRolePresence,
   sendSessionSystemMessage,
   syncSessionScopedRoomMembership,

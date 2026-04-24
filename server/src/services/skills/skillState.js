@@ -24,6 +24,7 @@ const SKILL_BOOTSTRAP_SUPPRESSED_FIELD = "suppressSkillBootstrap";
 
 let skillReferenceCache = null;
 let skillMutationVersion = 1;
+let skillTypeByIDCache = null;
 
 function readCharacters() {
   const result = database.read(CHARACTERS_TABLE, "/");
@@ -57,6 +58,28 @@ function writeCharacter(charId, record) {
 
 function getSkillMutationVersion() {
   return skillMutationVersion;
+}
+
+function applyExpertSystemProjection(charId, skillRecords, options = {}) {
+  if (options && options.includeExpertSystems === false) {
+    return skillRecords.map((record) => cloneValue(record));
+  }
+
+  try {
+    const {
+      projectSkillRecordsForCharacter,
+    } = require(path.join(__dirname, "./expertSystems/expertSystemProjection"));
+    return projectSkillRecordsForCharacter(charId, skillRecords, {
+      ...options,
+      getSkillTypeByID,
+      skillMutationVersion,
+    });
+  } catch (error) {
+    log.warn(
+      `[SkillState] Failed to project Expert System skill overlay for character ${toNumber(charId, 0)}: ${error.message}`,
+    );
+    return skillRecords.map((record) => cloneValue(record));
+  }
 }
 
 function toNumber(value, fallback = 0) {
@@ -154,6 +177,7 @@ function loadSkillReference() {
 
 function refreshSkillReference() {
   skillReferenceCache = null;
+  skillTypeByIDCache = null;
   clearReferenceCache([TABLE.SKILL_TYPES, TABLE.TYPE_DOGMA]);
   return loadSkillReference();
 }
@@ -164,6 +188,26 @@ function getSkillTypes(options = {}) {
   }
 
   return loadSkillReference();
+}
+
+function getSkillTypeByID(typeID, options = {}) {
+  const numericTypeID = toNumber(typeID, 0);
+  if (numericTypeID <= 0) {
+    return null;
+  }
+
+  if (!skillTypeByIDCache || options.refresh) {
+    const nextCache = new Map();
+    for (const skillType of getSkillTypes(options)) {
+      const resolvedTypeID = toNumber(skillType && skillType.typeID, 0);
+      if (resolvedTypeID > 0) {
+        nextCache.set(resolvedTypeID, cloneValue(skillType));
+      }
+    }
+    skillTypeByIDCache = nextCache;
+  }
+
+  return cloneValue(skillTypeByIDCache.get(numericTypeID) || null);
 }
 
 function getPublishedSkillTypes(options = {}) {
@@ -250,6 +294,14 @@ function normalizeSkillRecord(
   const maxSkillPoints = getSkillMaxPoints(skillType, MAX_SKILL_LEVEL);
   const skillPointsAtLevel = getSkillMaxPoints(skillType, skillLevel);
   const trainedSkillPoints = getSkillMaxPoints(skillType, trainedSkillLevel);
+  const nextSkillLevelPoints =
+    skillLevel >= MAX_SKILL_LEVEL
+      ? maxSkillPoints
+      : getSkillMaxPoints(skillType, skillLevel + 1) - 1;
+  const nextTrainedSkillLevelPoints =
+    trainedSkillLevel >= MAX_SKILL_LEVEL
+      ? maxSkillPoints
+      : getSkillMaxPoints(skillType, trainedSkillLevel + 1) - 1;
   const resolvedSkillPoints = inTraining
     ? normalizeSkillPoints(
         hasExistingRecord ? existingRecord.skillPoints : undefined,
@@ -257,7 +309,14 @@ function normalizeSkillRecord(
         maxSkillPoints,
         skillPointsAtLevel,
       )
-    : skillPointsAtLevel;
+    : normalizeSkillPoints(
+        hasExistingRecord
+          ? existingRecord.skillPoints ?? existingRecord.trainedSkillPoints
+          : undefined,
+        skillPointsAtLevel,
+        nextSkillLevelPoints,
+        skillPointsAtLevel,
+      );
   const resolvedTrainedSkillPoints = inTraining
     ? normalizeSkillPoints(
         hasExistingRecord ? existingRecord.trainedSkillPoints : undefined,
@@ -265,7 +324,14 @@ function normalizeSkillRecord(
         resolvedSkillPoints,
         trainedSkillPoints,
       )
-    : skillPointsAtLevel;
+    : normalizeSkillPoints(
+        hasExistingRecord
+          ? existingRecord.trainedSkillPoints ?? existingRecord.skillPoints
+          : undefined,
+        trainedSkillPoints,
+        Math.min(nextTrainedSkillLevelPoints, resolvedSkillPoints),
+        skillPointsAtLevel,
+      );
   const resolvedTrainingStartSP = inTraining
     ? normalizeSkillPoints(
         hasExistingRecord ? existingRecord.trainingStartSP : undefined,
@@ -273,7 +339,7 @@ function normalizeSkillRecord(
         maxSkillPoints,
         resolvedTrainedSkillPoints,
       )
-    : skillPointsAtLevel;
+    : resolvedTrainedSkillPoints;
   const resolvedTrainingDestinationSP = inTraining
     ? normalizeSkillPoints(
         hasExistingRecord ? existingRecord.trainingDestinationSP : undefined,
@@ -281,7 +347,7 @@ function normalizeSkillRecord(
         maxSkillPoints,
         skillPointsAtLevel,
       )
-    : skillPointsAtLevel;
+    : resolvedSkillPoints;
   return {
     ...baseRecord,
     ...(hasExistingRecord ? existingRecord : {}),
@@ -443,7 +509,7 @@ function bootstrapCharacterSkillsIfMissing(charId) {
     return [];
   }
 
-  if (config.devMode) {
+  if (config.devBootstrapPublishedSkills) {
     return seedCharacterPublishedSkills(numericCharId, MAX_SKILL_LEVEL);
   }
 
@@ -610,7 +676,9 @@ function removeCharacterSkillTypes(charId, skillTypeIDs = []) {
   }
 
   const characterKey = String(numericCharId);
-  const currentSkillMap = getCharacterSkillMap(numericCharId);
+  const currentSkillMap = getCharacterSkillMap(numericCharId, {
+    includeExpertSystems: false,
+  });
   const skillsTable = readSkillsTable();
   const existingSkills =
     skillsTable[characterKey] && typeof skillsTable[characterKey] === "object"
@@ -659,7 +727,9 @@ function clearCharacterSkills(charId) {
     return [];
   }
 
-  const currentSkillMap = getCharacterSkillMap(numericCharId);
+  const currentSkillMap = getCharacterSkillMap(numericCharId, {
+    includeExpertSystems: false,
+  });
   if (currentSkillMap.size === 0) {
     const skillsTable = readSkillsTable();
     const characterKey = String(numericCharId);
@@ -704,14 +774,29 @@ function ensureAllCharacterSkills() {
   return results;
 }
 
-function getCharacterSkills(charId) {
-  return ensureCharacterSkills(charId)
+function getCharacterBaseSkills(charId, options = {}) {
+  return ensureCharacterSkills(charId, options)
     .sort((left, right) => left.typeID - right.typeID)
     .map((record) => cloneValue(record));
 }
 
-function getCharacterSkillMap(charId) {
-  const entries = getCharacterSkills(charId).map((record) => [
+function getCharacterSkills(charId, options = {}) {
+  const baseSkills = getCharacterBaseSkills(charId, options);
+  return applyExpertSystemProjection(charId, baseSkills, options)
+    .sort((left, right) => left.typeID - right.typeID)
+    .map((record) => cloneValue(record));
+}
+
+function getCharacterBaseSkillMap(charId, options = {}) {
+  const entries = getCharacterBaseSkills(charId, options).map((record) => [
+    record.typeID,
+    cloneValue(record),
+  ]);
+  return new Map(entries);
+}
+
+function getCharacterSkillMap(charId, options = {}) {
+  const entries = getCharacterSkills(charId, options).map((record) => [
     record.typeID,
     cloneValue(record),
   ]);
@@ -719,7 +804,9 @@ function getCharacterSkillMap(charId) {
 }
 
 function getCharacterSkillPointTotal(charId) {
-  const skills = getCharacterSkills(charId);
+  const skills = getCharacterBaseSkills(charId, {
+    includeExpertSystems: false,
+  });
   if (skills.length === 0) {
     return null;
   }
@@ -757,7 +844,9 @@ function ensureCharacterSkillTypes(charId, skillTypes = [], options = {}) {
     options.skillLevel,
     MAX_SKILL_LEVEL,
   );
-  const existingSkillMap = getCharacterSkillMap(charId);
+  const existingSkillMap = getCharacterSkillMap(charId, {
+    includeExpertSystems: false,
+  });
   const targetSkillTypeIDs = skillTypes
     .map((skillType) => cloneValue(skillType))
     .filter((skillType) => skillType && toNumber(skillType.typeID, 0) > 0)
@@ -817,6 +906,65 @@ function seedCharacterStarterSkills(charId, raceId) {
   return grantCharacterSkillLevels(charId, raceProfile.skills);
 }
 
+function replaceCharacterSkillRecords(charId, skillRecords = []) {
+  const numericCharId = toNumber(charId, 0);
+  if (numericCharId <= 0) {
+    return {
+      success: false,
+      errorMsg: "INVALID_CHARACTER",
+    };
+  }
+
+  const nextSkills = {};
+  for (const rawRecord of Array.isArray(skillRecords) ? skillRecords : []) {
+    if (!rawRecord || typeof rawRecord !== "object") {
+      continue;
+    }
+
+    const typeID = toNumber(rawRecord.typeID, 0);
+    if (typeID <= 0) {
+      continue;
+    }
+
+    const skillType = getSkillTypeByID(typeID);
+    if (!skillType) {
+      continue;
+    }
+
+    nextSkills[String(typeID)] = normalizeSkillRecord(
+      numericCharId,
+      rawRecord,
+      skillType,
+      {
+        defaultSkillLevel: rawRecord.skillLevel,
+      },
+    );
+  }
+
+  const skillsTable = readSkillsTable();
+  skillsTable[String(numericCharId)] = nextSkills;
+  const writeResult = writeSkillsTable(skillsTable);
+  if (!writeResult || !writeResult.success) {
+    log.warn(
+      `[SkillState] Failed to replace skill records for character ${numericCharId}`,
+    );
+    return {
+      success: false,
+      errorMsg: writeResult && writeResult.errorMsg ? writeResult.errorMsg : "WRITE_ERROR",
+    };
+  }
+
+  const totalSkillPoints = Object.values(nextSkills).reduce(
+    (sum, skillRecord) => sum + toNumber(skillRecord && skillRecord.skillPoints, 0),
+    0,
+  );
+  syncCharacterSkillPoints(numericCharId, totalSkillPoints);
+  return {
+    success: true,
+    data: Object.values(nextSkills).map((record) => cloneValue(record)),
+  };
+}
+
 module.exports = {
   SKILL_FLAG_ID,
   MAX_SKILL_LEVEL,
@@ -830,15 +978,19 @@ module.exports = {
   clearCharacterSkills,
   grantCharacterSkillLevels,
   grantCharacterSkillTypes,
+  getCharacterBaseSkillMap,
+  getCharacterBaseSkills,
   getCharacterSkillMap,
   getCharacterSkillPointTotal,
   getCharacterSkills,
+  getSkillTypeByID,
   getSkillMutationVersion,
   getPublishedSkillTypes,
   getSkillTypes,
   getUnpublishedSkillTypes,
   removeCharacterSkillTypes,
   refreshSkillReference,
+  replaceCharacterSkillRecords,
   seedCharacterAllSkills,
   seedCharacterPublishedSkills,
   seedCharacterStarterSkills,

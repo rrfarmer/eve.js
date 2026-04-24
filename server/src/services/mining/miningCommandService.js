@@ -59,6 +59,8 @@ const MAX_MINING_NPC_COMMAND_SPAWN_COUNT = 25;
 const DEFAULT_MINER_SHIP_NAME = "Hulk";
 const DEFAULT_MINER_MODULE_NAME = "Modulated Strip Miner II";
 const DEFAULT_MINER_MODULE_COUNT = 2;
+const DEFAULT_MINER_MOBILITY_MODULE_NAME = "Medium Micro Jump Drive";
+const DEFAULT_MINER_MOBILITY_MODULE_COUNT = 1;
 const DEFAULT_MINER_SUPPORT_MODULE_NAME = "Expanded Cargohold II";
 const DEFAULT_MINER_SUPPORT_MODULE_COUNT = 3;
 const DEFAULT_MINER_RIG_NAME = "Medium Cargohold Optimization I";
@@ -289,6 +291,50 @@ function tryPlanNextModuleFit(charID, shipItem, itemType, fittedItems) {
   };
 }
 
+function tryPlanNextModuleFitWithOptions(
+  charID,
+  shipItem,
+  itemType,
+  fittedItems,
+  options = {},
+) {
+  const nextFit = tryPlanNextModuleFit(charID, shipItem, itemType, fittedItems);
+  if (nextFit.success || options.forceFit !== true) {
+    return nextFit;
+  }
+
+  const forcedFlagID = selectAutoFitFlagForType(
+    shipItem,
+    fittedItems,
+    toInt(itemType && itemType.typeID, 0),
+  );
+  if (!forcedFlagID) {
+    return nextFit;
+  }
+
+  const plannedItems = [
+    ...(Array.isArray(fittedItems) ? fittedItems : []),
+    buildPlannedFittedModuleItem(
+      charID,
+      shipItem,
+      itemType,
+      forcedFlagID,
+      -1000 - (Array.isArray(fittedItems) ? fittedItems.length : 0),
+    ),
+  ];
+  return {
+    success: true,
+    data: {
+      flagID: forcedFlagID,
+      plannedItems,
+      resourceState: buildShipResourceState(charID, shipItem, {
+        fittedItems: plannedItems,
+      }),
+      forced: true,
+    },
+  };
+}
+
 function ensureCompatibleChargeTypeCache() {
   if (compatibleChargeTypeCache) {
     return compatibleChargeTypeCache;
@@ -342,18 +388,22 @@ function grantStationHangarBatchAndSyncSession(session, stationID, grantEntries)
   return result;
 }
 
-function fitGrantedItemTypeToShip(session, stationID, shipItem, itemType, count) {
+function fitGrantedItemTypeToShip(session, stationID, shipItem, itemType, count, options = {}) {
   const numericCount = Math.max(1, toInt(count, 1));
+  const forceFit = options.forceFit === true;
   let fittedCount = 0;
   let latestResourceState = null;
 
   for (let index = 0; index < numericCount; index += 1) {
     const fittedItems = listFittedItems(session.characterID, shipItem.itemID);
-    const nextFit = tryPlanNextModuleFit(
+    const nextFit = tryPlanNextModuleFitWithOptions(
       session.characterID,
       shipItem,
       itemType,
       fittedItems,
+      {
+        forceFit,
+      },
     );
     if (!nextFit.success) {
       break;
@@ -412,6 +462,16 @@ function resolveMinerCommandPreset() {
     shipName: String(config.miningCommandShipName || DEFAULT_MINER_SHIP_NAME),
     moduleName: String(config.miningCommandModuleName || DEFAULT_MINER_MODULE_NAME),
     moduleCount: Math.max(1, toInt(config.miningCommandModuleCount, DEFAULT_MINER_MODULE_COUNT)),
+    mobilityModuleName: String(
+      config.miningCommandMobilityModuleName || DEFAULT_MINER_MOBILITY_MODULE_NAME,
+    ),
+    mobilityModuleCount: Math.max(
+      0,
+      toInt(
+        config.miningCommandMobilityModuleCount,
+        DEFAULT_MINER_MOBILITY_MODULE_COUNT,
+      ),
+    ),
     supportModuleName: String(
       config.miningCommandSupportModuleName || DEFAULT_MINER_SUPPORT_MODULE_NAME,
     ),
@@ -461,6 +521,19 @@ function buildMinerCommandPlan(charID, shipItem) {
     return {
       success: false,
       errorMsg: "MINER_COMMAND_RIG_NOT_FOUND",
+    };
+  }
+
+  const mobilityModuleLookup = preset.mobilityModuleCount > 0
+    ? resolveItemByName(preset.mobilityModuleName)
+    : null;
+  if (
+    preset.mobilityModuleCount > 0 &&
+    (!mobilityModuleLookup || !mobilityModuleLookup.success || !mobilityModuleLookup.match)
+  ) {
+    return {
+      success: false,
+      errorMsg: "MINER_COMMAND_MOBILITY_MODULE_NOT_FOUND",
     };
   }
 
@@ -529,6 +602,30 @@ function buildMinerCommandPlan(charID, shipItem) {
     latestResourceState = nextFit.data.resourceState;
   }
 
+  for (let index = 0; index < preset.mobilityModuleCount; index += 1) {
+    const nextFit = tryPlanNextModuleFitWithOptions(
+      charID,
+      shipItem,
+      mobilityModuleLookup.match,
+      plannedItems,
+      {
+        forceFit: true,
+      },
+    );
+    if (!nextFit.success) {
+      return {
+        success: false,
+        errorMsg: nextFit.errorMsg || "MINER_COMMAND_MOBILITY_MODULE_FIT_FAILED",
+        data: {
+          fittedMobilityModuleCount: index,
+        },
+      };
+    }
+
+    plannedItems = nextFit.data.plannedItems;
+    latestResourceState = nextFit.data.resourceState;
+  }
+
   const chargeTypes = getCompatibleModuleChargeTypes(moduleLookup.match.typeID);
   if (chargeTypes.length <= 0) {
     return {
@@ -558,6 +655,7 @@ function buildMinerCommandPlan(charID, shipItem) {
     data: {
       preset,
       moduleType: moduleLookup.match,
+      mobilityModuleType: mobilityModuleLookup ? mobilityModuleLookup.match : null,
       supportModuleType: supportModuleLookup ? supportModuleLookup.match : null,
       rigType: rigLookup ? rigLookup.match : null,
       plannedItems,
@@ -615,6 +713,12 @@ function handleMinerCommand(session) {
       itemType: fitPlan.moduleType,
       quantity: fitPlan.preset.moduleCount,
     },
+    ...(fitPlan.mobilityModuleType && fitPlan.preset.mobilityModuleCount > 0
+      ? [{
+          itemType: fitPlan.mobilityModuleType,
+          quantity: fitPlan.preset.mobilityModuleCount,
+        }]
+      : []),
     ...(fitPlan.supportModuleType && fitPlan.preset.supportModuleCount > 0
       ? [{
           itemType: fitPlan.supportModuleType,
@@ -702,6 +806,31 @@ function handleMinerCommand(session) {
     rigFitCount = rigFitResult.data.fittedCount;
   }
 
+  let mobilityFitCount = 0;
+  if (fitPlan.mobilityModuleType && fitPlan.preset.mobilityModuleCount > 0) {
+    const mobilityFitResult = fitGrantedItemTypeToShip(
+      session,
+      stationID,
+      shipItem,
+      fitPlan.mobilityModuleType,
+      fitPlan.preset.mobilityModuleCount,
+      {
+        forceFit: true,
+      },
+    );
+    if (
+      !mobilityFitResult.success ||
+      !mobilityFitResult.data ||
+      mobilityFitResult.data.fittedCount !== fitPlan.preset.mobilityModuleCount
+    ) {
+      return {
+        success: false,
+        message: `The /miner hull spawned, but the mobility module fit failed: ${mobilityFitResult.errorMsg || "FIT_FAILED"}.`,
+      };
+    }
+    mobilityFitCount = mobilityFitResult.data.fittedCount;
+  }
+
   for (const crystalType of fitPlan.chargeTypes) {
     const cargoMoveResult = moveGrantedItemTypeToShipCargo(
       session,
@@ -737,7 +866,7 @@ function handleMinerCommand(session) {
     success: true,
     message: [
       `${shipLookup.match.name} was added to your ship hangar as ship ${shipItem.itemID}.`,
-      `Fitted ${fitResult.data.fittedCount}x ${fitPlan.moduleType.name}${supportFitCount > 0 ? `, ${supportFitCount}x ${fitPlan.supportModuleType.name}` : ""}${rigFitCount > 0 ? `, and ${rigFitCount}x ${fitPlan.rigType.name}` : ""}.`,
+      `Fitted ${fitResult.data.fittedCount}x ${fitPlan.moduleType.name}${mobilityFitCount > 0 ? `, ${mobilityFitCount}x ${fitPlan.mobilityModuleType.name}` : ""}${supportFitCount > 0 ? `, ${supportFitCount}x ${fitPlan.supportModuleType.name}` : ""}${rigFitCount > 0 ? `, and ${rigFitCount}x ${fitPlan.rigType.name}` : ""}.`,
       `Loaded cargo with ${fitPlan.preset.crystalsPerType} of every compatible mining crystal type (${fitPlan.chargeTypes.length} total types).`,
       "Boarded your client into the new mining hull in station.",
       `Remaining fitting: ${remainingCpu.toFixed(2)} CPU, ${remainingPower.toFixed(2)} PG, ${remainingUpgrade.toFixed(2)} calibration.`,

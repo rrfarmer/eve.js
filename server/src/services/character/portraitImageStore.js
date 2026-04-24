@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const CHARACTER_PORTRAIT_SIZES = Object.freeze([32, 64, 128, 256, 512, 1024]);
+const CHARACTER_PORTRAIT_EXTENSIONS = Object.freeze(["jpg", "png"]);
 const IMAGE_ROOT = path.join(__dirname, "../../_secondary/image");
 const GENERATED_ROOT = path.join(IMAGE_ROOT, "generated");
 const CHARACTER_ROOT = path.join(GENERATED_ROOT, "Character");
@@ -16,18 +17,29 @@ function ensureDirectory(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function getCharacterPortraitFilePath(charId, size) {
+function normalizePortraitExtension(extension = "jpg") {
+  const normalized = String(extension || "").trim().toLowerCase();
+  return CHARACTER_PORTRAIT_EXTENSIONS.includes(normalized) ? normalized : "jpg";
+}
+
+function getCharacterPortraitFilePath(charId, size, extension = "jpg") {
   const numericCharId = toNumber(charId, 0);
   const numericSize = toNumber(size, 0);
-  return path.join(CHARACTER_ROOT, `${numericCharId}_${numericSize}.jpg`);
+  return path.join(
+    CHARACTER_ROOT,
+    `${numericCharId}_${numericSize}.${normalizePortraitExtension(extension)}`,
+  );
 }
 
 function listCharacterPortraitPaths(charId) {
   const numericCharId = toNumber(charId, 0);
-  return CHARACTER_PORTRAIT_SIZES.map((size) => ({
-    size,
-    filePath: getCharacterPortraitFilePath(numericCharId, size),
-  }));
+  return CHARACTER_PORTRAIT_SIZES.flatMap((size) => (
+    CHARACTER_PORTRAIT_EXTENSIONS.map((extension) => ({
+      size,
+      extension,
+      filePath: getCharacterPortraitFilePath(numericCharId, size, extension),
+    }))
+  ));
 }
 
 function normalizePortraitBytes(value) {
@@ -45,6 +57,7 @@ function normalizePortraitBytes(value) {
 function storeCharacterPortrait(charId, bytes, options = {}) {
   const numericCharId = toNumber(charId, 0);
   const portraitBytes = normalizePortraitBytes(bytes);
+  const extension = normalizePortraitExtension(options.extension);
   const sizes = Array.isArray(options.sizes) && options.sizes.length > 0
     ? options.sizes.map((size) => toNumber(size, 0)).filter((size) => size > 0)
     : CHARACTER_PORTRAIT_SIZES;
@@ -58,7 +71,10 @@ function storeCharacterPortrait(charId, bytes, options = {}) {
 
   ensureDirectory(CHARACTER_ROOT);
   for (const size of sizes) {
-    fs.writeFileSync(getCharacterPortraitFilePath(numericCharId, size), portraitBytes);
+    fs.writeFileSync(
+      getCharacterPortraitFilePath(numericCharId, size, extension),
+      portraitBytes,
+    );
   }
 
   return {
@@ -78,9 +94,11 @@ function findCharacterPortraitPath(charId, size = null) {
   }
 
   if (size !== null && size !== undefined) {
-    const exactPath = getCharacterPortraitFilePath(numericCharId, size);
-    if (fs.existsSync(exactPath)) {
-      return exactPath;
+    for (const extension of CHARACTER_PORTRAIT_EXTENSIONS) {
+      const exactPath = getCharacterPortraitFilePath(numericCharId, size, extension);
+      if (fs.existsSync(exactPath)) {
+        return exactPath;
+      }
     }
   }
 
@@ -107,6 +125,7 @@ function clearCharacterPortraits(charId) {
 }
 
 module.exports = {
+  CHARACTER_PORTRAIT_EXTENSIONS,
   CHARACTER_PORTRAIT_SIZES,
   DEFAULT_CHARACTER_PORTRAIT_PATH,
   findCharacterPortraitPath,

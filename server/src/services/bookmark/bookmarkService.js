@@ -1,12 +1,23 @@
-/**
- * Bookmark Manager Service (bookmarkMgr)
- *
- * Handles bookmark queries from the client.
- */
-
 const path = require("path");
+
 const BaseService = require(path.join(__dirname, "../baseService"));
-const log = require(path.join(__dirname, "../../utils/logger"));
+const { buildList } = require(path.join(__dirname, "../_shared/serviceHelpers"));
+const runtime = require(path.join(__dirname, "./bookmarkRuntimeState"));
+const {
+  buildBookmarkPayload,
+  buildFolderPayload,
+} = require(path.join(__dirname, "./bookmarkPayloads"));
+
+function getCharacterID(session) {
+  return Number(session && session.characterID) || 0;
+}
+
+function buildFolderViewPayload(view) {
+  return buildFolderPayload(view.folder, {
+    accessLevel: view.accessLevel,
+    isActive: view.isActive,
+  });
+}
 
 class BookmarkService extends BaseService {
   constructor() {
@@ -14,33 +25,35 @@ class BookmarkService extends BaseService {
   }
 
   Handle_GetBookmarks(args, session) {
-    log.debug("[BookmarkMgr] GetBookmarks");
+    const result = runtime.getMyActiveBookmarks(getCharacterID(session));
     return [
-      { type: "list", items: [] },
-      { type: "list", items: [] },
+      buildList(result.bookmarks.map(buildBookmarkPayload)),
+      buildList(result.folders.map(buildFolderViewPayload)),
     ];
   }
 
   Handle_CreateFolder(args, session) {
-    log.debug("[BookmarkMgr] CreateFolder");
-    return null;
+    const view = runtime.addFolder(getCharacterID(session), {
+      isPersonal: true,
+      folderName: args && args[0],
+      description: args && args[1],
+    });
+    return buildFolderViewPayload(view);
   }
 
   Handle_GetFolders(args, session) {
-    log.debug("[BookmarkMgr] GetFolders");
-    return {
-      type: "list",
-      items: [],
-    };
+    return buildList(runtime.listFolderViews(getCharacterID(session)).map(buildFolderViewPayload));
   }
 
   Handle_GetBookmarksInFolder(args, session) {
-    const folderID = args && args.length > 0 ? args[0] : 0;
-    log.debug(`[BookmarkMgr] GetBookmarksInFolder(${folderID})`);
-    return {
-      type: "list",
-      items: [],
-    };
+    const folderInfo = runtime.getFolderInfo(getCharacterID(session), args && args[0]);
+    return buildList(
+      runtime
+        .getMyActiveBookmarks(getCharacterID(session))
+        .bookmarks
+        .filter((bookmark) => bookmark.folderID === folderInfo.folder.folderID)
+        .map(buildBookmarkPayload),
+    );
   }
 }
 

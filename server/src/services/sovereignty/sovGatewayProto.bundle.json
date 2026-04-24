@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generatedAt": "2026-04-01T14:59:07.825Z",
+    "generatedAt": "2026-04-09T16:56:13.808Z",
     "generatedProtoRoot": "tools/ClientCodeGrabber/Latest/eveProto/generated",
     "entryFiles": [
       "eve_public/sovereignty/hub/api/requests.proto",

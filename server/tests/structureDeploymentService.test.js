@@ -2,8 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
+process.env.EVEJS_SKIP_NPC_STARTUP = "1";
+
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
+const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
 const MachoNetService = require(path.join(
   repoRoot,
   "server/src/services/machoNet/machoNetService",
@@ -16,11 +19,16 @@ const StructureDirectoryService = require(path.join(
   repoRoot,
   "server/src/services/structure/structureDirectoryService",
 ));
+const CorpRegistryRuntimeService = require(path.join(
+  repoRoot,
+  "server/src/services/corporation/corpRegistryRuntime",
+));
 const structureState = require(path.join(
   repoRoot,
   "server/src/services/structure/structureState",
 ));
 const {
+  NO_REINFORCEMENT_WEEKDAY,
   STRUCTURE_STATE,
 } = require(path.join(repoRoot, "server/src/services/structure/structureConstants"));
 const {
@@ -53,6 +61,7 @@ const worldData = require(path.join(repoRoot, "server/src/space/worldData"));
 
 const TEST_CHARACTER_ID = 140000001;
 const ASTRAHUS_TYPE_ID = 35832;
+const KEEPSTAR_TYPE_ID = 35834;
 
 function readTable(tableName) {
   const result = database.read(tableName, "/");
@@ -111,10 +120,123 @@ function buildSpaceSession(solarSystemID, shipID = 990000001) {
       systemID: solarSystemID,
     },
     _notifications: notifications,
+    socket: { destroyed: false },
     sendNotification(name, idType, payload) {
       notifications.push({ name, idType, payload });
     },
+    sendServiceNotification() {},
   };
+}
+
+function buildLiveSpaceSession(
+  solarSystemID,
+  position,
+  shipID = 990000001,
+  shipTypeID = 606,
+) {
+  const session = buildSpaceSession(solarSystemID, shipID);
+  session.shipItem = {
+    itemID: shipID,
+    typeID: shipTypeID,
+    ownerID: session.characterID,
+    groupID: 25,
+    categoryID: 6,
+    radius: 50,
+    spaceState: {
+      position,
+      velocity: { x: 0, y: 0, z: 0 },
+      direction: { x: 1, y: 0, z: 0 },
+      mode: "STOP",
+      speedFraction: 0,
+    },
+  };
+  return session;
+}
+
+function attachAndBootstrapLiveSession(session) {
+  const entity = spaceRuntime.attachSession(session, session.shipItem, {
+    systemID: session.solarsystemid2,
+    broadcast: false,
+    spawnStopped: true,
+  });
+  assert.ok(entity, "Expected the live test ship to attach to space runtime");
+  assert.equal(
+    spaceRuntime.ensureInitialBallpark(session),
+    true,
+    "Expected the live test session to finish initial ballpark bootstrap",
+  );
+  session._notifications.length = 0;
+  return entity;
+}
+
+function getMarshalDictEntry(value, key) {
+  if (!value || value.type !== "dict" || !Array.isArray(value.entries)) {
+    return undefined;
+  }
+  const entry = value.entries.find(
+    (candidate) => Array.isArray(candidate) && candidate[0] === key,
+  );
+  return entry ? entry[1] : undefined;
+}
+
+function flattenDestinyUpdates(notifications = []) {
+  const updates = [];
+  for (const notification of notifications) {
+    if (
+      !notification ||
+      notification.name !== "DoDestinyUpdate" ||
+      !Array.isArray(notification.payload)
+    ) {
+      continue;
+    }
+
+    const payloadList = notification.payload[0];
+    const entries = Array.isArray(payloadList && payloadList.items)
+      ? payloadList.items
+      : [];
+    for (const entry of entries) {
+      const payload = Array.isArray(entry) ? entry[1] : null;
+      if (!Array.isArray(payload) || typeof payload[0] !== "string") {
+        continue;
+      }
+      updates.push({
+        stamp: Array.isArray(entry) ? entry[0] : null,
+        name: payload[0],
+        args: Array.isArray(payload[1]) ? payload[1] : [],
+      });
+    }
+  }
+  return updates;
+}
+
+function getAddBalls2EntityIDs(update) {
+  if (!update || update.name !== "AddBalls2" || !Array.isArray(update.args)) {
+    return [];
+  }
+
+  const entityIDs = [];
+  for (const batchEntry of update.args) {
+    const slimEntries = Array.isArray(batchEntry) ? batchEntry[1] : null;
+    const normalizedSlimEntries = Array.isArray(slimEntries)
+      ? slimEntries
+      : slimEntries &&
+          slimEntries.type === "list" &&
+          Array.isArray(slimEntries.items)
+        ? slimEntries.items
+        : [];
+    for (const slimEntry of normalizedSlimEntries) {
+      const slimItem = Array.isArray(slimEntry) ? slimEntry[0] : slimEntry;
+      const itemID = Number(
+        slimItem && typeof slimItem === "object" && "itemID" in slimItem
+          ? slimItem.itemID
+          : getMarshalDictEntry(slimItem, "itemID"),
+      );
+      if (Number.isFinite(itemID) && itemID > 0) {
+        entityIDs.push(itemID);
+      }
+    }
+  }
+  return entityIDs;
 }
 
 function findClaimableSolarSystems(count = 2, predicate = null) {
@@ -133,12 +255,31 @@ function keyValEntriesToMap(payload) {
   return new Map(payload.args.entries);
 }
 
+test.afterEach(() => {
+  spaceRuntime._testing.clearScenes();
+});
+
 test("machoNet advertises structureDeployment for client routing", () => {
   const machoNet = new MachoNetService();
   const serviceInfo = new Map(machoNet.getServiceInfoDict().entries);
 
   assert.equal(serviceInfo.has("structureDeployment"), true);
   assert.equal(serviceInfo.get("structureDeployment"), null);
+});
+
+test("corp reinforce default matches the deployment UI tuple contract", () => {
+  const session = buildSpaceSession(30005261);
+  const corpRegistry = new CorpRegistryRuntimeService();
+
+  const reinforceDefault = corpRegistry.Handle_GetStructureReinforceDefault(
+    [],
+    session,
+  );
+
+  assert.deepEqual(
+    reinforceDefault,
+    [NO_REINFORCEMENT_WEEKDAY, 20],
+  );
 });
 
 test("structureDeployment anchors and unanchors a cargo TCU through sovereignty state", (t) => {
@@ -180,7 +321,7 @@ test("structureDeployment anchors and unanchors a cargo TCU through sovereignty 
   assert.equal(findItemById(itemID) !== null, true);
 
   service.Handle_Anchor(
-    [itemID, 12345, 67890, 0.25, 1, "Alpha Claim", "", 5, 18, {}],
+    [itemID, 12345, 67890, 0.25, 1, { type: "wstring", value: "Alpha Claim" }, "", 5, 18, {}],
     session,
   );
 
@@ -385,7 +526,7 @@ test("structureDeployment anchors and unanchors a cargo Astrahus through generic
 
   const service = new StructureDeploymentService();
   service.Handle_Anchor(
-    [itemID, 33333, 77777, 0.5, 1, "Client Astrahus", "", 5, 18, {}],
+    [itemID, 33333, 77777, 0.5, 1, { type: "wstring", value: "Client Astrahus" }, "", 5, 18, {}],
     session,
   );
 
@@ -436,5 +577,145 @@ test("structureDeployment anchors and unanchors a cargo Astrahus through generic
     structureState.getStructureByID(astrahus.structureID, { refresh: true }),
     null,
     "Expected generic structure to be removed after its unanchoring timer expires",
+  );
+});
+
+test("structureDeployment consumes exactly one packaged Keepstar from a stacked cargo row", (t) => {
+  const structuresBackup = readTable("structures");
+  const itemsBackup = readTable("items");
+  t.after(() => {
+    writeTable("structures", structuresBackup);
+    writeTable("items", itemsBackup);
+    resetInventoryStoreForTests();
+    structureState.clearStructureCaches();
+  });
+
+  writeCleanStructuresTable(structuresBackup);
+  writeTable("items", itemsBackup);
+  resetInventoryStoreForTests();
+  structureState.clearStructureCaches();
+
+  const [solarSystemID] = findClaimableSolarSystems(1);
+  const session = buildSpaceSession(solarSystemID, 990000005);
+  const grantResult = grantItemToCharacterLocation(
+    session.characterID,
+    session._space.shipID,
+    ITEM_FLAGS.CARGO_HOLD,
+    { typeID: KEEPSTAR_TYPE_ID, name: "Keepstar Deployment Stack" },
+    5,
+    { singleton: 0 },
+  );
+  assert.equal(grantResult.success, true);
+  const stackItemID = grantResult.data.items[0].itemID;
+
+  const service = new StructureDeploymentService();
+  service.Handle_Anchor(
+    [stackItemID, 11111, 22222, 0.5, 1, { type: "wstring", value: "Client Keepstar" }, "", 5, 18, {}],
+    session,
+  );
+
+  const remainingStack = findItemById(stackItemID);
+  assert.ok(remainingStack, "Expected the source stacked Keepstar row to remain after deploying one unit");
+  assert.equal(Number(remainingStack.typeID), KEEPSTAR_TYPE_ID);
+  assert.equal(Number(remainingStack.locationID), Number(session._space.shipID));
+  assert.equal(Number(remainingStack.flagID), ITEM_FLAGS.CARGO_HOLD);
+  assert.equal(Number(remainingStack.singleton), 0);
+  assert.equal(Number(remainingStack.stacksize || remainingStack.quantity), 4);
+
+  const structures = structureState.listStructuresForSystem(solarSystemID, {
+    refresh: true,
+    includeDestroyed: false,
+  });
+  const keepstar = structures.find(
+    (structure) =>
+      Number(structure.typeID) === KEEPSTAR_TYPE_ID &&
+      String(structure.itemName || structure.name || "") === "Client Keepstar",
+  );
+  assert.ok(keepstar, "Expected the deployed Keepstar to be persisted");
+
+  assert.equal(
+    session._notifications.some((entry) => entry.name === "OnItemChange"),
+    true,
+    "Expected Keepstar stack consumption to emit inventory change feedback",
+  );
+});
+
+test("structureDeployment anchors a live-space Astrahus at ship-relative coordinates and seeds AddBalls2", async (t) => {
+  const structuresBackup = readTable("structures");
+  const itemsBackup = readTable("items");
+  t.after(() => {
+    writeTable("structures", structuresBackup);
+    writeTable("items", itemsBackup);
+    resetInventoryStoreForTests();
+    structureState.clearStructureCaches();
+  });
+
+  writeCleanStructuresTable(structuresBackup);
+  writeTable("items", itemsBackup);
+  resetInventoryStoreForTests();
+  structureState.clearStructureCaches();
+
+  const [solarSystemID] = findClaimableSolarSystems(1);
+  const shipPosition = {
+    x: -253013545507.42303,
+    y: 40238006840.86734,
+    z: -522407574245.7781,
+  };
+  const session = buildLiveSpaceSession(
+    solarSystemID,
+    shipPosition,
+    990000099,
+    28850,
+  );
+  const shipEntity = attachAndBootstrapLiveSession(session);
+
+  const grantResult = grantItemToCharacterLocation(
+    session.characterID,
+    session._space.shipID,
+    ITEM_FLAGS.CARGO_HOLD,
+    { typeID: ASTRAHUS_TYPE_ID, name: "Astrahus Deployment Crate" },
+    1,
+    { singleton: 1 },
+  );
+  assert.equal(grantResult.success, true);
+  const itemID = grantResult.data.items[0].itemID;
+
+  const service = new StructureDeploymentService();
+  service.Handle_Anchor(
+    [itemID, 10003.7548828125, -80504.96875, 5.6531853675842285, 1, { type: "wstring", value: "Client Astrahus" }, "", 255, 20, {}],
+    session,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const structures = structureState.listStructuresForSystem(solarSystemID, {
+    refresh: true,
+    includeDestroyed: false,
+  });
+  const astrahus = structures.find(
+    (structure) =>
+      Number(structure.typeID) === ASTRAHUS_TYPE_ID &&
+      String(structure.itemName || structure.name || "") === "Client Astrahus",
+  );
+  assert.ok(astrahus, "Expected the live-space Astrahus to be persisted");
+  assert.equal(
+    Number(astrahus.position.x),
+    Number(shipEntity.position.x) + 10003.7548828125,
+  );
+  assert.equal(
+    Number(astrahus.position.y),
+    Number(shipEntity.position.y),
+  );
+  assert.equal(
+    Number(astrahus.position.z),
+    Number(shipEntity.position.z) - 80504.96875,
+  );
+
+  const updates = flattenDestinyUpdates(session._notifications);
+  assert.equal(
+    updates.some(
+      (entry) => entry.name === "AddBalls2" && getAddBalls2EntityIDs(entry).includes(Number(astrahus.structureID)),
+    ),
+    true,
+    "Expected live structure deployment to seed the newly anchored structure into ballpark visibility",
   );
 });

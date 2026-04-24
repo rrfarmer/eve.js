@@ -146,6 +146,126 @@ function extractBoundObjectName(value, depth = 0) {
   return null;
 }
 
+function extractBoundObjectRegistrations(result) {
+  const registrations = new Map();
+  collectBoundObjectRegistrations(result, registrations);
+  return [...registrations.entries()];
+}
+
+function collectBoundObjectRegistrations(value, registrations) {
+  if (!value) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      collectBoundObjectRegistrations(entry, registrations);
+    }
+    return;
+  }
+
+  if (typeof value !== "object" || value.type !== "substruct") {
+    return;
+  }
+
+  const substream = value.value;
+  const objectRegistration =
+    substream && substream.type === "substream"
+      ? substream.value
+      : substream;
+
+  if (
+    Array.isArray(objectRegistration) &&
+    typeof objectRegistration[0] === "string" &&
+    objectRegistration[0].startsWith("N=")
+  ) {
+    registrations.set(objectRegistration[0], objectRegistration[1] ?? null);
+  }
+}
+
+function recordSpaceBootstrapTrace(session, event, details = {}) {
+  if (!session || !log.isVerboseDebugEnabled()) {
+    return false;
+  }
+  try {
+    const spaceRuntime = require(path.join(__dirname, "../space/runtime"));
+    if (
+      spaceRuntime &&
+      typeof spaceRuntime.recordSessionJumpTimingTrace === "function"
+    ) {
+      return (
+        spaceRuntime.recordSessionJumpTimingTrace(session, event, details) === true
+      );
+    }
+  } catch (error) {
+    log.debug(
+      `[PacketDispatcher] Failed to record space bootstrap trace: ${error.message}`,
+    );
+  }
+  return false;
+}
+
+function extractDictEntries(value) {
+  if (!value) {
+    return [];
+  }
+  if (value.type === "dict" && Array.isArray(value.entries)) {
+    return [...value.entries];
+  }
+  if (value instanceof Map) {
+    return [...value.entries()];
+  }
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return Object.entries(value);
+  }
+  return [];
+}
+
+function mergeBoundObjectRegistrationsIntoOob(existingOob, registrations = []) {
+  if (!Array.isArray(registrations) || registrations.length === 0) {
+    return existingOob || null;
+  }
+
+  const existingEntries = extractDictEntries(existingOob);
+  const oidRegistrationEntries = new Map();
+  const mergedEntries = [];
+  let hasOidEntry = false;
+
+  for (const [entryKey, entryValue] of existingEntries) {
+    if (String(entryKey) !== "OID+") {
+      mergedEntries.push([entryKey, entryValue]);
+      continue;
+    }
+    hasOidEntry = true;
+    for (const [objectID, refID] of extractDictEntries(entryValue)) {
+      if (typeof objectID === "string" && objectID.startsWith("N=")) {
+        oidRegistrationEntries.set(objectID, refID ?? null);
+      }
+    }
+  }
+
+  for (const [objectID, refID] of registrations) {
+    if (typeof objectID === "string" && objectID.startsWith("N=")) {
+      oidRegistrationEntries.set(objectID, refID ?? null);
+    }
+  }
+
+  if (!hasOidEntry || oidRegistrationEntries.size > 0) {
+    mergedEntries.push([
+      "OID+",
+      {
+        type: "dict",
+        entries: [...oidRegistrationEntries.entries()],
+      },
+    ]);
+  }
+
+  return {
+    type: "dict",
+    entries: mergedEntries,
+  };
+}
+
 class PacketDispatcher {
   constructor(serviceManager) {
     this.serviceManager = serviceManager;
@@ -257,12 +377,27 @@ class PacketDispatcher {
                 ? serviceName
                 : null;
           }
+          const handlerStartedAtMs = Date.now();
           const result = await service.callMethod(
             call.method,
             call.args,
             session,
             call.kwargs,
           );
+          const handlerElapsedMs = Date.now() - handlerStartedAtMs;
+          recordSpaceBootstrapTrace(session, "service-call", {
+            service: service.name || resolvedServiceName || serviceName || "?",
+            method: call.method,
+            callID,
+            handlerMs: handlerElapsedMs,
+            argCount: Array.isArray(call.args) ? call.args.length : 0,
+          });
+          if (handlerElapsedMs >= 100) {
+            log.info(
+              `[PacketPerf] service=${service.name || resolvedServiceName || serviceName || "?"} ` +
+              `method=${call.method} callID=${callID} handlerMs=${handlerElapsedMs}`,
+            );
+          }
 
           // Scan results for bound object OIDs and register them
           // so future calls to those OIDs route back to this service.
@@ -279,15 +414,35 @@ class PacketDispatcher {
             result !== undefined ? result : null,
             session,
             service.name || resolvedServiceName || serviceName || null,
+            {
+              kind: "call-response",
+              service: service.name || resolvedServiceName || serviceName || null,
+              method: call.method,
+              callID,
+            },
           );
           if (typeof service.afterCallResponse === "function") {
             try {
+              const afterCallStartedAtMs = Date.now();
               await service.afterCallResponse(call.method, session, {
                 args: call.args,
                 kwargs: call.kwargs,
                 result,
                 packet: pkt,
               });
+              const afterCallElapsedMs = Date.now() - afterCallStartedAtMs;
+              recordSpaceBootstrapTrace(session, "service-after-call-response", {
+                service: service.name || resolvedServiceName || serviceName || "?",
+                method: call.method,
+                callID,
+                afterCallMs: afterCallElapsedMs,
+              });
+              if (afterCallElapsedMs >= 100) {
+                log.info(
+                  `[PacketPerf] afterCall service=${service.name || resolvedServiceName || serviceName || "?"} ` +
+                  `method=${call.method} callID=${callID} afterCallMs=${afterCallElapsedMs}`,
+                );
+              }
             } catch (afterCallError) {
               log.warn(
                 `[PacketDispatcher] afterCallResponse failed for ${service.name}.${call.method}: ${afterCallError.message}`,
@@ -318,6 +473,12 @@ class PacketDispatcher {
               null,
               session,
               service.name || resolvedServiceName || serviceName || null,
+              {
+                kind: "call-response",
+                service: service.name || resolvedServiceName || serviceName || null,
+                method: call.method,
+                callID,
+              },
             );
           }
           return true;
@@ -435,11 +596,22 @@ class PacketDispatcher {
    *   payload = [substream(result)]
    *   namedPayload = {} (empty dict)
    */
-  _sendCallResponse(pkt, result, session, responseServiceName = null) {
+  _sendCallResponse(
+    pkt,
+    result,
+    session,
+    responseServiceName = null,
+    responsePerfMeta = null,
+  ) {
     if (!session || !session.sendPacket) return;
 
     // The callID comes from the source address of the request
     const callID = pkt.source.callID || pkt.dest.callID || 0;
+    const boundObjectRegistrations = extractBoundObjectRegistrations(result);
+    const responseOob = mergeBoundObjectRegistrationsIntoOob(
+      pkt.oob,
+      boundObjectRegistrations,
+    );
 
     // Build the 7-element tuple
     const responseTuple = [
@@ -470,7 +642,7 @@ class PacketDispatcher {
       { type: "dict", entries: [] },
 
       // contextKey
-      pkt.oob || null,
+      responseOob,
 
       // traceID/bssid (8th element required)
       pkt.bssid || null,
@@ -495,6 +667,11 @@ class PacketDispatcher {
       pkt.dest.service || pkt.service || "CallRsp",
       `response callID=${callID}`,
     );
+    session._pendingBootstrapPacketPerf = responsePerfMeta || {
+      kind: "call-response",
+      service: responseServiceName || pkt.dest.service || pkt.service || null,
+      callID,
+    };
     session.sendPacket(responseObj);
   }
 

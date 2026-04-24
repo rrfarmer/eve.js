@@ -1,0 +1,91 @@
+{
+  "_meta": {
+    "nextWrapID": 1040000000003,
+    "generatedAt": "2026-03-24T20:07:11.591Z",
+    "lastUpdatedAt": "2026-03-26T12:11:57.403Z"
+  },
+  "wraps": [
+    {
+      "assetWrapID": 1040000000000,
+      "ownerID": 140000002,
+      "ownerKind": "char",
+      "sourceStructureID": 1030000000000,
+      "solarSystemID": 30002187,
+      "wrapName": "TestAstrahus Asset Safety",
+      "wrapTypeID": 60,
+      "itemIDs": [
+        990112621
+      ],
+      "createdAt": 1774382831579,
+      "ejectTimeMs": 1774382831579,
+      "daysUntilCanDeliverConst": 5,
+      "daysUntilAutoMoveConst": 20,
+      "nearestNPCStationInfo": {
+        "itemID": 60002569,
+        "typeID": 1531,
+        "solarSystemID": 30002187,
+        "itemName": "Amarr VIII (Oris) - Moon 4 - Expert Distribution Retail Center"
+      },
+      "destinationID": null,
+      "destinationKind": null,
+      "deliveredAt": null,
+      "autoMovedAt": null,
+      "assetSafetyDisabled": false
+    },
+    {
+      "assetWrapID": 1040000000001,
+      "ownerID": 140000002,
+      "ownerKind": "char",
+      "sourceStructureID": 1030000000002,
+      "solarSystemID": 30002187,
+      "wrapName": "TestAstrahus Asset Safety",
+      "wrapTypeID": 60,
+      "itemIDs": [
+        991000035
+      ],
+      "createdAt": 1774384066044,
+      "ejectTimeMs": 1774384066044,
+      "daysUntilCanDeliverConst": 5,
+      "daysUntilAutoMoveConst": 20,
+      "nearestNPCStationInfo": {
+        "itemID": 60002569,
+        "typeID": 1531,
+        "solarSystemID": 30002187,
+        "itemName": "Amarr VIII (Oris) - Moon 4 - Expert Distribution Retail Center"
+      },
+      "destinationID": null,
+      "destinationKind": null,
+      "deliveredAt": null,
+      "autoMovedAt": null,
+      "assetSafetyDisabled": false
+    },
+    {
+      "assetWrapID": 1040000000002,
+      "ownerID": 140000008,
+      "ownerKind": "char",
+      "sourceStructureID": 1030000000006,
+      "solarSystemID": 30000142,
+      "wrapName": "Elysian Bitch Asset Safety",
+      "wrapTypeID": 60,
+      "itemIDs": [
+        991000295,
+        991000296
+      ],
+      "createdAt": 1774527117390,
+      "ejectTimeMs": 1774527117390,
+      "daysUntilCanDeliverConst": 5,
+      "daysUntilAutoMoveConst": 20,
+      "nearestNPCStationInfo": {
+        "itemID": 60000361,
+        "typeID": 1531,
+        "solarSystemID": 30000142,
+        "itemName": "Jita IV - Moon 6 - Ytiri Storage"
+      },
+      "destinationID": null,
+      "destinationKind": null,
+      "deliveredAt": null,
+      "autoMovedAt": null,
+      "assetSafetyDisabled": false
+    }
+  ]
+}

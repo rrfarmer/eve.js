@@ -1,9 +1,6 @@
 const path = require("path");
 
 const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
-const {
   CORP_ROLE_BRAND_MANAGER,
   CORP_ROLE_DIRECTOR,
   getCorporationMember,
@@ -13,6 +10,16 @@ const {
   toRoleMaskBigInt,
   updateCorporationRuntime,
 } = require(path.join(__dirname, "./corporationRuntimeState"));
+
+function getCharacterRecord(characterID) {
+  const characterState = require(path.join(
+    __dirname,
+    "../character/characterState",
+  ));
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
 
 function normalizeColorComponent(value, fallback = 0) {
   const numericValue = normalizeInteger(value, fallback);

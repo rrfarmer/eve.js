@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "nextInstanceSequence": 79144,
+  "instancesByID": {},
+  "universeReconcileMeta": {
+    "version": 1,
+    "descriptorKey": "{\"version\":2,\"broadDescriptorKey\":\"{\\\"scope\\\":\\\"full\\\",\\\"systemCount\\\":8490,\\\"bandCounts\\\":{\\\"highsec\\\":1247,\\\"lowsec\\\":687,\\\"nullsec\\\":3952,\\\"wormhole\\\":2604},\\\"authorityVersion\\\":1,\\\"authorityTemplateCount\\\":6040,\\\"familyPolicies\\\":{\\\"combat\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":120,\\\"lowsec\\\":132,\\\"nullsec\\\":220,\\\"wormhole\\\":196}},\\\"combat_anomaly\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":2,\\\"nullsec\\\":3,\\\"wormhole\\\":2},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":360,\\\"lowsec\\\":196,\\\"nullsec\\\":1280,\\\"wormhole\\\":720}},\\\"combat_hacking\\\":{\\\"siteLifetimeMinutes\\\":2880,\\\"siteLifetimeMs\\\":172800000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":3,\\\"nullsec\\\":12,\\\"wormhole\\\":16}},\\\"data\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":36,\\\"lowsec\\\":32,\\\"nullsec\\\":104,\\\"wormhole\\\":96}},\\\"drifter_deepflow_rift_knownspace\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":36,\\\"lowsec\\\":32,\\\"nullsec\\\":96,\\\"wormhole\\\":0}},\\\"drifter_deepflow_rift_pochven\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":27,\\\"wormhole\\\":0}},\\\"drifter_observatory\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":1247,\\\"lowsec\\\":687,\\\"nullsec\\\":3952,\\\"wormhole\\\":0}},\\\"drifter_observatory_infiltration\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":32,\\\"nullsec\\\":27,\\\"wormhole\\\":0}},\\\"drifter_occupied_tabbetzur_deathless_research_outpost\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":1,\\\"nullsec\\\":0,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":687,\\\"nullsec\\\":0,\\\"wormhole\\\":0}},\\\"drifter_occupied_tabbetzur_field_rescue\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":1,\\\"nullsec\\\":0,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":687,\\\"nullsec\\\":0,\\\"wormhole\\\":0}},\\\"drifter_space_barbican_hive\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_space_conflux_hive\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_space_reckoning_labyrinth\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_space_reckoning_nexus\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_space_redoubt_hive\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_space_sentinel_hive\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_space_vidette_hive\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":0,\\\"wormhole\\\":2604}},\\\"drifter_unidentified_wormhole\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":1247,\\\"lowsec\\\":687,\\\"nullsec\\\":3952,\\\"wormhole\\\":0}},\\\"drifter_vigilance_point\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":0,\\\"nullsec\\\":27,\\\"wormhole\\\":0}},\\\"gas\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":16,\\\"nullsec\\\":72,\\\"wormhole\\\":164}},\\\"ghost\\\":{\\\"siteLifetimeMinutes\\\":2880,\\\"siteLifetimeMs\\\":172800000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":4,\\\"lowsec\\\":4,\\\"nullsec\\\":12,\\\"wormhole\\\":10}},\\\"ore\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":0},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":78,\\\"lowsec\\\":40,\\\"nullsec\\\":136,\\\"wormhole\\\":0}},\\\"relic\\\":{\\\"siteLifetimeMinutes\\\":1440,\\\"siteLifetimeMs\\\":86400000,\\\"siteOrigin\\\":\\\"universe_dungeon\\\",\\\"slots\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"strides\\\":{\\\"highsec\\\":1,\\\"lowsec\\\":1,\\\"nullsec\\\":1,\\\"wormhole\\\":1},\\\"targetSystems\\\":{\\\"highsec\\\":0,\\\"lowsec\\\":26,\\\"nullsec\\\":124,\\\"wormhole\\\":96}}},\\\"estimatedSiteCount\\\":39432}\",\"miningDescriptorKey\":\"{\\\"scope\\\":\\\"full\\\",\\\"systemCount\\\":8490,\\\"bandCounts\\\":{\\\"highsec\\\":1247,\\\"lowsec\\\":687,\\\"nullsec\\\":3952,\\\"wormhole\\\":2604},\\\"generationConfig\\\":{\\\"miningGeneratedIceSitesEnabled\\\":true,\\\"miningIceSitesHighSecPerSystem\\\":1,\\\"miningIceSitesLowSecPerSystem\\\":1,\\\"miningIceSitesNullSecPerSystem\\\":1,\\\"miningIceSitesWormholePerSystem\\\":0,\\\"miningIceTargetSystemsHighSec\\\":36,\\\"miningIceTargetSystemsLowSec\\\":18,\\\"miningIceTargetSystemsNullSec\\\":84,\\\"miningIceTargetSystemsWormhole\\\":0,\\\"miningGeneratedIceSiteLifetimeMinutes\\\":1440,\\\"miningIceChunksPerSite\\\":12},\\\"targetSystems\\\":{\\\"highsec\\\":36,\\\"lowsec\\\":18,\\\"nullsec\\\":84,\\\"wormhole\\\":0}}\"}",
+    "broadDescriptorKey": "{\"scope\":\"full\",\"systemCount\":8490,\"bandCounts\":{\"highsec\":1247,\"lowsec\":687,\"nullsec\":3952,\"wormhole\":2604},\"authorityVersion\":1,\"authorityTemplateCount\":6040,\"familyPolicies\":{\"combat\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":120,\"lowsec\":132,\"nullsec\":220,\"wormhole\":196}},\"combat_anomaly\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":2,\"nullsec\":3,\"wormhole\":2},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":360,\"lowsec\":196,\"nullsec\":1280,\"wormhole\":720}},\"combat_hacking\":{\"siteLifetimeMinutes\":2880,\"siteLifetimeMs\":172800000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":3,\"nullsec\":12,\"wormhole\":16}},\"data\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":36,\"lowsec\":32,\"nullsec\":104,\"wormhole\":96}},\"drifter_deepflow_rift_knownspace\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":36,\"lowsec\":32,\"nullsec\":96,\"wormhole\":0}},\"drifter_deepflow_rift_pochven\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":27,\"wormhole\":0}},\"drifter_observatory\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":1247,\"lowsec\":687,\"nullsec\":3952,\"wormhole\":0}},\"drifter_observatory_infiltration\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":1,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":32,\"nullsec\":27,\"wormhole\":0}},\"drifter_occupied_tabbetzur_deathless_research_outpost\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":1,\"nullsec\":0,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":687,\"nullsec\":0,\"wormhole\":0}},\"drifter_occupied_tabbetzur_field_rescue\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":1,\"nullsec\":0,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":687,\"nullsec\":0,\"wormhole\":0}},\"drifter_space_barbican_hive\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_space_conflux_hive\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_space_reckoning_labyrinth\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_space_reckoning_nexus\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_space_redoubt_hive\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_space_sentinel_hive\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_space_vidette_hive\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":0,\"wormhole\":2604}},\"drifter_unidentified_wormhole\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":1247,\"lowsec\":687,\"nullsec\":3952,\"wormhole\":0}},\"drifter_vigilance_point\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":0,\"nullsec\":27,\"wormhole\":0}},\"gas\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":16,\"nullsec\":72,\"wormhole\":164}},\"ghost\":{\"siteLifetimeMinutes\":2880,\"siteLifetimeMs\":172800000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":4,\"lowsec\":4,\"nullsec\":12,\"wormhole\":10}},\"ore\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":0},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":78,\"lowsec\":40,\"nullsec\":136,\"wormhole\":0}},\"relic\":{\"siteLifetimeMinutes\":1440,\"siteLifetimeMs\":86400000,\"siteOrigin\":\"universe_dungeon\",\"slots\":{\"highsec\":0,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"strides\":{\"highsec\":1,\"lowsec\":1,\"nullsec\":1,\"wormhole\":1},\"targetSystems\":{\"highsec\":0,\"lowsec\":26,\"nullsec\":124,\"wormhole\":96}}},\"estimatedSiteCount\":39432}",
+    "miningDescriptorKey": "{\"scope\":\"full\",\"systemCount\":8490,\"bandCounts\":{\"highsec\":1247,\"lowsec\":687,\"nullsec\":3952,\"wormhole\":2604},\"generationConfig\":{\"miningGeneratedIceSitesEnabled\":true,\"miningIceSitesHighSecPerSystem\":1,\"miningIceSitesLowSecPerSystem\":1,\"miningIceSitesNullSecPerSystem\":1,\"miningIceSitesWormholePerSystem\":0,\"miningIceTargetSystemsHighSec\":36,\"miningIceTargetSystemsLowSec\":18,\"miningIceTargetSystemsNullSec\":84,\"miningIceTargetSystemsWormhole\":0,\"miningGeneratedIceSiteLifetimeMinutes\":1440,\"miningIceChunksPerSite\":12},\"targetSystems\":{\"highsec\":36,\"lowsec\":18,\"nullsec\":84,\"wormhole\":0}}",
+    "lastStartedAtMs": 1776189312252,
+    "lastCompletedAtMs": 1776189330043,
+    "lastScope": "full",
+    "lastReason": "manual-seeder",
+    "summary": {
+      "forceReseedUniverse": true,
+      "systemCount": 8490,
+      "desiredSiteCount": 39570,
+      "createdInstances": 39570,
+      "retainedInstances": 0,
+      "replacedInstances": 0,
+      "removedInstances": 0,
+      "miningStateRowsCreated": 12,
+      "miningStateRowsRemoved": 0,
+      "mining": {
+        "desiredSiteCount": 138
+      },
+      "families": {
+        "combat": {
+          "desiredSiteCount": 668,
+          "systemsTouched": 668,
+          "templateCount": 4353
+        },
+        "combat_anomaly": {
+          "desiredSiteCount": 6032,
+          "systemsTouched": 2556,
+          "templateCount": 203
+        },
+        "combat_hacking": {
+          "desiredSiteCount": 31,
+          "systemsTouched": 31,
+          "templateCount": 17
+        },
+        "data": {
+          "desiredSiteCount": 268,
+          "systemsTouched": 268,
+          "templateCount": 226
+        },
+        "drifter_deepflow_rift_knownspace": {
+          "desiredSiteCount": 164,
+          "systemsTouched": 164,
+          "templateCount": 1
+        },
+        "drifter_deepflow_rift_pochven": {
+          "desiredSiteCount": 27,
+          "systemsTouched": 27,
+          "templateCount": 1
+        },
+        "drifter_observatory": {
+          "desiredSiteCount": 5886,
+          "systemsTouched": 5886,
+          "templateCount": 1
+        },
+        "drifter_observatory_infiltration": {
+          "desiredSiteCount": 59,
+          "systemsTouched": 59,
+          "templateCount": 1
+        },
+        "drifter_occupied_tabbetzur_deathless_research_outpost": {
+          "desiredSiteCount": 687,
+          "systemsTouched": 687,
+          "templateCount": 1
+        },
+        "drifter_occupied_tabbetzur_field_rescue": {
+          "desiredSiteCount": 687,
+          "systemsTouched": 687,
+          "templateCount": 1
+        },
+        "drifter_space_barbican_hive": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_space_conflux_hive": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_space_reckoning_labyrinth": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_space_reckoning_nexus": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_space_redoubt_hive": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_space_sentinel_hive": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_space_vidette_hive": {
+          "desiredSiteCount": 2604,
+          "systemsTouched": 2604,
+          "templateCount": 1
+        },
+        "drifter_unidentified_wormhole": {
+          "desiredSiteCount": 5886,
+          "systemsTouched": 5886,
+          "templateCount": 6
+        },
+        "drifter_vigilance_point": {
+          "desiredSiteCount": 27,
+          "systemsTouched": 27,
+          "templateCount": 1
+        },
+        "gas": {
+          "desiredSiteCount": 252,
+          "systemsTouched": 252,
+          "templateCount": 75
+        },
+        "ghost": {
+          "desiredSiteCount": 30,
+          "systemsTouched": 30,
+          "templateCount": 22
+        },
+        "ore": {
+          "desiredSiteCount": 254,
+          "systemsTouched": 254,
+          "templateCount": 115
+        },
+        "relic": {
+          "desiredSiteCount": 246,
+          "systemsTouched": 246,
+          "templateCount": 283
+        }
+      },
+      "elapsedMs": 17791
+    }
+  }
+}

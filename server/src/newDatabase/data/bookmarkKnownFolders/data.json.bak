@@ -1,0 +1,110 @@
+{
+  "recordsByCharacterID": {
+    "140000001": {
+      "500001": {
+        "folderID": 500001,
+        "isActive": true
+      },
+      "500002": {
+        "folderID": 500002,
+        "isActive": true
+      },
+      "500003": {
+        "folderID": 500003,
+        "isActive": true
+      },
+      "500008": {
+        "folderID": 500008,
+        "isActive": false
+      }
+    },
+    "140000003": {
+      "500004": {
+        "folderID": 500004,
+        "isActive": true
+      },
+      "500005": {
+        "folderID": 500005,
+        "isActive": true
+      },
+      "500009": {
+        "folderID": 500009,
+        "isActive": false
+      }
+    },
+    "140000004": {
+      "500007": {
+        "folderID": 500007,
+        "isActive": true
+      },
+      "500010": {
+        "folderID": 500010,
+        "isActive": false
+      }
+    },
+    "140000005": {
+      "500006": {
+        "folderID": 500006,
+        "isActive": true
+      },
+      "500011": {
+        "folderID": 500011,
+        "isActive": false
+      }
+    },
+    "140000009": {
+      "500012": {
+        "folderID": 500012,
+        "isActive": true
+      }
+    },
+    "140000010": {
+      "500013": {
+        "folderID": 500013,
+        "isActive": true
+      }
+    },
+    "140000043": {
+      "500014": {
+        "folderID": 500014,
+        "isActive": true
+      }
+    },
+    "140000080": {
+      "500015": {
+        "folderID": 500015,
+        "isActive": true
+      }
+    },
+    "140000137": {
+      "500016": {
+        "folderID": 500016,
+        "isActive": true
+      }
+    },
+    "140000177": {
+      "500018": {
+        "folderID": 500018,
+        "isActive": true
+      }
+    },
+    "140000225": {
+      "500019": {
+        "folderID": 500019,
+        "isActive": true
+      }
+    },
+    "140000227": {
+      "500020": {
+        "folderID": 500020,
+        "isActive": true
+      }
+    },
+    "140000228": {
+      "500021": {
+        "folderID": 500021,
+        "isActive": true
+      }
+    }
+  }
+}

@@ -1,9 +1,10 @@
 const path = require("path");
 
 const config = require(path.join(__dirname, "../../config"));
-const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
+const standingRuntime = require(path.join(
+  __dirname,
+  "../character/standingRuntime",
+));
 
 function toInt(value, fallback = 0) {
   const numeric = Number(value);
@@ -13,18 +14,6 @@ function toInt(value, fallback = 0) {
 function toFiniteNumber(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
-}
-
-function normalizeStandingData(record = {}) {
-  const source =
-    record && record.standingData && typeof record.standingData === "object"
-      ? record.standingData
-      : {};
-  return [
-    ...(Array.isArray(source.char) ? source.char : []),
-    ...(Array.isArray(source.corp) ? source.corp : []),
-    ...(Array.isArray(source.npc) ? source.npc : []),
-  ];
 }
 
 function dedupePositiveIntegers(values = []) {
@@ -59,23 +48,6 @@ function resolveEntityOwnerIDs(entity) {
   ]);
 }
 
-function buildStandingSourceIDs(characterID, characterRecord = {}) {
-  return dedupePositiveIntegers([
-    characterID,
-    characterRecord && characterRecord.corporationID,
-    characterRecord && characterRecord.allianceID,
-    characterRecord && characterRecord.factionID,
-    characterRecord && characterRecord.warFactionID,
-  ]);
-}
-
-function getSourcePriority(sourceID, characterID) {
-  if (toInt(sourceID, 0) === toInt(characterID, 0)) {
-    return 3;
-  }
-  return 2;
-}
-
 function resolveStandingValue(characterID, targetOwnerIDs = []) {
   const normalizedCharacterID = toInt(characterID, 0);
   const normalizedTargetOwnerIDs = dedupePositiveIntegers(targetOwnerIDs);
@@ -89,55 +61,23 @@ function resolveStandingValue(characterID, targetOwnerIDs = []) {
     };
   }
 
-  const characterRecord = getCharacterRecord(normalizedCharacterID) || {};
-  const sourceIDs = new Set(
-    buildStandingSourceIDs(normalizedCharacterID, characterRecord),
+  const standingMatch = standingRuntime.resolveBestStandingValue(
+    normalizedCharacterID,
+    normalizedTargetOwnerIDs,
   );
-  const standingRows = normalizeStandingData(characterRecord);
-  let bestMatch = null;
-  let bestPriority = -1;
-  let bestAbsoluteStanding = -1;
-
-  for (const row of standingRows) {
-    const fromID = toInt(row && row.fromID, 0);
-    const toID = toInt(row && row.toID, 0);
-    if (!sourceIDs.has(fromID) || !normalizedTargetOwnerIDs.includes(toID)) {
-      continue;
-    }
-
-    const standing = toFiniteNumber(row && row.standing, 0);
-    const priority = getSourcePriority(fromID, normalizedCharacterID);
-    const absoluteStanding = Math.abs(standing);
-    if (
-      !bestMatch ||
-      priority > bestPriority ||
-      (
-        priority === bestPriority &&
-        absoluteStanding > bestAbsoluteStanding
-      )
-    ) {
-      bestMatch = {
-        characterID: normalizedCharacterID,
-        standing,
-        matchedOwnerID: toID,
-        matchedSourceID: fromID,
-        matchedEntry: {
-          fromID,
-          toID,
-          standing,
-        },
-      };
-      bestPriority = priority;
-      bestAbsoluteStanding = absoluteStanding;
-    }
-  }
-
-  return bestMatch || {
+  return {
     characterID: normalizedCharacterID,
-    standing: 0,
-    matchedOwnerID: 0,
-    matchedSourceID: 0,
-    matchedEntry: null,
+    standing: toFiniteNumber(standingMatch && standingMatch.standing, 0),
+    matchedOwnerID: toInt(standingMatch && standingMatch.matchedOwnerID, 0),
+    matchedSourceID: toInt(standingMatch && standingMatch.matchedSourceID, 0),
+    matchedEntry:
+      standingMatch && standingMatch.matchedEntry
+        ? {
+            fromID: toInt(standingMatch.matchedEntry.fromID, 0),
+            toID: toInt(standingMatch.matchedEntry.toID, 0),
+            standing: toFiniteNumber(standingMatch.matchedEntry.standing, 0),
+          }
+        : null,
   };
 }
 

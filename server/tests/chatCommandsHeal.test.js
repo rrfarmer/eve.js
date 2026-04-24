@@ -5,6 +5,7 @@ const path = require("path");
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
+const worldData = require(path.join(repoRoot, "server/src/space/worldData"));
 const {
   executeChatCommand,
 } = require(path.join(
@@ -13,6 +14,7 @@ const {
 ));
 const {
   getActiveShipRecord,
+  getCharacterRecord,
 } = require(path.join(
   repoRoot,
   "server/src/services/character/characterState",
@@ -35,12 +37,22 @@ function getDockedCandidate() {
   for (const characterID of Object.keys(charactersResult.data || {})) {
     const numericCharacterID = Number(characterID) || 0;
     const record = charactersResult.data[characterID] || {};
-    const stationID = Number(record.stationID || record.stationid || 0) || 0;
+    const authoritativeRecord = getCharacterRecord(numericCharacterID) || record;
     const shipItem = getActiveShipRecord(numericCharacterID);
-    if (numericCharacterID > 0 && stationID > 0 && shipItem && shipItem.itemID) {
+    const stationID = Number(record.stationID || record.stationid || 0) || 0;
+    const resolvedStationID =
+      stationID ||
+      Number(authoritativeRecord.stationID || authoritativeRecord.stationid || 0) ||
+      0;
+    const shipLocationStationID =
+      shipItem && worldData.getStationByID(shipItem.locationID)
+        ? Number(shipItem.locationID) || 0
+        : 0;
+    const dockedStationID = resolvedStationID || shipLocationStationID;
+    if (numericCharacterID > 0 && dockedStationID > 0 && shipItem && shipItem.itemID) {
       return {
         characterID: numericCharacterID,
-        stationID,
+        stationID: dockedStationID,
         shipItem,
       };
     }
@@ -148,10 +160,9 @@ test("/heal refreshes the active docked ship through inventory sync", () => {
       "Expected /heal to sync the updated ship item back to the client",
     );
   } finally {
-    const restoreResult = database.write(
-      "items",
-      `/${candidate.shipItem.itemID}`,
-      originalShip,
+    const restoreResult = updateShipItem(
+      candidate.shipItem.itemID,
+      () => cloneValue(originalShip),
     );
     assert.equal(restoreResult.success, true, "Failed to restore docked ship test data");
   }

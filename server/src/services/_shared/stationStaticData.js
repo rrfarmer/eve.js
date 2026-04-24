@@ -23,12 +23,16 @@ const {
   getFactionRecord,
   getFactionRecordByCorporationID,
 } = require(path.join(__dirname, "../faction/factionState"));
+const {
+  TABLE,
+  readStaticTable,
+} = require(path.join(__dirname, "./referenceData"));
 
 const DEFAULT_STATION = {
   stationID: 60003760,
   stationName: "Jita IV - Moon 4 - Caldari Navy Assembly Plant",
   orbitID: 40009077,
-  description: "Primary trade hub station for this EvEJS sandbox.",
+  description: "Primary trade hub station for this EveJS Elysian sandbox.",
   solarSystemID: 30000142,
   solarSystemName: "Jita",
   constellationID: 20000020,
@@ -142,6 +146,33 @@ const STATION_SERVICES = [
     stationServiceItemID: 0,
   },
 ];
+
+let cachedStandingsRestrictions = null;
+
+function normalizeRestrictionsPayload(payload = {}) {
+  return {
+    restrictionsByOwnerID:
+      payload && typeof payload.restrictionsByOwnerID === "object"
+        ? payload.restrictionsByOwnerID
+        : {},
+  };
+}
+
+function getStandingsRestrictions() {
+  if (cachedStandingsRestrictions) {
+    return cachedStandingsRestrictions;
+  }
+
+  const payload = normalizeRestrictionsPayload(
+    readStaticTable(TABLE.STATION_STANDINGS_RESTRICTIONS),
+  );
+  cachedStandingsRestrictions = payload.restrictionsByOwnerID || {};
+  return cachedStandingsRestrictions;
+}
+
+function clearStationStaticDataCache() {
+  cachedStandingsRestrictions = null;
+}
 
 function resolveFactionIdentity(corporationID, fallbackFactionID = null) {
   const factionRecord = getFactionRecordByCorporationID(corporationID);
@@ -342,10 +373,19 @@ function getStationServiceStates(session = null, overrideStationID = null) {
   }));
 }
 
-function getStationServiceAccessRule(serviceID) {
+function getStationServiceAccessRule(serviceID, ownerID = null) {
+  const normalizedOwnerID = Number(ownerID) || null;
+  const restrictionsByOwnerID = getStandingsRestrictions();
+  const ownerRules = normalizedOwnerID
+    ? restrictionsByOwnerID[String(normalizedOwnerID)] || restrictionsByOwnerID[normalizedOwnerID]
+    : null;
+  const minimumStanding = ownerRules && ownerRules[serviceID] != null
+    ? Number(ownerRules[serviceID]) || 0
+    : 0;
+
   return {
     serviceID: Number(serviceID) || 0,
-    minimumStanding: 0.0,
+    minimumStanding,
     minimumCharSecurity: 0.0,
     maximumCharSecurity: 0.0,
     minimumCorpSecurity: 0.0,
@@ -391,6 +431,7 @@ module.exports = {
   DEFAULT_STATION,
   NPC_OWNER_OVERRIDES,
   STATION_SERVICES,
+  clearStationStaticDataCache,
   getStationRecord,
   getStaticOwnerRecord,
   getStationServiceIdentifiers,

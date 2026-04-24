@@ -36,6 +36,19 @@ function buildLiveSession(characterID) {
   };
 }
 
+function hasSkillInventoryRowChange(session) {
+  return session._notifications.some((entry) => {
+    if (!entry || entry.name !== "OnItemChange") {
+      return false;
+    }
+    const payload = Array.isArray(entry.payload) ? entry.payload[0] : null;
+    const fields = payload && payload.fields && typeof payload.fields === "object"
+      ? payload.fields
+      : null;
+    return Number(fields && fields.categoryID) === 16;
+  });
+}
+
 test("/giveskill grants a single published skill to the requested level", async (t) => {
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
@@ -203,8 +216,9 @@ test("/giveskill emits live skill refresh notifications for online sessions", as
     notificationNames.includes("OnSkillLevelsTrained"),
     "expected /giveskill to notify live clients about trained skill levels",
   );
-  assert.ok(
-    notificationNames.includes("OnItemChange"),
-    "expected /giveskill to sync changed skill inventory rows",
+  assert.equal(
+    hasSkillInventoryRowChange(liveSession),
+    false,
+    "expected /giveskill to avoid faking skill inventory row changes",
   );
 });

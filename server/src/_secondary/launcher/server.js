@@ -13,6 +13,21 @@ const { spawn } = require("child_process");
 const config = require("../../config");
 const log = require("../../utils/logger");
 
+function getRuntimeConfig() {
+  if (typeof config.getConfigStateSnapshot === "function") {
+    try {
+      return config.getConfigStateSnapshot().resolvedConfig || config;
+    } catch {}
+  }
+  return config;
+}
+
+function buildNoProxyValue(runtimeConfig = getRuntimeConfig()) {
+  const entries = ["127.0.0.1", "localhost", "::1"];
+
+  return Array.from(new Set(entries)).join(",");
+}
+
 function findAndStartClient() {
   function findExe(inputPath) {
     if (!fs.existsSync(inputPath)) {
@@ -61,7 +76,9 @@ function findAndStartClient() {
 
   const exe = findExe(config.clientPath);
 
-  const proxyUrl = config.microservicesRedirectUrl.replace(/\/$/, "");
+  const runtimeConfig = getRuntimeConfig();
+  const proxyUrl = runtimeConfig.microservicesRedirectUrl.replace(/\/$/, "");
+  const noProxyValue = buildNoProxyValue(runtimeConfig);
 
   spawn(exe, [], {
     cwd: path.dirname(exe),
@@ -71,8 +88,8 @@ function findAndStartClient() {
       https_proxy: proxyUrl,
       HTTP_PROXY: proxyUrl,
       HTTPS_PROXY: proxyUrl,
-      NO_PROXY: "127.0.0.1,localhost,::1",
-      no_proxy: "127.0.0.1,localhost,::1",
+      NO_PROXY: noProxyValue,
+      no_proxy: noProxyValue,
     },
   });
 }
@@ -95,3 +112,7 @@ if (config.autoLaunch) {
     },
   };
 }
+
+module.exports.__testHooks = {
+  buildNoProxyValue,
+};

@@ -122,7 +122,7 @@ const ROOKIE_HELP_CHANNEL = Object.freeze({
 const CUSTOM_DISCOVERABLE_CHANNELS = Object.freeze([
   Object.freeze({
     roomName: "player_900001",
-    displayName: "Eve JS Elysian chat",
+    displayName: "EveJS Elysian chat",
     type: "player",
     scope: "player",
     entityID: 900001,
@@ -130,7 +130,7 @@ const CUSTOM_DISCOVERABLE_CHANNELS = Object.freeze([
     verifiedContract: false,
     contractSource: "evejs_custom",
     motd:
-      "Welcome to Eve JS Elysian. Fly dangerous, keep comms sharp, and help us forge full chat parity together.",
+      "Welcome to EveJS Elysian. Fly dangerous, keep comms sharp, and help us forge full chat parity together.",
     inviteToken: "player_900001",
     metadata: Object.freeze({
       joinLink: "joinChannel:player_900001",

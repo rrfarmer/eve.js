@@ -1,0 +1,23 @@
+{
+    "source":  {
+                   "cachePath":  "C:\\Users\\John\\Documents\\Testing\\EvEJS\\client\\EVE\\ResFiles\\83\\8388b71e3fa803bd_bd16fc30da1aec30ca710e20e08d3ce6",
+                   "resourcePath":  "res:/staticdata/stationstandingsrestrictions.fsdbinary"
+               },
+    "counts":  {
+                   "ownerCount":  1,
+                   "ruleCount":  7
+               },
+    "version":  1,
+    "restrictionsByOwnerID":  {
+                                  "500026":  {
+                                                 "5":  3.0,
+                                                 "13":  -0.05,
+                                                 "14":  3.0,
+                                                 "17":  -0.05,
+                                                 "22":  -0.05,
+                                                 "23":  3.0,
+                                                 "24":  3.0
+                                             }
+                              },
+    "generatedAt":  "2026-04-14T12:11:24Z"
+}

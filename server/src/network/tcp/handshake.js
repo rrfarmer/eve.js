@@ -44,8 +44,14 @@ const {
 ));
 const {
   buildGlobalConfigDict,
+  buildClientBootMetadataEntries,
+  buildServerStatusDict,
+  getRuntimeConfig,
   normalizeCountryCode,
 } = require(path.join(__dirname, "../../services/machoNet/globalConfig"));
+const {
+  reserveAccountID,
+} = require(path.join(__dirname, "../../services/_shared/identityAllocator"));
 
 // The "marshaledNone" from EVE_Consts.h — a pickled Python None object
 // 0x74 = cPickle header, then 4-byte length LE, then "None" as ASCII
@@ -100,8 +106,21 @@ function buildPortraitSignedFuncSource() {
   ];
 }
 
-function buildTidiSignedFuncSource() {
+function buildSkillExtractorAccessTokenSignedFuncSource() {
   return [
+    "try:",
+    " _evejs_connection = sm.GetService('connection')",
+    " if getattr(_evejs_connection, 'accessToken', None) is None:",
+    "  _evejs_connection.accessToken = 'evejs-local-skill-extractor'",
+    " print 'SKILL_EXTRACTOR_ACCESS_TOKEN:OK'",
+    "except:",
+    " import traceback",
+    " traceback.print_exc()",
+  ];
+}
+
+function buildTidiSignedFuncSource() {
+  const source = [
     "import blue",
     "blue.os.EnableSimDilation(0)",
     "class _TiDiHandler(object):",
@@ -122,9 +141,13 @@ function buildTidiSignedFuncSource() {
     "sm.RegisterForNotifyEvent(_h, 'OnSetTimeDilation')",
     "__builtins__['__tidiHandler'] = _h",
     "print 'TIDI_HANDLER:OK'",
-  ]
-    .concat(buildPortraitSignedFuncSource())
-    .join("\\n");
+  ].concat(buildPortraitSignedFuncSource());
+
+  if (config.devHandshakeSeedSkillExtractorAccessToken) {
+    source.push.apply(source, buildSkillExtractorAccessTokenSignedFuncSource());
+  }
+
+  return source.join("\\n");
 }
 //testing: Starts blue.dll's TiDi tick loop via EnableSimDilation(0) and registers
 //testing: a notification handler (OnSetTimeDilation) so the server can control dilation
@@ -144,6 +167,102 @@ const DEV_CHAT_ROLE = roleToString(DEFAULT_CHAT_ROLE);
 function createSessionID(seed = 0) {
   const numericSeed = Number(seed) || 0;
   return BigInt(Date.now()) * 15n + BigInt(numericSeed % 15);
+}
+
+function buildMarshalDict(entries) {
+  if (entries && typeof entries === "object" && entries.type === "dict") {
+    return entries;
+  }
+  return {
+    type: "dict",
+    entries: Object.entries(entries || {}),
+  };
+}
+
+function encodePy2Protocol2String(value) {
+  const text = String(value ?? "");
+  const bytes = Buffer.from(text, "utf8");
+  const header = Buffer.alloc(5);
+  header[0] = 0x58; // BINUNICODE
+  header.writeUInt32LE(bytes.length, 1);
+  return Buffer.concat([header, bytes]);
+}
+
+function encodePy2Protocol2Value(value) {
+  if (value === null || value === undefined) {
+    return Buffer.from("N", "ascii");
+  }
+  if (typeof value === "boolean") {
+    return Buffer.from([value ? 0x88 : 0x89]); // NEWTRUE / NEWFALSE
+  }
+  if (typeof value === "number" && Number.isInteger(value)) {
+    if (value >= 0 && value <= 0xff) {
+      return Buffer.from([0x4b, value]); // BININT1
+    }
+    if (value >= 0 && value <= 0xffff) {
+      const encoded = Buffer.alloc(3);
+      encoded[0] = 0x4d; // BININT2
+      encoded.writeUInt16LE(value, 1);
+      return encoded;
+    }
+    const encoded = Buffer.alloc(5);
+    encoded[0] = 0x4a; // BININT
+    encoded.writeInt32LE(value, 1);
+    return encoded;
+  }
+  if (typeof value === "string") {
+    return encodePy2Protocol2String(value);
+  }
+  if (Array.isArray(value)) {
+    const items = value.map((entry) => encodePy2Protocol2Value(entry));
+    if (items.length === 0) {
+      return Buffer.from(")", "ascii"); // EMPTY_TUPLE
+    }
+    if (items.length === 1) {
+      return Buffer.concat([items[0], Buffer.from([0x85])]); // TUPLE1
+    }
+    if (items.length === 2) {
+      return Buffer.concat([items[0], items[1], Buffer.from([0x86])]); // TUPLE2
+    }
+    if (items.length === 3) {
+      return Buffer.concat([items[0], items[1], items[2], Buffer.from([0x87])]); // TUPLE3
+    }
+    return Buffer.concat([
+      Buffer.from("(", "ascii"), // MARK
+      ...items,
+      Buffer.from("t", "ascii"), // TUPLE
+    ]);
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value);
+    const chunks = [Buffer.from("}", "ascii")]; // EMPTY_DICT
+    for (const [key, entryValue] of entries) {
+      chunks.push(encodePy2Protocol2String(key));
+      chunks.push(encodePy2Protocol2Value(entryValue));
+      chunks.push(Buffer.from("s", "ascii")); // SETITEM
+    }
+    return Buffer.concat(chunks);
+  }
+  return encodePy2Protocol2String(String(value));
+}
+
+function buildGPSTransportClosedCPickle(
+  reasonCode,
+  reasonArgs = {},
+  reason = reasonCode,
+) {
+  const argsTuple = Buffer.concat([
+    encodePy2Protocol2Value(reason || "Disconnected"),
+    encodePy2Protocol2Value(reasonCode || null),
+    encodePy2Protocol2Value(reasonArgs || {}),
+    Buffer.from([0x87]), // TUPLE3
+  ]);
+  return Buffer.concat([
+    Buffer.from([0x80, 0x02]), // protocol 2
+    Buffer.from("cexceptions\nGPSTransportClosed\n", "ascii"),
+    argsTuple,
+    Buffer.from("R.", "ascii"), // REDUCE + STOP
+  ]);
 }
 
 // ---- handshake states
@@ -194,13 +313,19 @@ class EVEHandshake {
   start() {
     log.debug(`[HANDSHAKE] Starting handshake with ${this.address}`);
 
+    const runtimeConfig = getRuntimeConfig();
+    const bootMetadata = new Map(buildClientBootMetadataEntries(runtimeConfig));
+    const serverStatusEntries = new Map(
+      buildServerStatusDict(runtimeConfig).entries,
+    );
+
     const versionTuple = [
-      config.eveBirthday,
-      config.machoVersion,
-      0, // user_count : online count? TODO: replace with amount of online users (variable)
-      config.clientVersion, // float
-      config.clientBuild,
-      config.projectVersion,
+      runtimeConfig.eveBirthday,
+      runtimeConfig.machoVersion,
+      serverStatusEntries.get("cluster_usercount") || 0,
+      bootMetadata.get("boot_version"), // float
+      bootMetadata.get("boot_build"),
+      runtimeConfig.projectVersion,
       null, // update_info
     ];
 
@@ -534,53 +659,71 @@ class EVEHandshake {
     // const accounts = db.accounts || {};
 
     const accountResult = database.read("accounts", "/")
-    const accounts = accountResult.success ? accountResult.data : {}
+    const accounts = accountResult.success && accountResult.data
+      ? accountResult.data
+      : {}
+    let accountWasAutoCreated = false;
+    let rawAccount = accounts[userName] || null;
 
-    // devmode is enabled: auto create account
-    if (!accounts[userName]) {
-      if (config.devMode) {
-        log.warn(
-          `[HANDSHAKE] Account "${userName}" not found - auto creating for dev`,
-        );
-        accounts[userName] = {
+    if (!rawAccount) {
+      if (config.devAutoCreateAccounts) {
+        const createdAccount = buildPersistedAccountRoleRecord({
           passwordhash: passwordHash,
-          id: Object.keys(accounts).length + 1,
+          id: reserveAccountID(),
           role: DEV_ACCOUNT_ROLE,
           chatRole: DEV_CHAT_ROLE,
           banned: false,
-        };
+        });
+        log.warn(
+          `[HANDSHAKE] Account "${userName}" not found - auto creating because devAutoCreateAccounts is enabled`,
+        );
+        database.write("accounts", `/${userName}`, createdAccount);
+        database.flushTablesSync(["accounts"]);
+        rawAccount = createdAccount;
+        accountWasAutoCreated = true;
+      } else {
+        log.warn(`[HANDSHAKE] Account "${userName}" not found`);
       }
-
-      database.write("accounts", "/", accounts);
     }
 
-    const rawAccount = accounts[userName];
+    if (!rawAccount) {
+      log.warn(`[HANDSHAKE] Login attempt failed for "${userName}": account not found`);
+      this._sendTransportClose("LoginAuthFailed");
+      return { done: false };
+    }
+
     const account = buildPersistedAccountRoleRecord(rawAccount);
     if (JSON.stringify(rawAccount) !== JSON.stringify(account)) {
-      accounts[userName] = account;
-      database.write("accounts", "/", accounts);
+      database.write("accounts", `/${userName}`, account);
+      if (accountWasAutoCreated) {
+        database.flushTablesSync(["accounts"]);
+      }
     }
-    let shouldContinue = true;
-    if (config.devMode) {
-      log.debug(`[HANDSHAKE] Password accepted for "${userName}" (dev mode)`);
+    let loginFailureReasonCode = null;
+    if (config.devSkipPasswordValidation) {
+      log.debug(
+        `[HANDSHAKE] Password accepted for "${userName}" because devSkipPasswordValidation is enabled`,
+      );
     } else {
       if (account.passwordhash !== passwordHash) {
         log.warn(
           `[HANDSHAKE] Password mismatch for "${userName}"`,
         );
-        shouldContinue = false;
+        loginFailureReasonCode = "LoginAuthFailed";
       }
     }
 
     // do we really need this?
     if (account.banned) {
       log.err(`[HANDSHAKE] Account "${userName}" is banned!`);
-      shouldContinue = false;
+      loginFailureReasonCode = "ACCOUNTBANNED";
     }
 
-    if (!shouldContinue) {
-      log.warn(`[HANDSHAKE] Login attempt failed for "${userName}"`);
-      this.socket.end();
+    if (loginFailureReasonCode) {
+      log.warn(
+        `[HANDSHAKE] Login attempt failed for "${userName}" with reason ${loginFailureReasonCode}`,
+      );
+      this._sendTransportClose(loginFailureReasonCode);
       return { done: false };
     }
 
@@ -596,6 +739,10 @@ class EVEHandshake {
     );
 
     // send CryptoServerHandshake
+    const runtimeConfig = getRuntimeConfig();
+    const serverStatusEntries = new Map(
+      buildServerStatusDict(runtimeConfig).entries,
+    );
     const serverHandshake = [
       "", // serverChallenge
       //testing: prev: [MARSHALED_NONE, false] — client eval("None") — no-op
@@ -607,15 +754,18 @@ class EVEHandshake {
         type: "dict",
         entries: [
           ["challenge_responsehash", "55087"],
-          ["macho_version", config.machoVersion],
-          ["boot_version", config.clientVersion],
-          ["boot_build", config.clientBuild],
-          ["boot_codename", config.projectCodename],
-          ["boot_region", config.projectRegion],
-          ["cluster_usercount", 1],
+          ["macho_version", runtimeConfig.machoVersion],
+          ...buildClientBootMetadataEntries(runtimeConfig),
+          [
+            "cluster_usercount",
+            serverStatusEntries.get("cluster_usercount") || 0,
+          ],
           ["proxy_nodeid", config.proxyNodeId],
-          ["user_logonqueueposition", 1],
-          ["config_vals", buildGlobalConfigDict()],
+          [
+            "user_logonqueueposition",
+            serverStatusEntries.get("user_logonqueueposition") || 1,
+          ],
+          ["config_vals", buildGlobalConfigDict(runtimeConfig)],
         ],
       },
     ];
@@ -761,6 +911,19 @@ class EVEHandshake {
     }
   }
 
+  _sendTransportClose(reasonCode, reasonArgs = {}, reason = reasonCode) {
+    const closePacket = encodePacket({
+      type: "cpicked",
+      data: buildGPSTransportClosedCPickle(
+        reasonCode,
+        reasonArgs,
+        reason,
+      ),
+    });
+    this._sendPacket(closePacket);
+    this.socket.end();
+  }
+
   /**
    * Summarize a decoded value for debug logging (truncate long data).
    */
@@ -781,6 +944,9 @@ EVEHandshake._testing = {
   buildTidiSignedFunc,
   buildTidiSignedFuncSource,
   buildPortraitSignedFuncSource,
+  buildSkillExtractorAccessTokenSignedFuncSource,
+  buildGPSTransportClosedCPickle,
+  reserveAccountID,
 };
 
 module.exports = EVEHandshake;

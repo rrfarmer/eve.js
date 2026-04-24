@@ -5,6 +5,7 @@ const log = require(path.join(__dirname, "../../utils/logger"));
 
 const TABLE = Object.freeze({
   ITEM_TYPES: "itemTypes",
+  CLIENT_TYPE_LISTS: "clientTypeLists",
   FIGHTER_ABILITIES: "fighterAbilities",
   TYPE_DOGMA: "typeDogma",
   SHIP_TYPES: "shipTypes",
@@ -22,10 +23,18 @@ const TABLE = Object.freeze({
   ASTEROID_FIELD_STYLES: "asteroidFieldStyles",
   STARGATES: "stargates",
   MOVEMENT_ATTRIBUTES: "movementAttributes",
+  EXPLORATION_AUTHORITY: "explorationAuthority",
+  EXPLORATION_WORMHOLE_STATIC: "explorationWormholeStatic",
+  DUNGEON_AUTHORITY: "dungeonAuthority",
+  AGENT_AUTHORITY: "agentAuthority",
+  MISSION_AUTHORITY: "missionAuthority",
+  NPC_STANDINGS_AUTHORITY: "npcStandingsAuthority",
+  STATION_STANDINGS_RESTRICTIONS: "stationStandingsRestrictions",
 });
 
 const ROW_KEY = Object.freeze({
   [TABLE.ITEM_TYPES]: "types",
+  [TABLE.CLIENT_TYPE_LISTS]: "typeLists",
   [TABLE.SHIP_TYPES]: "ships",
   [TABLE.SKILL_TYPES]: "skills",
   [TABLE.CHARACTER_CREATION_RACES]: "races",
@@ -39,6 +48,7 @@ const ROW_KEY = Object.freeze({
   [TABLE.ASTEROID_FIELD_STYLES]: "fieldStyles",
   [TABLE.STARGATES]: "stargates",
   [TABLE.MOVEMENT_ATTRIBUTES]: "attributes",
+  [TABLE.EXPLORATION_WORMHOLE_STATIC]: "systems",
 });
 
 const cache = new Map();

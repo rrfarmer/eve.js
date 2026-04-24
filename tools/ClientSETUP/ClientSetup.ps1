@@ -29,13 +29,13 @@ Add-Type -AssemblyName System.Windows.Forms
 $RepoRoot        = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $ClientSetupScriptsRoot = Join-Path $PSScriptRoot "scripts"
 $ConfigBat       = Join-Path $ClientSetupScriptsRoot "EvEJSConfig.bat"
-$LocalConfigBat  = Join-Path $ClientSetupScriptsRoot "EvEJSConfig.local.bat"
 $InstallCertsBat = Join-Path $ClientSetupScriptsRoot "InstallCerts.bat"
-$BlueDllPatchCli = Join-Path $PSScriptRoot "blue_dll_patch.py"
+$BlueDllPatchCli = Join-Path $PSScriptRoot "blue_dll_patch.ps1"
 $BlueDllPatchManifestPath = Join-Path $PSScriptRoot "blue-dll.patch.json"
 $BlueDllPatchGuiBat = Join-Path $PSScriptRoot "PatchBlueDllGui.bat"
 $CanonicalStartIniPath = Join-Path $RepoRoot "client\EVE\tq\start.ini"
-$REQUIRED_BUILD  = "3284752"
+$REQUIRED_BUILD  = "3300615"
+$WindowsPowerShellExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COLOUR CONSTANTS
@@ -275,30 +275,57 @@ function Get-BlueDllPatchManifest {
     return $script:BlueDllPatchManifest
 }
 
-function Get-PythonInvocation {
-    foreach ($name in @("python.exe", "python", "py.exe", "py")) {
-        $cmd = Get-Command $name -ErrorAction SilentlyContinue
-        if (-not $cmd) { continue }
-        $resolvedName = [string]$cmd.Name
-        if ($resolvedName -ieq "py.exe" -or $resolvedName -ieq "py") {
-            return @{
-                Command = $cmd.Source
-                PrefixArgs = @("-3")
+function Invoke-BlueDllPatchHelper {
+    param(
+        [string[]]$Arguments
+    )
+
+    $powershellExe = if (Test-Path $WindowsPowerShellExe) { $WindowsPowerShellExe } else { "powershell.exe" }
+    $helperArgs = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", $BlueDllPatchCli
+    ) + $Arguments
+
+    $stdoutPath = Join-Path $env:TEMP ("evejs-blue-patch-stdout-{0}.log" -f ([guid]::NewGuid().ToString("N")))
+    $stderrPath = Join-Path $env:TEMP ("evejs-blue-patch-stderr-{0}.log" -f ([guid]::NewGuid().ToString("N")))
+
+    try {
+        $process = Start-Process -FilePath $powershellExe `
+            -ArgumentList $helperArgs `
+            -Wait `
+            -PassThru `
+            -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+        $lines = New-Object System.Collections.Generic.List[string]
+        foreach ($path in @($stdoutPath, $stderrPath)) {
+            if (Test-Path $path) {
+                foreach ($line in [System.IO.File]::ReadAllLines($path)) {
+                    $lines.Add($line)
+                }
             }
         }
+
         return @{
-            Command = $cmd.Source
-            PrefixArgs = @()
+            Output = @($lines.ToArray())
+            ExitCode = $process.ExitCode
+        }
+    } finally {
+        foreach ($path in @($stdoutPath, $stderrPath)) {
+            if (Test-Path $path) {
+                Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+            }
         }
     }
-    return $null
 }
 
 function Get-BlueDllPatchState([string]$DllPath) {
     if (-not (Test-Path $BlueDllPatchCli)) {
         return @{
             State = "missing_patcher"
-            Message = "tools\\ClientSETUP\\blue_dll_patch.py is missing."
+            Message = "tools\\ClientSETUP\\blue_dll_patch.ps1 is missing."
         }
     }
 
@@ -338,9 +365,45 @@ function Get-BlueDllPatchState([string]$DllPath) {
         }
     }
 
+    if ($fileInfo.Length -eq $sourceSize -or $fileInfo.Length -eq $targetSize) {
+        $tempOutput = Join-Path $env:TEMP ("evejs-blue-inspect-{0}.dll" -f ([guid]::NewGuid().ToString("N")))
+        try {
+            $dryRunArgs = @(
+                "--input", $DllPath,
+                "--output", $tempOutput,
+                "--force",
+                "--manifest", $BlueDllPatchManifestPath,
+                "--attempt-anyway"
+            )
+            $dryRunResult = Invoke-BlueDllPatchHelper -Arguments $dryRunArgs
+            if ($dryRunResult.ExitCode -eq 0 -and (Test-Path -LiteralPath $tempOutput)) {
+                $patchedInfo = Get-Item -LiteralPath $tempOutput
+                $patchedHash = (Get-FileHash -LiteralPath $tempOutput -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($patchedInfo.Length -eq $targetSize -and $patchedHash -eq $targetHash) {
+                    return @{
+                        State = "patchable_variant"
+                        Message = "This blue.dll differs from the recorded source hash, but a validated dry run still reaches the exact EvEJS patched target."
+                    }
+                }
+            }
+        } finally {
+            if (Test-Path -LiteralPath $tempOutput) {
+                Remove-Item -LiteralPath $tempOutput -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    if ($fileInfo.Length -eq $sourceSize) {
+        $message = "This looks like an unpatched blue.dll, but not the exact supported build."
+    } elseif ($fileInfo.Length -eq $targetSize) {
+        $message = "This looks close to the patched size, but a validated dry run did not reach the EvEJS target."
+    } else {
+        $message = "blue.dll does not match the supported original or patched build sizes."
+    }
+
     return @{
         State = "unsupported"
-        Message = "blue.dll does not match the exact original or patched build supported by this wizard."
+        Message = $message
     }
 }
 
@@ -748,15 +811,15 @@ $btnClose            = $window.FindName("btnClose")
 function Check-StepStatuses {
     # Step 2 - config: parse the actual path the bat file resolves to
     $script:StepDone[2] = $false
-    if (Test-Path $LocalConfigBat) {
-        foreach ($cl in [System.IO.File]::ReadAllLines($LocalConfigBat)) {
+    if (Test-Path $ConfigBat) {
+        foreach ($cl in [System.IO.File]::ReadAllLines($ConfigBat)) {
             if ($cl -match '^set "EVEJS_CLIENT_PATH=(.+)"') {
                 $cfgPath = $Matches[1] -replace '%EVEJS_REPO_ROOT%', $RepoRoot
                 if ($cfgPath.TrimEnd('\') -eq $script:TqPath.TrimEnd('\')) {
-                    Set-Status $lblStep2Status "Already configured  --  EvEJSConfig.local.bat points to this client." $C_GREEN
+                    Set-Status $lblStep2Status "Already configured  --  EvEJSConfig.bat points to this client." $C_GREEN
                     $script:StepDone[2] = $true
                 } else {
-                    Set-Status $lblStep2Status "Ready  --  will save your client path to EvEJSConfig.local.bat." $C_BLUE
+                    Set-Status $lblStep2Status "Ready  --  will update EvEJSConfig.bat with your client path." $C_BLUE
                 }
                 break
             }
@@ -816,8 +879,11 @@ function Check-StepStatuses {
         "patchable_original" {
             Set-Status $lblStep4Status "Ready  --  exact original blue.dll detected; Step 4 will patch it in place and keep blue.dll.original." $C_BLUE
         }
+        "patchable_variant" {
+            Set-Status $lblStep4Status "Ready  --  compatible blue.dll variant detected; Step 4 will validate the final hash before patching and keep blue.dll.original." $C_AMBER
+        }
         "unsupported" {
-            Set-Status $lblStep4Status "Unsupported  --  blue.dll is not the exact original build required for patching." $C_RED
+            Set-Status $lblStep4Status "Unsupported  --  $($patchState.Message)" $C_RED
         }
         "missing_file" {
             Set-Status $lblStep4Status "blue.dll was not found in bin64. Restore the client file before running Step 4." $C_RED
@@ -826,7 +892,7 @@ function Check-StepStatuses {
             Set-Status $lblStep4Status "ERROR: ClientSETUP\\blue-dll.patch.json is missing." $C_RED
         }
         "missing_patcher" {
-            Set-Status $lblStep4Status "ERROR: ClientSETUP\\blue_dll_patch.py is missing." $C_RED
+            Set-Status $lblStep4Status "ERROR: ClientSETUP\\blue_dll_patch.ps1 is missing." $C_RED
         }
         default {
             Set-Status $lblStep4Status $patchState.Message $C_RED
@@ -922,21 +988,34 @@ function Invoke-ClientSelection([string]$Path) {
     Check-StepStatuses
 }
 
-# ── Step 2: Update EvEJSConfig.local.bat ──────────────────────────────────
+# ── Step 2: Update EvEJSConfig.bat ────────────────────────────────────────
 function Invoke-Step2 {
     if (-not $script:TqPath) {
         Set-Status $lblStep2Status "Select a client first." $C_RED; return $false }
 
-    Set-Status $lblStep2Status "Saving local config ..." $C_AMBER; Flush-UI
+    Set-Status $lblStep2Status "Updating EvEJSConfig.bat ..." $C_AMBER; Flush-UI
 
     try {
-        $content = "@echo off`r`nrem Local EVE client path overrides - this file is NOT tracked by git.`r`nrem It is created and updated by the Client Setup wizard.`r`n`r`nset `"EVEJS_CLIENT_PATH=$($script:TqPath)`"`r`n"
-        [System.IO.File]::WriteAllText($LocalConfigBat, $content)
+        $lines   = [System.IO.File]::ReadAllLines($ConfigBat)
+        $newLines = [System.Collections.Generic.List[string]]::new()
+        $hit     = $false
+
+        foreach ($line in $lines) {
+            if ($line -match '^set "EVEJS_CLIENT_PATH=') {
+                $newLines.Add("set `"EVEJS_CLIENT_PATH=$($script:TqPath)`"")
+                $hit = $true
+            } else {
+                $newLines.Add($line)
+            }
+        }
+        if (-not $hit) { $newLines.Add("set `"EVEJS_CLIENT_PATH=$($script:TqPath)`"") }
+
+        [System.IO.File]::WriteAllLines($ConfigBat, $newLines.ToArray())
 
         # Verify
-        $check = [System.IO.File]::ReadAllText($LocalConfigBat)
+        $check = [System.IO.File]::ReadAllText($ConfigBat)
         if ($check.Contains($script:TqPath)) {
-            Set-Status $lblStep2Status "Configuration saved to EvEJSConfig.local.bat." $C_GREEN
+            Set-Status $lblStep2Status "Configuration updated!  EvEJSConfig.bat now points to your client." $C_GREEN
             $script:StepDone[2] = $true; Update-Progress; return $true
         } else {
             Set-Status $lblStep2Status "Write appeared to succeed but verification failed." $C_RED
@@ -994,7 +1073,7 @@ function Invoke-Step4 {
         Set-Status $lblStep4Status "Select a client first." $C_RED; return $false }
 
     if (-not (Test-Path $BlueDllPatchCli)) {
-        Set-Status $lblStep4Status "tools\ClientSETUP\blue_dll_patch.py is missing from the repository!" $C_RED
+        Set-Status $lblStep4Status "tools\ClientSETUP\blue_dll_patch.ps1 is missing from the repository!" $C_RED
         return $false
     }
 
@@ -1021,8 +1100,9 @@ function Invoke-Step4 {
                 $script:StepDone[4] = $true; Update-Progress; return $true
             }
             "patchable_original" { }
+            "patchable_variant" { }
             "unsupported" {
-                Set-Status $lblStep4Status "Cannot patch  --  blue.dll is not the exact original build supported by this patch." $C_RED
+                Set-Status $lblStep4Status "Cannot patch  --  $($patchState.Message)" $C_RED
                 return $false
             }
             "missing_file" {
@@ -1034,7 +1114,7 @@ function Invoke-Step4 {
                 return $false
             }
             "missing_patcher" {
-                Set-Status $lblStep4Status "Cannot patch  --  tools\ClientSETUP\blue_dll_patch.py is missing." $C_RED
+                Set-Status $lblStep4Status "Cannot patch  --  tools\ClientSETUP\blue_dll_patch.ps1 is missing." $C_RED
                 return $false
             }
             default {
@@ -1043,24 +1123,19 @@ function Invoke-Step4 {
             }
         }
 
-        $python = Get-PythonInvocation
-        if (-not $python) {
-            Set-Status $lblStep4Status "Python was not found. Install Python or use tools\ClientSETUP\PatchBlueDllGui.bat manually." $C_RED
-            return $false
-        }
-
-        $patchArgs = @()
-        $patchArgs += $python.PrefixArgs
-        $patchArgs += @(
-            $BlueDllPatchCli,
+        $patchArgs = @(
             "--input", $destDll,
             "--in-place",
             "--backup-suffix", ".original",
             "--manifest", $BlueDllPatchManifestPath
         )
+        if ($patchState.State -eq "patchable_variant") {
+            $patchArgs += "--attempt-anyway"
+        }
 
-        $output = & $python.Command @patchArgs 2>&1
-        $exitCode = $LASTEXITCODE
+        $patchResult = Invoke-BlueDllPatchHelper -Arguments $patchArgs
+        $output = @($patchResult.Output)
+        $exitCode = [int]$patchResult.ExitCode
         if ($exitCode -ne 0) {
             $detail = ($output | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ }) -join " "
             if (-not $detail) { $detail = "The local blue.dll patch helper returned exit code $exitCode." }
@@ -1192,7 +1267,7 @@ $btnClose.Add_Click({ $window.Close() })
 $missing = @()
 if (-not (Test-Path $ConfigBat))      { $missing += "tools\ClientSETUP\scripts\EvEJSConfig.bat" }
 if (-not (Test-Path $InstallCertsBat)){ $missing += "tools\ClientSETUP\scripts\InstallCerts.bat" }
-if (-not (Test-Path $BlueDllPatchCli)) { $missing += "tools\ClientSETUP\blue_dll_patch.py" }
+if (-not (Test-Path $BlueDllPatchCli)) { $missing += "tools\ClientSETUP\blue_dll_patch.ps1" }
 if (-not (Test-Path $BlueDllPatchManifestPath)) { $missing += "tools\ClientSETUP\blue-dll.patch.json" }
 
 if ($missing.Count -gt 0) {
@@ -1208,9 +1283,9 @@ if ($missing.Count -gt 0) {
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTO-DETECT EXISTING CONFIG ON STARTUP
 # ═══════════════════════════════════════════════════════════════════════════════
-if (Test-Path $LocalConfigBat) {
-    # Parse the current EVEJS_CLIENT_PATH out of EvEJSConfig.local.bat
-    foreach ($cfgLine in [System.IO.File]::ReadAllLines($LocalConfigBat)) {
+if (Test-Path $ConfigBat) {
+    # Parse the current EVEJS_CLIENT_PATH out of EvEJSConfig.bat
+    foreach ($cfgLine in [System.IO.File]::ReadAllLines($ConfigBat)) {
         if ($cfgLine -match '^set "EVEJS_CLIENT_PATH=(.+)"') {
             $existingPath = $Matches[1]
             # Expand %EVEJS_REPO_ROOT% if present

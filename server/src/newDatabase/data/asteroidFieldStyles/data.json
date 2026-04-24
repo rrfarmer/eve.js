@@ -63,7 +63,7 @@
     {
       "fieldStyleID": "empire_lowsec_standard",
       "name": "Empire Low-Sec Standard Belt",
-      "securityMin": 0.0,
+      "securityMin": 0,
       "securityMax": 0.449999,
       "asteroidCountMin": 20,
       "asteroidCountMax": 30,
@@ -118,7 +118,7 @@
     {
       "fieldStyleID": "nullsec_standard",
       "name": "Null-Sec Standard Belt",
-      "securityMin": -1.0,
+      "securityMin": -1,
       "securityMax": -0.000001,
       "asteroidCountMin": 24,
       "asteroidCountMax": 36,
@@ -177,7 +177,7 @@
     {
       "fieldStyleID": "wormhole_standard",
       "name": "Wormhole Standard Belt",
-      "securityMin": -1.0,
+      "securityMin": -1,
       "securityMax": 1.1,
       "asteroidCountMin": 18,
       "asteroidCountMax": 28,

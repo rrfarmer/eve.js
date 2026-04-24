@@ -1788,12 +1788,191 @@
                                                          "undockPoint"
                                                      ],
                          "stationTypeID":  78334
+                     },
+                     {
+                         "typeName":  "AIR Trade Hub",
+                         "graphicID":  33224,
+                         "graphicLocationID":  2072,
+                         "hasUndockLocators":  true,
+                         "graphicFile":  null,
+                         "directionalLocatorCategories":  [
+                                                              "undockPoint",
+                                                              "undockPointCapital",
+                                                              "undockPointLarge",
+                                                              "undockPointSmall",
+                                                              "undockPointSupercapital"
+                                                          ],
+                         "directionalLocators":  [
+                                                     {
+                                                         "category":  "undockPointCapital",
+                                                         "position":  {
+                                                                          "y":  3643.55103,
+                                                                          "x":  945.50018,
+                                                                          "z":  35705.25391
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "capital01"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointCapital",
+                                                         "position":  {
+                                                                          "y":  3643.55103,
+                                                                          "x":  -1431.26758,
+                                                                          "z":  35705.25391
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "capital02"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointLarge",
+                                                         "position":  {
+                                                                          "y":  2849.74243,
+                                                                          "x":  -61.2897,
+                                                                          "z":  22551.12305
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "large01"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointLarge",
+                                                         "position":  {
+                                                                          "y":  3101.00439,
+                                                                          "x":  -251.49001,
+                                                                          "z":  23089.24609
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "large02"
+                                                     },
+                                                     {
+                                                         "category":  "undockPoint",
+                                                         "position":  {
+                                                                          "y":  2849.74243,
+                                                                          "x":  -61.2897,
+                                                                          "z":  22551.12305
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "point01"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointSmall",
+                                                         "position":  {
+                                                                          "y":  -5700.83838,
+                                                                          "x":  8333.92773,
+                                                                          "z":  -32857.89844
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.1,
+                                                                           "z":  -1.0
+                                                                       },
+                                                         "name":  "small01"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointSmall",
+                                                         "position":  {
+                                                                          "y":  2234.68237,
+                                                                          "x":  -1220.84558,
+                                                                          "z":  23089.24609
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "small02"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointSmall",
+                                                         "position":  {
+                                                                          "y":  3101.00439,
+                                                                          "x":  -1220.84558,
+                                                                          "z":  23089.24609
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "small03"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointSmall",
+                                                         "position":  {
+                                                                          "y":  2305.92163,
+                                                                          "x":  777.58838,
+                                                                          "z":  23089.24609
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "small04"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointSmall",
+                                                         "position":  {
+                                                                          "y":  2899.64502,
+                                                                          "x":  1885.22852,
+                                                                          "z":  23089.24609
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "small05"
+                                                     },
+                                                     {
+                                                         "category":  "undockPointSupercapital",
+                                                         "position":  {
+                                                                          "y":  3643.55103,
+                                                                          "x":  -157.9382,
+                                                                          "z":  35705.25391
+                                                                      },
+                                                         "direction":  {
+                                                                           "y":  0.0,
+                                                                           "x":  0.0,
+                                                                           "z":  1.0
+                                                                       },
+                                                         "name":  "supercapital01"
+                                                     }
+                                                 ],
+                         "hasDirectionalLocators":  true,
+                         "undockLocatorCategories":  [
+                                                         "undockPoint",
+                                                         "undockPointCapital",
+                                                         "undockPointLarge",
+                                                         "undockPointSmall",
+                                                         "undockPointSupercapital"
+                                                     ],
+                         "stationTypeID":  92885
                      }
                  ],
     "_meta":  {
                   "source":  "client graphicLocations.fsdbinary",
                   "stationTypesPath":  "C:\\Users\\John\\Documents\\Testing\\EvEJS\\server\\src\\newDatabase\\data\\stationTypes\\data.json",
                   "jsonlMirrorPath":  "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\generated\\station-client-graphic-locators.jsonl",
-                  "generatedAt":  "2026-04-01T14:59:06Z"
+                  "generatedAt":  "2026-04-14T12:05:13Z"
               }
 }

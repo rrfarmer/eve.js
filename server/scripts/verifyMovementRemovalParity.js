@@ -143,7 +143,7 @@ function runDynamicExplosionScenario(proto) {
   assert.strictEqual(queued.length, 1);
   assertQueuedPayloads(
     queued[0],
-    79,
+    78,
     ["TerminalPlayDestructionEffect", "RemoveBalls"],
   );
   assert.strictEqual(session._space.visibleDynamicEntityIDs.has(3001), false);

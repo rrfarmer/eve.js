@@ -1,0 +1,74 @@
+{
+  "588": {
+    "shipTypeID": 588,
+    "shipName": "Reaper",
+    "modules": [
+      {
+        "typeID": 21857,
+        "name": "1MN Civilian Afterburner"
+      },
+      {
+        "typeID": 3636,
+        "name": "Civilian Gatling Autocannon"
+      },
+      {
+        "typeID": 3651,
+        "name": "Civilian Miner"
+      }
+    ]
+  },
+  "596": {
+    "shipTypeID": 596,
+    "shipName": "Impairor",
+    "modules": [
+      {
+        "typeID": 21857,
+        "name": "1MN Civilian Afterburner"
+      },
+      {
+        "typeID": 3634,
+        "name": "Civilian Gatling Pulse Laser"
+      },
+      {
+        "typeID": 3651,
+        "name": "Civilian Miner"
+      }
+    ]
+  },
+  "601": {
+    "shipTypeID": 601,
+    "shipName": "Ibis",
+    "modules": [
+      {
+        "typeID": 21857,
+        "name": "1MN Civilian Afterburner"
+      },
+      {
+        "typeID": 3638,
+        "name": "Civilian Gatling Railgun"
+      },
+      {
+        "typeID": 3651,
+        "name": "Civilian Miner"
+      }
+    ]
+  },
+  "606": {
+    "shipTypeID": 606,
+    "shipName": "Velator",
+    "modules": [
+      {
+        "typeID": 21857,
+        "name": "1MN Civilian Afterburner"
+      },
+      {
+        "typeID": 3638,
+        "name": "Civilian Gatling Railgun"
+      },
+      {
+        "typeID": 3651,
+        "name": "Civilian Miner"
+      }
+    ]
+  }
+}

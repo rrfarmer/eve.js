@@ -10,6 +10,12 @@ const {
   CHARGE_DOGMA_REPLAY_MODE_REFRESH_ONLY,
 } = require(path.join(__dirname, "../../space/modules/moduleLoadParity"));
 const {
+  manifestRequiresRealChargeInventoryHudRowsForItemIDs,
+} = require(path.join(
+  __dirname,
+  "../../space/modules/moduleClientParityAuthority",
+));
+const {
   syncShipFittingStateForSession,
   syncLoadedChargeDogmaBootstrapForSession,
 } = require(path.join(
@@ -40,6 +46,7 @@ function summarizePendingShipFittingReplay(pending) {
 
   return [
     `shipID=${Number(pending.shipID) || 0}`,
+    `probeOnly=${pending.onlyScannerProbeLaunchers === true}`,
     `awaitBeyonce=${pending.awaitBeyonceBound === true}`,
     `awaitInitial=${pending.awaitInitialBallpark === true}`,
     `awaitInvPrime=${pending.awaitPostLoginShipInventoryList === true}`,
@@ -134,7 +141,8 @@ function getPendingShipChargeDogmaReplayMode(session) {
   if (
     replayMode === CHARGE_DOGMA_REPLAY_MODE_REFRESH_ONLY ||
     replayMode === CHARGE_DOGMA_REPLAY_MODE_QUANTITY_AND_REPAIR ||
-    replayMode === CHARGE_DOGMA_REPLAY_MODE_REPAIR_THEN_QUANTITY
+    replayMode === CHARGE_DOGMA_REPLAY_MODE_REPAIR_THEN_QUANTITY ||
+    replayMode === CHARGE_DOGMA_REPLAY_MODE_PRIME_REPAIR_THEN_QUANTITY
   ) {
     return replayMode;
   }
@@ -154,6 +162,17 @@ function allowsLateChargeRefresh(session) {
     session &&
       session._space &&
       session._space.loginAllowLateChargeRefresh === true,
+  );
+}
+
+function getImplicitHudBootstrapDelayMs(session) {
+  return Math.max(
+    0,
+    Number(
+      session &&
+        session._space &&
+        session._space.loginImplicitHudBootstrapDelayMs,
+    ) || 0,
   );
 }
 
@@ -339,7 +358,11 @@ function tryFlushPendingShipFittingReplay(session) {
   syncShipFittingStateForSession(session, pending.shipID, {
     includeOfflineModules: pending.includeOfflineModules === true,
     includeCharges: pending.includeCharges === true,
+    onlyCharges: pending.onlyCharges === true,
+    onlyScannerProbeLaunchers: pending.onlyScannerProbeLaunchers === true,
     emitChargeInventoryRows: pending.emitChargeInventoryRows !== false,
+    allowInSpaceChargeInventoryRows:
+      pending.allowInSpaceChargeInventoryRows === true,
     emitOnlineEffects: pending.emitOnlineEffects === true,
     syntheticFitTransition: pending.syntheticFitTransition === true,
   });
@@ -392,10 +415,20 @@ function tryFlushPendingShipFittingReplay(session) {
           includeOfflineModules: pending.includeOfflineModules === true,
           includeCharges: pending.includeCharges === true,
           emitChargeInventoryRows: pending.emitChargeInventoryRows !== false,
+          allowInSpaceChargeInventoryRows:
+            pending.allowInSpaceChargeInventoryRows === true,
           emitOnlineEffects: pending.emitOnlineEffects === true,
           syntheticFitTransition: pending.syntheticFitTransition === true,
         }
       : null;
+    if (
+      allowLateFinalizeReplay &&
+      session._space.loginFittingReplayHudBootstrapSeen === true
+    ) {
+      requestPostHudFittingReplay(session, pending.shipID, {
+        reason: "post-fitting-replay-hud-seen",
+      });
+    }
   }
   return true;
 }
@@ -445,6 +478,55 @@ function requestPendingShipFittingReplayFromHud(
   }
 
   const pending = session._pendingCommandShipFittingReplay;
+  const delayMs = Math.max(0, Number(options.delayMs) || 0);
+  const reason =
+    typeof options.reason === "string" && options.reason.trim().length > 0
+      ? options.reason.trim()
+      : delayMs > 0
+        ? "implicit-hud-bootstrap"
+        : "hud-bootstrap";
+
+  if (delayMs > 0) {
+    clearPendingShipFittingReplayTimer(session);
+    log.debug(
+      `[fitting-replay] scheduling hud-bootstrap shipID=${
+        Number(shipID) ||
+        Number(pending.shipID) ||
+        0
+      } delayMs=${delayMs} reason=${reason} ` +
+      `${describeSessionHydrationState(session, pending.shipID)}`,
+    );
+    session._space.loginFittingReplayTimer = setTimeout(() => {
+      if (!session || !session._space || !session._pendingCommandShipFittingReplay) {
+        return;
+      }
+      session._space.loginFittingReplayTimer = null;
+      const activePending = session._pendingCommandShipFittingReplay;
+      if (activePending) {
+        activePending.hudBootstrapReplayTimer = null;
+        activePending.hudBootstrapSeen = true;
+      }
+      session._space.loginFittingReplayHudBootstrapSeen = true;
+      log.debug(
+        `[fitting-replay] delayed hud-bootstrap shipID=${
+          Number(shipID) ||
+          Number(activePending && activePending.shipID) ||
+          0
+        } reason=${reason} ${describeSessionHydrationState(
+          session,
+          activePending && activePending.shipID,
+        )}`,
+      );
+      tryFlushPendingShipFittingReplay(session);
+    }, delayMs);
+    if (typeof session._space.loginFittingReplayTimer.unref === "function") {
+      session._space.loginFittingReplayTimer.unref();
+    }
+    pending.hudBootstrapReplayTimer = session._space.loginFittingReplayTimer;
+    return true;
+  }
+
+  clearPendingShipFittingReplayTimer(session);
   pending.hudBootstrapSeen = true;
   session._space.loginFittingReplayHudBootstrapSeen = true;
 
@@ -488,6 +570,17 @@ function requestPostHudFittingReplay(session, shipID = null, options = {}) {
     return false;
   }
 
+  const restrictToItemIDs = Array.isArray(
+    session._space.loginLateFittedReplayItemIDs,
+  )
+    ? session._space.loginLateFittedReplayItemIDs.filter(
+        (itemID) => Number(itemID) > 0,
+      )
+    : [];
+  if (restrictToItemIDs.length === 0) {
+    return false;
+  }
+
   if (!session.socket || session.socket.destroyed) {
     clearPendingHudFittingFinalizeTimer(session);
     session._space.loginFittingHudFinalizePending = false;
@@ -517,10 +610,16 @@ function requestPostHudFittingReplay(session, shipID = null, options = {}) {
     typeof options.reason === "string" && options.reason.trim().length > 0
       ? options.reason.trim()
       : "post-hud-finalize";
+  const forceRealChargeInventoryHudRows =
+    manifestRequiresRealChargeInventoryHudRowsForItemIDs(
+      session._space.loginModuleParityManifest,
+      restrictToItemIDs,
+    );
 
   log.debug(
     `[fitting-hud-finalize] scheduling shipID=${resolvedShipID} ` +
     `delayMs=${delayMs} reason=${reason} ` +
+    `realChargeRows=${forceRealChargeInventoryHudRows} ` +
     `windowRemainingMs=${Math.max(
       0,
       (Number(session._space.loginFittingHudFinalizeWindowEndsAtMs) || 0) -
@@ -551,7 +650,8 @@ function requestPostHudFittingReplay(session, shipID = null, options = {}) {
 
     log.debug(
       `[fitting-hud-finalize] timer-fired shipID=${resolvedShipID} ` +
-      `reason=${reason} ${describeSessionHydrationState(session, resolvedShipID)}`,
+      `reason=${reason} realChargeRows=${forceRealChargeInventoryHudRows} ` +
+      `${describeSessionHydrationState(session, resolvedShipID)}`,
     );
     session._space.loginFittingHudFinalizeRemainingReplays = Math.max(
       0,
@@ -565,10 +665,17 @@ function requestPostHudFittingReplay(session, shipID = null, options = {}) {
     }
     syncShipFittingStateForSession(session, replay.shipID, {
       includeOfflineModules: replay.includeOfflineModules === true,
-      includeCharges: replay.includeCharges === true,
-      emitChargeInventoryRows: replay.emitChargeInventoryRows !== false,
+      includeCharges:
+        forceRealChargeInventoryHudRows || replay.includeCharges === true,
+      onlyCharges: replay.onlyCharges === true,
+      emitChargeInventoryRows:
+        forceRealChargeInventoryHudRows || replay.emitChargeInventoryRows !== false,
+      allowInSpaceChargeInventoryRows:
+        forceRealChargeInventoryHudRows ||
+        replay.allowInSpaceChargeInventoryRows === true,
       emitOnlineEffects: replay.emitOnlineEffects === true,
       syntheticFitTransition: replay.syntheticFitTransition === true,
+      restrictToItemIDs,
     });
     if (
       allowsLateChargeRefresh(session) &&
@@ -754,6 +861,15 @@ function tryFlushPendingShipChargeDogmaReplay(session, shipID = null) {
   syncLoadedChargeDogmaBootstrapForSession(session, state.resolvedShipID, {
     mode: replayMode,
   });
+  if (
+    allowsLateChargeRefresh(session) &&
+    Number(session._space.loginChargeHudFinalizeRemainingReplays) > 0
+  ) {
+    requestPostHudChargeRefresh(session, state.resolvedShipID, {
+      delayMs: HUD_CHARGE_FINALIZE_DEBOUNCE_MS,
+      reason: "post-charge-replay",
+    });
+  }
   if (
     replayMode === CHARGE_DOGMA_REPLAY_MODE_PRIME_AND_REPAIR &&
     allowsMichelleGuardChargeRefresh(session)

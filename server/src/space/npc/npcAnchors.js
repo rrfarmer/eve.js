@@ -70,6 +70,12 @@ function normalizeQuery(value) {
     .replace(/[^a-z0-9]+/g, " ");
 }
 
+function normalizeQueryArray(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => normalizeQuery(value))
+    .filter(Boolean))];
+}
+
 function getSceneStaticCandidates(scene, kind) {
   const normalizedKind = String(kind || "").trim().toLowerCase();
   if (!scene) {
@@ -87,6 +93,15 @@ function getSceneStaticCandidates(scene, kind) {
         entity.kind === "moon" ||
         entity.kind === "sun" ||
         entity.kind === "asteroidBelt"
+      )
+    ));
+  }
+  if (normalizedKind === "signaturesite" || normalizedKind === "signature site") {
+    return scene.staticEntities.filter((entity) => (
+      entity &&
+      (
+        entity.signalTrackerSignatureSite === true ||
+        String(entity.signalTrackerSiteKind || "").trim().toLowerCase() === "signature"
       )
     ));
   }
@@ -156,6 +171,83 @@ function filterCandidatesByDescriptor(candidates, descriptor = {}) {
     if (exactMatches.length > 0) {
       filtered = exactMatches;
     }
+  }
+
+  const signalTrackerSiteKind = normalizeQuery(
+    descriptor.siteKind || descriptor.signalTrackerSiteKind,
+  );
+  if (signalTrackerSiteKind) {
+    filtered = filtered.filter((candidate) => (
+      normalizeQuery(candidate && candidate.signalTrackerSiteKind) === signalTrackerSiteKind
+    ));
+  }
+
+  const signalTrackerSiteFamily = normalizeQuery(
+    descriptor.siteFamily || descriptor.signalTrackerSiteFamily,
+  );
+  if (signalTrackerSiteFamily) {
+    filtered = filtered.filter((candidate) => (
+      normalizeQuery(
+        candidate && (
+          candidate.signalTrackerSiteFamily ||
+          candidate.signalTrackerSignatureSiteFamily
+        ),
+      ) === signalTrackerSiteFamily
+    ));
+  }
+
+  const siteTemplateIDs = [
+    String(
+      descriptor.siteTemplateID ||
+      descriptor.signalTrackerSiteTemplateID ||
+      "",
+    ).trim(),
+    ...(Array.isArray(descriptor.siteTemplateIDs) ? descriptor.siteTemplateIDs : [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean),
+  ].filter(Boolean);
+  if (siteTemplateIDs.length > 0) {
+    const allowedTemplateIDs = new Set(siteTemplateIDs);
+    filtered = filtered.filter((candidate) => allowedTemplateIDs.has(
+      String(candidate && candidate.signalTrackerSiteTemplateID || "").trim(),
+    ));
+  }
+
+  const entryObjectTypeIDs = [...new Set([
+    toPositiveInt(
+      descriptor.entryObjectTypeID || descriptor.signalTrackerEntryObjectTypeID,
+      0,
+    ),
+    ...(Array.isArray(descriptor.entryObjectTypeIDs) ? descriptor.entryObjectTypeIDs : [])
+      .map((value) => toPositiveInt(value, 0)),
+  ].filter((value) => value > 0))];
+  if (entryObjectTypeIDs.length > 0) {
+    const allowedEntryObjectTypeIDs = new Set(entryObjectTypeIDs);
+    filtered = filtered.filter((candidate) => allowedEntryObjectTypeIDs.has(
+      toPositiveInt(
+        candidate && (
+          candidate.signalTrackerEntryObjectTypeID ||
+          candidate.entryObjectTypeID
+        ),
+        0,
+      ),
+    ));
+  }
+
+  const labelIncludesAny = normalizeQueryArray(
+    descriptor.siteLabelIncludesAny || descriptor.labelIncludesAny,
+  );
+  if (labelIncludesAny.length > 0) {
+    filtered = filtered.filter((candidate) => {
+      const candidateLabel = normalizeQuery(
+        candidate && (
+          candidate.signalTrackerSiteLabel ||
+          candidate.itemName ||
+          candidate.slimName
+        ),
+      );
+      return labelIncludesAny.some((query) => candidateLabel.includes(query));
+    });
   }
 
   return filtered;
@@ -232,6 +324,8 @@ function resolveAnchors(systemID, descriptor = {}) {
     normalizedKind === "planet" ||
     normalizedKind === "moon" ||
     normalizedKind === "sun" ||
+    normalizedKind === "signaturesite" ||
+    normalizedKind === "signature site" ||
     normalizedAsteroidBeltKind ||
     normalizedKind === "celestial"
       ? (normalizedAsteroidBeltKind ? "asteroidBelt" : normalizedKind)

@@ -2,11 +2,11 @@
   "meta": {
     "version": 1,
     "description": "Cached EverMarks heraldry emblem offers and ship-logo metadata.",
-    "generatedAt": "2026-04-01T14:59:27.092Z",
+    "generatedAt": "2026-04-09T16:52:09.313Z",
     "sourceAuthority": "local-cache",
-    "sdeAuthority": "eve-online-static-data-3284752-jsonl",
-    "sdeBuildNumber": 3284752,
-    "sdeReleaseDate": "2026-03-31T11:27:11Z",
+    "sdeAuthority": "eve-online-static-data-3294658-jsonl",
+    "sdeBuildNumber": 3294658,
+    "sdeReleaseDate": "2026-04-09T11:29:37Z",
     "lpStoreUrl": "https://www.fuzzwork.co.uk/lpstore/sell/10000002/1000419/withblueprints",
     "loader": "scripts/DataSync/build-evermarks-cache.js"
   },

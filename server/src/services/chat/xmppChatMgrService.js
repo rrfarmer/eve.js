@@ -7,6 +7,9 @@ const {
   getRookieHelpChannelContract,
   normalizeLanguageCode,
 } = require("../../_secondary/chat/staticChannelContracts");
+const {
+  getXmppConnectHost,
+} = require("./xmppConfig");
 
 function getCorpChannelName(session) {
   const corpId = Number(
@@ -90,12 +93,12 @@ class XmppChatMgrService extends BaseService {
 
   Handle_Hostname(args, session) {
     log.debug("[XmppChatMgr] Hostname called");
-    return "localhost";
+    return getXmppConnectHost();
   }
 
   Handle_GetDeprecatedPrefsFallback(args, session) {
     log.debug("[XmppChatMgr] GetDeprecatedPrefsFallback called");
-    return "localhost";
+    return getXmppConnectHost();
   }
 
   Handle_ResyncSystemChannelAccess(args, session) {

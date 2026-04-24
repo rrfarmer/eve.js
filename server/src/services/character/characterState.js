@@ -20,8 +20,11 @@ const {
   getActiveShipItem,
   getItemMutationVersion,
   ITEM_FLAGS,
+  CAPSULE_TYPE_ID,
   grantItemToCharacterStationHangar,
+  removeInventoryItem,
   setActiveShipForCharacter,
+  buildRemovedItemNotificationState,
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const {
   ensureCharacterSkills,
@@ -32,20 +35,27 @@ const {
   currentFileTime,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const {
+  composeSessionRoleMask,
   normalizeRoleValue,
 } = require(path.join(__dirname, "../account/accountRoleProfiles"));
 const {
   getFittedModuleItems,
+  getLoadedChargeByFlag,
   getLoadedChargeItems,
   buildChargeTupleItemID,
   getAttributeIDByNames,
   getEffectIDByNames,
-  isModuleOnline,
-  buildEffectiveItemAttributeMap,
+  isEffectivelyOnlineModule,
+  getTypeAttributeValue,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
 const {
   buildWeaponDogmaAttributeOverrides,
 } = require(path.join(__dirname, "../../space/combat/weaponDogma"));
+const {
+  peekShipFittingSnapshot,
+  refreshShipFittingSnapshot,
+  listShipFittingAttributeChanges,
+} = require(path.join(__dirname, "../../_secondary/fitting/fittingRuntime"));
 const {
   CHARGE_DOGMA_REPLAY_MODE_PRIME_AND_REPAIR,
   CHARGE_DOGMA_REPLAY_MODE_QUANTITY_AND_REPAIR,
@@ -53,6 +63,12 @@ const {
   CHARGE_DOGMA_REPLAY_MODE_PRIME_REPAIR_THEN_QUANTITY,
   CHARGE_DOGMA_REPLAY_MODE_REFRESH_ONLY,
 } = require(path.join(__dirname, "../../space/modules/moduleLoadParity"));
+const {
+  resolveModuleParityFamily,
+} = require(path.join(
+  __dirname,
+  "../../space/modules/moduleClientParityAuthority",
+));
 const {
   resolveItemByTypeID,
 } = require(path.join(__dirname, "../inventory/itemTypeRegistry"));
@@ -66,6 +82,9 @@ const {
 const {
   getSessionFleetState,
 } = require(path.join(__dirname, "../fleets/fleetHelpers"));
+const {
+  normalizeCharacterGender,
+} = require(path.join(__dirname, "./characterIdentity"));
 
 function getStructureState() {
   return require(path.join(__dirname, "../structure/structureState"));
@@ -78,8 +97,16 @@ const INV_UPDATE_QUANTITY = 5;
 const INV_UPDATE_SINGLETON = 9;
 const INV_UPDATE_STACKSIZE = 10;
 const ATTRIBUTE_QUANTITY = getAttributeIDByNames("quantity") || 805;
-const ATTRIBUTE_VOLUME = getAttributeIDByNames("volume") || 161;
+const ATTRIBUTE_DAMAGE = getAttributeIDByNames("damage") || 3;
+const ATTRIBUTE_SHIELD_CHARGE = getAttributeIDByNames("shieldCharge") || 264;
+const ATTRIBUTE_ARMOR_DAMAGE = getAttributeIDByNames("armorDamage") || 266;
+const ATTRIBUTE_RELOAD_TIME = getAttributeIDByNames("reloadTime") || 1795;
 const EFFECT_ONLINE = getEffectIDByNames("online") || 16;
+const MODULE_ATTRIBUTE_CAPACITOR_NEED =
+  getAttributeIDByNames("capacitorNeed") || 6;
+const MODULE_ATTRIBUTE_SPEED = getAttributeIDByNames("speed") || 51;
+const MODULE_ATTRIBUTE_DURATION = getAttributeIDByNames("duration") || 73;
+const GROUP_SCAN_PROBE_LAUNCHER = 481;
 const INVENTORY_ROW_DESCRIPTOR_COLUMNS = [
   ["itemID", 20],
   ["typeID", 3],
@@ -90,8 +117,8 @@ const INVENTORY_ROW_DESCRIPTOR_COLUMNS = [
   ["groupID", 3],
   ["categoryID", 3],
   ["customInfo", 129],
-  ["singleton", 2],
   ["stacksize", 3],
+  ["singleton", 2],
 ];
 const CHARGE_SUBLOCATION_ROW_DESCRIPTOR_COLUMNS = [
   ["itemID", 129],
@@ -103,8 +130,8 @@ const CHARGE_SUBLOCATION_ROW_DESCRIPTOR_COLUMNS = [
   ["groupID", 3],
   ["categoryID", 3],
   ["customInfo", 129],
-  ["singleton", 2],
   ["stacksize", 3],
+  ["singleton", 2],
 ];
 const EMPIRE_BY_CORPORATION = Object.freeze({
   1000044: 500001,
@@ -113,6 +140,7 @@ const EMPIRE_BY_CORPORATION = Object.freeze({
   1000006: 500004,
 });
 const DEFAULT_PLEX_BALANCE = 2222;
+const TRAINED_SKILL_FLAG_ID = 7;
 const DEFAULT_CHARACTER_ATTRIBUTES = Object.freeze({
   charisma: 20,
   intelligence: 20,
@@ -162,6 +190,15 @@ function appendMissileDebug(entry) {
 function roundMissileTraceNumber(value, digits = 6) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Number(numeric.toFixed(digits)) : 0;
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function clamp01(value, fallback = 0) {
+  return Math.max(0, Math.min(1, toFiniteNumber(value, fallback)));
 }
 
 function summarizeMissileDebugItem(item) {
@@ -894,6 +931,16 @@ function getActiveShipRecord(charId) {
 }
 
 function buildInventoryItemRow(item) {
+  const singleton = Number(item && item.singleton) === 1 ? 1 : 0;
+  const normalizedStacksize = singleton === 1
+    ? 1
+    : Math.max(0, Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0);
+  const normalizedQuantity =
+    item && item.quantity !== undefined && item.quantity !== null
+      ? item.quantity
+      : singleton === 1
+        ? -1
+        : normalizedStacksize;
   return {
     type: "packedrow",
     header: {
@@ -912,17 +959,26 @@ function buildInventoryItemRow(item) {
       ownerID: item.ownerID,
       locationID: item.locationID,
       flagID: item.flagID,
-      quantity: item.quantity,
+      quantity: normalizedQuantity,
       groupID: item.groupID,
       categoryID: item.categoryID,
-      customInfo: item.customInfo || "",
-      singleton: item.singleton,
-      stacksize: item.stacksize,
+      customInfo:
+        item && item.customInfo !== undefined && item.customInfo !== null
+          ? String(item.customInfo)
+          : "",
+      stacksize: normalizedStacksize,
+      singleton,
     },
   };
 }
 
 function buildChargeSublocationRow(item) {
+  const normalizedItem = normalizeChargeSublocationItem(item);
+  const normalizedChargeQuantity = Math.max(
+    0,
+    Number(normalizedItem && (normalizedItem.stacksize ?? normalizedItem.quantity ?? 0)) || 0,
+  );
+  const singleton = Number(normalizedItem && normalizedItem.singleton) === 1 ? 1 : 0;
   return {
     type: "packedrow",
     header: {
@@ -936,18 +992,54 @@ function buildChargeSublocationRow(item) {
     },
     columns: CHARGE_SUBLOCATION_ROW_DESCRIPTOR_COLUMNS,
     fields: {
-      itemID: item.itemID,
-      typeID: item.typeID,
-      ownerID: item.ownerID ?? null,
-      locationID: item.locationID,
-      flagID: item.flagID,
-      quantity: item.quantity,
-      groupID: item.groupID,
-      categoryID: item.categoryID,
-      customInfo: item.customInfo || "",
-      singleton: item.singleton ?? 0,
-      stacksize: item.stacksize,
+      itemID: normalizedItem.itemID,
+      typeID: normalizedItem.typeID,
+      ownerID: normalizedItem.ownerID ?? null,
+      locationID: normalizedItem.locationID,
+      flagID: normalizedItem.flagID,
+      quantity: normalizedChargeQuantity,
+      groupID: normalizedItem.groupID,
+      categoryID: normalizedItem.categoryID,
+      customInfo:
+        normalizedItem &&
+        normalizedItem.customInfo !== undefined &&
+        normalizedItem.customInfo !== null
+          ? String(normalizedItem.customInfo)
+          : "",
+      stacksize: normalizedChargeQuantity,
+      singleton,
     },
+  };
+}
+
+function normalizeChargeSublocationItem(item) {
+  if (!item || typeof item !== "object") {
+    return item;
+  }
+
+  const numericTypeID = Number(item.typeID) || 0;
+  const typeRow = resolveItemByTypeID(numericTypeID) || null;
+  const normalizedQuantity = Math.max(
+    0,
+    Number(item.stacksize ?? item.quantity ?? 0) || 0,
+  );
+  const normalizedSingleton = Number(item.singleton) === 1 ? 1 : 0;
+
+  return {
+    ...item,
+    typeID: numericTypeID,
+    ownerID: Number(item.ownerID) || null,
+    locationID: Number(item.locationID) || 0,
+    flagID: Number(item.flagID) || 0,
+    groupID: Number(item.groupID ?? (typeRow && typeRow.groupID)) || 0,
+    categoryID: Number(item.categoryID ?? (typeRow && typeRow.categoryID)) || 8,
+    quantity: normalizedQuantity,
+    stacksize: normalizedQuantity,
+    singleton: normalizedSingleton,
+    customInfo:
+      item.customInfo !== undefined && item.customInfo !== null
+        ? String(item.customInfo)
+        : "",
   };
 }
 
@@ -956,6 +1048,7 @@ function buildDogmaInfoInventoryRow(item) {
     0,
     Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0,
   );
+  const singleton = Number(item && item.singleton) === 1 ? 1 : 0;
   return {
     type: "object",
     name: "util.Row",
@@ -972,8 +1065,8 @@ function buildDogmaInfoInventoryRow(item) {
           "groupID",
           "categoryID",
           "customInfo",
-          "singleton",
           "stacksize",
+          "singleton",
         ]],
         ["line", [
           item.itemID,
@@ -985,8 +1078,8 @@ function buildDogmaInfoInventoryRow(item) {
           item.groupID,
           item.categoryID,
           item.customInfo || "",
-          item.singleton ?? 0,
           normalizedChargeQuantity,
+          singleton,
         ]],
       ],
     },
@@ -1049,97 +1142,16 @@ function normalizeDogmaNumericAttributeMap(attributes = {}) {
   );
 }
 
-function resolveChargeDogmaPrimeWeaponContext(item, options = {}) {
-  if (!item || Number(item.categoryID) !== 8) {
-    return null;
-  }
-
-  const session = options.session || null;
-  const characterID = Number(
-    options.characterID ??
-      options.charID ??
-      item.ownerID ??
-      (session && (session.characterID ?? session.charid)) ??
-      0,
-  ) || 0;
-  const shipID = Number(
-    options.shipID ??
-      options.locationID ??
-      item.locationID ??
-      (session && (session.shipID ?? session.shipid)) ??
-      0,
-  ) || 0;
-  const flagID = Number(options.flagID ?? item.flagID ?? 0) || 0;
-
-  if (characterID <= 0 || shipID <= 0 || flagID <= 0) {
-    return null;
-  }
-
-  const shipItem =
-    findCharacterShip(characterID, shipID) ||
-    (() => {
-      const activeShip = getActiveShipRecord(characterID);
-      return activeShip && Number(activeShip.itemID) === shipID ? activeShip : null;
-    })();
-  if (!shipItem) {
-    return null;
-  }
-
-  const moduleItem = getFittedModuleItems(characterID, shipID).find(
-    (candidate) => Number(candidate && candidate.flagID) === flagID,
-  );
-  if (!moduleItem) {
-    return null;
-  }
-
-  return {
-    characterID,
-    shipItem,
-    moduleItem,
-    chargeItem: item,
-  };
-}
-
 function buildChargeDogmaPrimeAttributes(item, options = {}) {
   const normalizedChargeQuantity = Math.max(
     0,
     Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0,
   );
-  const typeRow =
-    resolveItemByTypeID(Number(item && item.typeID) || 0) || null;
-  const attributes = normalizeDogmaNumericAttributeMap(
-    buildEffectiveItemAttributeMap(item),
-  );
-  const weaponContext = resolveChargeDogmaPrimeWeaponContext(item, options);
-
-  if (weaponContext) {
-    try {
-      const weaponOverrides = buildWeaponDogmaAttributeOverrides(weaponContext);
-      const chargeAttributes = normalizeDogmaNumericAttributeMap(
-        weaponOverrides && weaponOverrides.chargeAttributes,
-      );
-      for (const [attributeID, value] of Object.entries(chargeAttributes)) {
-        attributes[attributeID] = value;
-      }
-    } catch (error) {
-      log.warn(
-        `[charge-prime] failed to resolve fitted charge overrides for ` +
-          `${JSON.stringify(item && item.itemID)}: ${error.message}`,
-      );
-    }
-  }
-
-  const resolvedVolume = Number(
-    (item && item.volume) ??
-      (typeRow && typeRow.volume) ??
-      NaN,
-  );
-  if (Number.isFinite(resolvedVolume) && resolvedVolume >= 0) {
-    attributes[ATTRIBUTE_VOLUME] = resolvedVolume;
-  }
-
-  attributes[ATTRIBUTE_QUANTITY] = normalizedChargeQuantity;
-  return attributes;
+  void item;
+  void options;
+  return {
+    [ATTRIBUTE_QUANTITY]: normalizedChargeQuantity,
+  };
 }
 
 function buildChargeDogmaPrimeEntry(item, options = {}) {
@@ -1212,6 +1224,19 @@ function syncChargeGodmaPrimeForSession(
     return;
   }
 
+  // Docked charge tuple state is already seeded through GetAllInfo shipInfo.
+  // Re-priming the same tuple later through OnGodmaPrimeItem is not safe:
+  // the retail client's docked godma path reconstructs a malformed invCache
+  // DBRow for sublocations once the ship inventory has been listed, which then
+  // leaks into fittingSvc.CreateFittingData() as stacksize=None.
+  //
+  // Keep docked fitting on the initial shipInfo dogma bootstrap plus the
+  // tuple-backed OnItemChange repair lane, and reserve targeted tuple
+  // OnGodmaPrimeItem replays for live/in-space charge hydration only.
+  if (isDockedSession(session)) {
+    return;
+  }
+
   session.sendNotification("OnGodmaPrimeItem", "clientID", [
     Number(locationID) || 0,
     buildChargeDogmaPrimeEntry(item, options),
@@ -1263,6 +1288,138 @@ function syncModuleAttributeChangesForSession(session, changes = []) {
     items: normalizedChanges,
   }]);
   return true;
+}
+
+function syncShipFittingAttributeChangesForSession(
+  session,
+  shipID,
+  previousSnapshot,
+  nextSnapshot,
+) {
+  if (
+    !session ||
+    typeof session.sendNotification !== "function" ||
+    !previousSnapshot ||
+    !nextSnapshot
+  ) {
+    return false;
+  }
+
+  const numericShipID = Number(shipID) || 0;
+  if (numericShipID <= 0) {
+    return false;
+  }
+
+  const changes = listShipFittingAttributeChanges(
+    previousSnapshot,
+    nextSnapshot,
+  ).map((change) =>
+    buildModuleAttributeChangePayload(
+      session,
+      numericShipID,
+      change.attributeID,
+      change.nextValue,
+      change.previousValue,
+    )
+  );
+  return syncModuleAttributeChangesForSession(session, changes);
+}
+
+function buildScannerProbeLauncherBootstrapChanges(session, moduleItem) {
+  if (!moduleItem || Number(moduleItem.groupID) !== GROUP_SCAN_PROBE_LAUNCHER) {
+    return [];
+  }
+
+  const charID = Number(session && (session.characterID || session.charid)) || 0;
+  const shipID = Number(moduleItem.locationID) || 0;
+  const shipItem =
+    getActiveShipRecord(charID) ||
+    findCharacterShipItem(charID, shipID) ||
+    null;
+  const chargeItem =
+    getLoadedChargeItems(charID, shipID).find(
+      (candidate) => Number(candidate && candidate.flagID) === Number(moduleItem.flagID),
+    ) || null;
+  const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
+  const runtimeAttributes =
+    shipItem && spaceRuntime && typeof spaceRuntime.getGenericModuleRuntimeAttributes === "function"
+      ? spaceRuntime.getGenericModuleRuntimeAttributes(
+          charID,
+          shipItem,
+          moduleItem,
+          chargeItem,
+          null,
+          {},
+        )
+      : null;
+  const changes = [];
+  const capacitorNeed = Number(
+    runtimeAttributes && Number.isFinite(Number(runtimeAttributes.capNeed))
+      ? runtimeAttributes.capNeed
+      : getTypeAttributeValue(moduleItem.typeID, "capacitorNeed"),
+  );
+  if (Number.isFinite(capacitorNeed)) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        Number(moduleItem.itemID) || 0,
+        MODULE_ATTRIBUTE_CAPACITOR_NEED,
+        capacitorNeed,
+        0,
+      ),
+    );
+  }
+
+  const resolvedSpeed = Number(
+    runtimeAttributes &&
+    runtimeAttributes.attributeOverrides &&
+    Number.isFinite(Number(runtimeAttributes.attributeOverrides[MODULE_ATTRIBUTE_SPEED]))
+      ? runtimeAttributes.attributeOverrides[MODULE_ATTRIBUTE_SPEED]
+      : getTypeAttributeValue(moduleItem.typeID, "speed"),
+  );
+  if (Number.isFinite(resolvedSpeed) && resolvedSpeed > 0) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        Number(moduleItem.itemID) || 0,
+        MODULE_ATTRIBUTE_SPEED,
+        resolvedSpeed,
+        0,
+      ),
+    );
+  }
+
+  const resolvedDuration = Number(
+    runtimeAttributes && Number.isFinite(Number(runtimeAttributes.durationMs))
+      ? runtimeAttributes.durationMs
+      : getTypeAttributeValue(moduleItem.typeID, "duration"),
+  );
+  if (Number.isFinite(resolvedDuration) && resolvedDuration > 0) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        Number(moduleItem.itemID) || 0,
+        MODULE_ATTRIBUTE_DURATION,
+        resolvedDuration,
+        0,
+      ),
+    );
+  }
+
+  const reloadTime = Number(getTypeAttributeValue(moduleItem.typeID, "reloadTime"));
+  if (Number.isFinite(reloadTime) && reloadTime > 0) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        Number(moduleItem.itemID) || 0,
+        ATTRIBUTE_RELOAD_TIME,
+        reloadTime,
+        0,
+      ),
+    );
+  }
+
+  return changes;
 }
 
 function buildLocationChangePayload(session, item) {
@@ -1353,8 +1510,14 @@ function buildItemChangePayload(item, previousState = {}) {
 
 function buildChargeSublocationChangePayload(item, previousState = {}) {
   const entries = [];
-  const currentStackSize = Number(item && item.stacksize);
-  const previousStackSize = Number(previousState.stacksize);
+  const currentStackSize = Math.max(
+    0,
+    Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0,
+  );
+  const previousStackSize = Math.max(
+    0,
+    Number(previousState && (previousState.stacksize ?? previousState.quantity ?? 0)) || 0,
+  );
 
   if (
     previousState.locationID !== undefined &&
@@ -1368,14 +1531,14 @@ function buildChargeSublocationChangePayload(item, previousState = {}) {
   }
 
   if (
-    previousState.stacksize !== undefined &&
+    (previousState.stacksize !== undefined || previousState.quantity !== undefined) &&
     Number.isFinite(previousStackSize) &&
     Number.isFinite(currentStackSize) &&
     previousStackSize >= 0 &&
     currentStackSize >= 0 &&
     previousStackSize !== currentStackSize
   ) {
-    entries.push([INV_UPDATE_STACKSIZE, previousState.stacksize]);
+    entries.push([INV_UPDATE_STACKSIZE, previousStackSize]);
   }
 
   return [
@@ -1452,6 +1615,31 @@ function buildChargeSublocationRepairPreviousState({
   return repairPreviousState;
 }
 
+function buildStableChargeSublocationQuantityPreviousState({
+  shipID = 0,
+  flagID = 0,
+  previousQuantity = 0,
+  nextQuantity = 0,
+} = {}) {
+  const numericShipID = Number(shipID) || 0;
+  const numericFlagID = Number(flagID) || 0;
+  const normalizedPreviousQuantity = Math.max(
+    0,
+    Number(previousQuantity) || 0,
+  );
+  const normalizedNextQuantity = Math.max(0, Number(nextQuantity) || 0);
+  const previousState = {
+    locationID: numericShipID,
+    flagID: numericFlagID,
+  };
+
+  if (normalizedPreviousQuantity !== normalizedNextQuantity) {
+    previousState.stacksize = normalizedPreviousQuantity;
+  }
+
+  return previousState;
+}
+
 function syncChargeSublocationForSession(
   session,
   item,
@@ -1466,11 +1654,214 @@ function syncChargeSublocationForSession(
     return;
   }
 
+  const normalizedItem = normalizeChargeSublocationItem(item);
   session.sendNotification(
     "OnItemChange",
     "clientID",
-    buildChargeSublocationChangePayload(item, previousState),
+    buildChargeSublocationChangePayload(normalizedItem, previousState),
   );
+}
+
+function getChargeSublocationReplayTimerHost(session) {
+  return session && (session._space || session);
+}
+
+function buildChargeSublocationReplayTimerKey(shipID, flagID) {
+  return `${Number(shipID) || 0}:${Number(flagID) || 0}`;
+}
+
+function clearChargeSublocationReplayTimer(session, shipID, flagID) {
+  const timerHost = getChargeSublocationReplayTimerHost(session);
+  if (!timerHost || !(timerHost._chargeSublocationReplayTimers instanceof Map)) {
+    return false;
+  }
+
+  const timerKey = buildChargeSublocationReplayTimerKey(shipID, flagID);
+  const timer = timerHost._chargeSublocationReplayTimers.get(timerKey);
+  if (!timer) {
+    return false;
+  }
+
+  clearTimeout(timer);
+  timerHost._chargeSublocationReplayTimers.delete(timerKey);
+  return true;
+}
+
+function buildDamageStateAttributeChangePayloads(
+  session,
+  item,
+  previousState = {},
+) {
+  if (!item || typeof item !== "object") {
+    return [];
+  }
+
+  const itemID = Number(item.itemID) || 0;
+  const typeID = Number(item.typeID || previousState.typeID) || 0;
+  if (itemID <= 0 || typeID <= 0) {
+    return [];
+  }
+
+  const shieldCapacity = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(typeID, "shieldCapacity"), 0),
+  );
+  const armorHP = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(typeID, "armorHP"), 0),
+  );
+  const structureHP = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(typeID, "hp", "structureHP"), 0),
+  );
+
+  const nextState =
+    item.conditionState && typeof item.conditionState === "object"
+      ? item.conditionState
+      : item.moduleState && typeof item.moduleState === "object"
+        ? item.moduleState
+        : {};
+  const previousConditionState =
+    previousState && previousState.conditionState &&
+    typeof previousState.conditionState === "object"
+      ? previousState.conditionState
+      : previousState && previousState.moduleState &&
+          typeof previousState.moduleState === "object"
+        ? previousState.moduleState
+        : {};
+
+  const nextShieldCharge = roundMissileTraceNumber(
+    shieldCapacity * clamp01(nextState.shieldCharge, shieldCapacity > 0 ? 1 : 0),
+  );
+  const previousShieldCharge = roundMissileTraceNumber(
+    shieldCapacity *
+      clamp01(
+        previousConditionState.shieldCharge,
+        shieldCapacity > 0 ? 1 : 0,
+      ),
+  );
+  const nextArmorDamage = roundMissileTraceNumber(
+    armorHP * clamp01(nextState.armorDamage, 0),
+  );
+  const previousArmorDamage = roundMissileTraceNumber(
+    armorHP * clamp01(previousConditionState.armorDamage, 0),
+  );
+  const nextHullDamage = roundMissileTraceNumber(
+    structureHP * clamp01(nextState.damage, 0),
+  );
+  const previousHullDamage = roundMissileTraceNumber(
+    structureHP * clamp01(previousConditionState.damage, 0),
+  );
+
+  const changes = [];
+  if (nextShieldCharge !== previousShieldCharge) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        itemID,
+        ATTRIBUTE_SHIELD_CHARGE,
+        nextShieldCharge,
+        previousShieldCharge,
+      ),
+    );
+  }
+  if (nextArmorDamage !== previousArmorDamage) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        itemID,
+        ATTRIBUTE_ARMOR_DAMAGE,
+        nextArmorDamage,
+        previousArmorDamage,
+      ),
+    );
+  }
+  if (nextHullDamage !== previousHullDamage) {
+    changes.push(
+      buildModuleAttributeChangePayload(
+        session,
+        itemID,
+        ATTRIBUTE_DAMAGE,
+        nextHullDamage,
+        previousHullDamage,
+      ),
+    );
+  }
+
+  return changes;
+}
+
+function syncDamageStateAttributesForSession(session, item, previousState = {}) {
+  return syncModuleAttributeChangesForSession(
+    session,
+    buildDamageStateAttributeChangePayloads(session, item, previousState),
+  );
+}
+
+function resolveCurrentChargeTupleReplayItem({
+  session = null,
+  charID = 0,
+  shipID = 0,
+  flagID = 0,
+  typeID = 0,
+  quantity = null,
+  ownerID = null,
+  groupID = null,
+  categoryID = null,
+} = {}) {
+  const numericCharID =
+    Number(charID) ||
+    Number(session && (session.characterID || session.charid)) ||
+    0;
+  const numericShipID = Number(shipID) || 0;
+  const numericFlagID = Number(flagID) || 0;
+  const expectedTypeID = Number(typeID) || 0;
+  if (numericCharID <= 0 || numericShipID <= 0 || numericFlagID <= 0) {
+    return null;
+  }
+
+  const currentCharge = getLoadedChargeByFlag(
+    numericCharID,
+    numericShipID,
+    numericFlagID,
+  );
+  if (!currentCharge) {
+    return null;
+  }
+
+  const currentTypeID = Number(currentCharge.typeID) || 0;
+  const currentQuantity = Math.max(
+    0,
+    Number(currentCharge.stacksize ?? currentCharge.quantity ?? 0) || 0,
+  );
+  if (currentTypeID <= 0 || currentQuantity <= 0) {
+    return null;
+  }
+  if (expectedTypeID > 0 && currentTypeID !== expectedTypeID) {
+    return null;
+  }
+
+  if (quantity !== null && quantity !== undefined) {
+    const expectedQuantity = Math.max(0, Number(quantity) || 0);
+    if (currentQuantity !== expectedQuantity) {
+      return null;
+    }
+  }
+
+  return {
+    chargeItem: currentCharge,
+    typeID: currentTypeID,
+    quantity: currentQuantity,
+    chargeBootstrapItem: buildChargeSublocationItem({
+      shipID: numericShipID,
+      flagID: numericFlagID,
+      typeID: currentTypeID,
+      quantity: currentQuantity,
+      ownerID: Number(currentCharge.ownerID ?? ownerID) || null,
+      groupID: currentCharge.groupID ?? groupID,
+      categoryID: currentCharge.categoryID ?? categoryID,
+    }),
+  };
 }
 
 function syncChargeSublocationForSessionAfterDelay(
@@ -1484,8 +1875,15 @@ function syncChargeSublocationForSessionAfterDelay(
     options && typeof options.afterSync === "function"
       ? options.afterSync
       : null;
+  const validateBeforeSync =
+    options && typeof options.validateBeforeSync === "function"
+      ? options.validateBeforeSync
+      : null;
   const numericDelayMs = Math.max(0, Number(delayMs) || 0);
   if (numericDelayMs <= 0) {
+    if (validateBeforeSync && validateBeforeSync() !== true) {
+      return false;
+    }
     syncChargeSublocationForSession(session, item, previousState);
     if (afterSync) {
       afterSync();
@@ -1493,7 +1891,7 @@ function syncChargeSublocationForSessionAfterDelay(
     return false;
   }
 
-  const timerHost = session && (session._space || session);
+  const timerHost = getChargeSublocationReplayTimerHost(session);
   if (!timerHost) {
     return false;
   }
@@ -1502,9 +1900,10 @@ function syncChargeSublocationForSessionAfterDelay(
     timerHost._chargeSublocationReplayTimers = new Map();
   }
 
-  const timerKey = `${Number(item && item.locationID) || 0}:${
-    Number(item && item.flagID) || 0
-  }`;
+  const timerKey = buildChargeSublocationReplayTimerKey(
+    item && item.locationID,
+    item && item.flagID,
+  );
   const existingTimer = timerHost._chargeSublocationReplayTimers.get(timerKey);
   if (existingTimer) {
     clearTimeout(existingTimer);
@@ -1520,6 +1919,9 @@ function syncChargeSublocationForSessionAfterDelay(
       typeof session.sendNotification !== "function" ||
       (session.socket && session.socket.destroyed)
     ) {
+      return;
+    }
+    if (validateBeforeSync && validateBeforeSync() !== true) {
       return;
     }
 
@@ -1545,6 +1947,7 @@ function syncChargeSublocationTransitionForSession(
     forceRepair = false,
     forcePrimeNextCharge = false,
     nextChargeRepairDelayMs = CHARGE_BOOTSTRAP_REPAIR_DELAY_MS,
+    afterNextChargeSync = null,
   } = {},
 ) {
   if (!session) {
@@ -1557,6 +1960,8 @@ function syncChargeSublocationTransitionForSession(
     return;
   }
 
+  clearChargeSublocationReplayTimer(session, numericShipID, numericFlagID);
+
   const previousTypeID = Number(previousState && previousState.typeID) || 0;
   const nextTypeID = Number(nextState && nextState.typeID) || 0;
   const previousQuantity = Math.max(
@@ -1564,6 +1969,8 @@ function syncChargeSublocationTransitionForSession(
     Number(previousState && previousState.quantity) || 0,
   );
   const nextQuantity = Math.max(0, Number(nextState && nextState.quantity) || 0);
+  const afterNextChargeSyncCallback =
+    typeof afterNextChargeSync === "function" ? afterNextChargeSync : null;
   const shouldForceRepair =
     forceRepair === true &&
     nextTypeID > 0 &&
@@ -1574,6 +1981,44 @@ function syncChargeSublocationTransitionForSession(
     previousQuantity === nextQuantity &&
     !shouldForceRepair
   ) {
+    return;
+  }
+
+  if (
+    previousTypeID > 0 &&
+    previousTypeID === nextTypeID &&
+    previousQuantity !== nextQuantity &&
+    !shouldForceRepair
+  ) {
+    const nextCharge = buildChargeSublocationItem({
+      shipID: numericShipID,
+      flagID: numericFlagID,
+      typeID: nextTypeID,
+      quantity: nextQuantity,
+      ownerID,
+    });
+    syncChargeSublocationForSession(
+      session,
+      nextCharge,
+      buildStableChargeSublocationQuantityPreviousState({
+        shipID: numericShipID,
+        flagID: numericFlagID,
+        previousQuantity,
+        nextQuantity,
+      }),
+    );
+    if (afterNextChargeSyncCallback) {
+      afterNextChargeSyncCallback();
+    }
+    log.debug(
+      `[charge-transition] shipID=${numericShipID} ` +
+      `flagID=${numericFlagID} typeID=${nextTypeID} quantity=${nextQuantity} ` +
+      `itemID=${JSON.stringify(buildChargeTupleItemID(
+        numericShipID,
+        numericFlagID,
+        nextTypeID,
+      ))} mode=item-change-stable-quantity`,
+    );
     return;
   }
 
@@ -1600,9 +2045,16 @@ function syncChargeSublocationTransitionForSession(
       quantity: nextQuantity,
       ownerID,
     });
+    const allowTupleGodmaPrime =
+      !session ||
+      !session._space ||
+      session._space.useRealChargeInventoryHudRows !== true;
     const shouldPrimeNextCharge =
-      (primeNextCharge === true && previousTypeID !== nextTypeID) ||
-      (forcePrimeNextCharge === true && shouldForceRepair);
+      allowTupleGodmaPrime &&
+      (
+        (primeNextCharge === true && previousTypeID !== nextTypeID) ||
+        (forcePrimeNextCharge === true && shouldForceRepair)
+      );
     if (shouldPrimeNextCharge) {
       syncChargeGodmaPrimeForSession(session, numericShipID, nextCharge, {
         description: "charge",
@@ -1635,6 +2087,18 @@ function syncChargeSublocationTransitionForSession(
           finalizeDelayMs,
         )
         : 0;
+    const resolveValidatedNextChargeReplay = () =>
+      resolveCurrentChargeTupleReplayItem({
+        session,
+        charID: Number(ownerID) || 0,
+        shipID: numericShipID,
+        flagID: numericFlagID,
+        typeID: nextTypeID,
+        quantity: nextQuantity,
+        ownerID,
+        groupID: nextCharge.groupID,
+        categoryID: nextCharge.categoryID,
+      });
     const scheduled = syncChargeSublocationForSessionAfterDelay(
       session,
       nextCharge,
@@ -1653,28 +2117,39 @@ function syncChargeSublocationTransitionForSession(
         }),
       repairDelayMs,
       {
-        afterSync: shouldSendPostRepairQuantityBootstrap
-          ? () => {
-            syncModuleAttributeChangesForSession(session, [
-              buildModuleAttributeChangePayload(
-                session,
-                nextCharge.itemID,
-                ATTRIBUTE_QUANTITY,
-                nextQuantity,
-                0,
-              ),
-            ]);
-            log.debug(
-              `[charge-transition] shipID=${numericShipID} ` +
-              `flagID=${numericFlagID} typeID=${nextTypeID} quantity=${nextQuantity} ` +
-              `itemID=${JSON.stringify(buildChargeTupleItemID(
-                numericShipID,
-                numericFlagID,
-                nextTypeID,
-              ))} mode=post-item-change-quantity`,
-            );
-          }
-          : null,
+        validateBeforeSync: () => Boolean(resolveValidatedNextChargeReplay()),
+        afterSync:
+          shouldSendPostRepairQuantityBootstrap || afterNextChargeSyncCallback
+            ? () => {
+              const validatedNextChargeReplay = resolveValidatedNextChargeReplay();
+              if (shouldSendPostRepairQuantityBootstrap) {
+                if (!validatedNextChargeReplay) {
+                  return;
+                }
+                syncModuleAttributeChangesForSession(session, [
+                  buildModuleAttributeChangePayload(
+                    session,
+                    validatedNextChargeReplay.chargeBootstrapItem.itemID,
+                    ATTRIBUTE_QUANTITY,
+                    validatedNextChargeReplay.quantity,
+                    0,
+                  ),
+                ]);
+                log.debug(
+                  `[charge-transition] shipID=${numericShipID} ` +
+                  `flagID=${numericFlagID} typeID=${validatedNextChargeReplay.typeID} quantity=${validatedNextChargeReplay.quantity} ` +
+                  `itemID=${JSON.stringify(buildChargeTupleItemID(
+                    numericShipID,
+                    numericFlagID,
+                    validatedNextChargeReplay.typeID,
+                  ))} mode=post-item-change-quantity`,
+                );
+              }
+              if (afterNextChargeSyncCallback) {
+                afterNextChargeSyncCallback();
+              }
+            }
+            : null,
       },
     );
     log.debug(
@@ -1712,6 +2187,9 @@ function syncChargeSublocationTransitionForSession(
           nextQuantity,
         }),
         finalizeDelayMs,
+        {
+          afterSync: afterNextChargeSyncCallback,
+        },
       );
       if (finalizeScheduled) {
         log.debug(
@@ -1795,6 +2273,12 @@ function syncLoadedChargeDogmaBootstrapForSession(
   if (!resolvedShipID) {
     return 0;
   }
+  if (isDockedSession(session)) {
+    // Docked fitting should stay on real loaded charge rows only. Replaying the
+    // tuple charge bootstrap here reopens the client godma sublocation path,
+    // which synthesizes malformed invCache rows for fitting consumers.
+    return 0;
+  }
 
   const loadedCharges = getLoadedChargeItems(charId, resolvedShipID)
     .slice()
@@ -1828,8 +2312,14 @@ function syncLoadedChargeDogmaBootstrapForSession(
         : options.mode === CHARGE_BOOTSTRAP_MODE_PRIME_REPAIR_THEN_QUANTITY
           ? CHARGE_BOOTSTRAP_MODE_PRIME_REPAIR_THEN_QUANTITY
         : CHARGE_BOOTSTRAP_MODE_PRIME_AND_REPAIR;
+  const effectiveMode =
+    session &&
+    session._space &&
+    session._space.useRealChargeInventoryHudRows === true
+      ? CHARGE_BOOTSTRAP_MODE_REFRESH_ONLY
+      : mode;
   const defaultRefreshDelayMs =
-    mode === CHARGE_BOOTSTRAP_MODE_REFRESH_ONLY
+    effectiveMode === CHARGE_BOOTSTRAP_MODE_REFRESH_ONLY
       ? CHARGE_TRANSITION_FINALIZE_DELAY_MS
       : CHARGE_BOOTSTRAP_REPAIR_DELAY_MS;
   const refreshDelayMs =
@@ -1837,10 +2327,39 @@ function syncLoadedChargeDogmaBootstrapForSession(
       ? Math.max(0, Number(defaultRefreshDelayMs) || 0)
       : Math.max(0, Number(options.refreshDelayMs) || 0);
   const bootstrapEntries = [];
+  const resolveCurrentBootstrapEntry = (entry) => {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const validatedReplay = resolveCurrentChargeTupleReplayItem({
+      session,
+      charID: charId,
+      shipID: resolvedShipID,
+      flagID: entry.nextFlagID,
+      typeID: entry.nextTypeID,
+      quantity: entry.nextQuantity,
+      ownerID: Number(charId) || 0,
+      groupID:
+        entry.chargeBootstrapItem && entry.chargeBootstrapItem.groupID,
+      categoryID:
+        entry.chargeBootstrapItem && entry.chargeBootstrapItem.categoryID,
+    });
+    if (!validatedReplay) {
+      return null;
+    }
+    return {
+      ...entry,
+      chargeBootstrapItem: validatedReplay.chargeBootstrapItem,
+      nextTypeID: validatedReplay.typeID,
+      nextQuantity: validatedReplay.quantity,
+    };
+  };
+  const collectCurrentBootstrapEntries = () =>
+    bootstrapEntries.map(resolveCurrentBootstrapEntry).filter(Boolean);
 
   log.debug(
     `[charge-bootstrap] begin charID=${Number(charId) || 0} ` +
-    `shipID=${Number(resolvedShipID) || 0} mode=${mode} ` +
+    `shipID=${Number(resolvedShipID) || 0} mode=${effectiveMode} ` +
     `refreshDelayMs=${refreshDelayMs} loadedCharges=${JSON.stringify(
       loadedCharges.map((chargeItem) => summarizeMissileDebugItem(chargeItem)),
     )} fittedModules=${JSON.stringify(
@@ -1851,7 +2370,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
   logMissileChargeDebug("missile.charge.login-bootstrap.begin", {
     charID: Number(charId) || 0,
     shipID: Number(resolvedShipID) || 0,
-    mode,
+    mode: effectiveMode,
     refreshDelayMs,
     loadedChargeCount: loadedCharges.length,
     shipItem: summarizeMissileDebugItem(shipItem),
@@ -1902,7 +2421,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
     logMissileChargeDebug("missile.charge.login-bootstrap.entry", {
       charID: Number(charId) || 0,
       shipID: Number(resolvedShipID) || 0,
-      mode,
+      mode: effectiveMode,
       refreshDelayMs,
       tupleItemID: buildChargeTupleItemID(
         Number(resolvedShipID) || 0,
@@ -1924,7 +2443,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
     timerHost._chargeBootstrapRepairTimer = null;
   }
 
-  if (mode === CHARGE_BOOTSTRAP_MODE_REFRESH_ONLY) {
+  if (effectiveMode === CHARGE_BOOTSTRAP_MODE_REFRESH_ONLY) {
     for (const entry of bootstrapEntries) {
       const {
         nextFlagID,
@@ -1968,7 +2487,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
           return;
         }
 
-        for (const entry of bootstrapEntries) {
+        for (const entry of collectCurrentBootstrapEntries()) {
           const {
             nextFlagID,
             nextQuantity,
@@ -2082,10 +2601,14 @@ function syncLoadedChargeDogmaBootstrapForSession(
       ) {
         return;
       }
+      const currentBootstrapEntries = collectCurrentBootstrapEntries();
+      if (currentBootstrapEntries.length <= 0) {
+        return;
+      }
 
       syncModuleAttributeChangesForSession(
         session,
-        bootstrapEntries.map(({ nextQuantity, chargeBootstrapItem }) =>
+        currentBootstrapEntries.map(({ nextQuantity, chargeBootstrapItem }) =>
           buildModuleAttributeChangePayload(
             session,
             chargeBootstrapItem.itemID,
@@ -2096,7 +2619,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
         ),
       );
 
-      for (const entry of bootstrapEntries) {
+      for (const entry of currentBootstrapEntries) {
         const {
           nextFlagID,
           nextQuantity,
@@ -2132,8 +2655,12 @@ function syncLoadedChargeDogmaBootstrapForSession(
       ) {
         return;
       }
+      const currentBootstrapEntries = collectCurrentBootstrapEntries();
+      if (currentBootstrapEntries.length <= 0) {
+        return;
+      }
 
-      for (const entry of bootstrapEntries) {
+      for (const entry of currentBootstrapEntries) {
         const {
           nextFlagID,
           nextQuantity,
@@ -2167,7 +2694,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
 
       syncModuleAttributeChangesForSession(
         session,
-        bootstrapEntries.map(({ nextQuantity, chargeBootstrapItem }) =>
+        currentBootstrapEntries.map(({ nextQuantity, chargeBootstrapItem }) =>
           buildModuleAttributeChangePayload(
             session,
             chargeBootstrapItem.itemID,
@@ -2178,7 +2705,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
         ),
       );
 
-      for (const entry of bootstrapEntries) {
+      for (const entry of currentBootstrapEntries) {
         const {
           nextFlagID,
           nextQuantity,
@@ -2213,10 +2740,14 @@ function syncLoadedChargeDogmaBootstrapForSession(
     ) {
       return;
     }
+    const currentBootstrapEntries = collectCurrentBootstrapEntries();
+    if (currentBootstrapEntries.length <= 0) {
+      return;
+    }
 
     syncModuleAttributeChangesForSession(
       session,
-      bootstrapEntries.map(({ nextQuantity, chargeBootstrapItem }) =>
+      currentBootstrapEntries.map(({ nextQuantity, chargeBootstrapItem }) =>
         buildModuleAttributeChangePayload(
           session,
           chargeBootstrapItem.itemID,
@@ -2227,7 +2758,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
       ),
     );
 
-    for (const entry of bootstrapEntries) {
+    for (const entry of currentBootstrapEntries) {
       const {
         nextFlagID,
         nextQuantity,
@@ -2262,7 +2793,7 @@ function syncLoadedChargeDogmaBootstrapForSession(
           nextFlagID,
           nextTypeID,
         ))} mode=${
-          mode === CHARGE_BOOTSTRAP_MODE_QUANTITY_AND_REPAIR
+          effectiveMode === CHARGE_BOOTSTRAP_MODE_QUANTITY_AND_REPAIR
             ? "post-quantity-item-change-delayed"
             : "post-prime-item-change-delayed"
         } ` +
@@ -2278,6 +2809,24 @@ function syncLoadedChargeQuantityBootstrapForSession(session, shipID = null) {
   return syncLoadedChargeDogmaBootstrapForSession(session, shipID);
 }
 
+function isTrainedSkillInventoryRecord(item) {
+  if (!item || typeof item !== "object") {
+    return false;
+  }
+
+  const ownerID = Number(item.ownerID || 0) || 0;
+  const locationID = Number(item.locationID || 0) || 0;
+  const flagID = Number(item.flagID || 0) || 0;
+  const categoryID = Number(item.categoryID || 0) || 0;
+
+  return (
+    ownerID > 0 &&
+    locationID === ownerID &&
+    flagID === TRAINED_SKILL_FLAG_ID &&
+    categoryID === 16
+  );
+}
+
 function syncInventoryItemForSession(session, item, previousState = {}, options = {}) {
   if (
     !session ||
@@ -2285,6 +2834,13 @@ function syncInventoryItemForSession(session, item, previousState = {}, options 
     !item ||
     typeof item !== "object"
   ) {
+    return;
+  }
+
+  if (isTrainedSkillInventoryRecord(item)) {
+    log.debug(
+      `[CharacterState] Suppressed trained-skill inventory sync for item ${Number(item.itemID) || 0} (${item.itemName || item.typeID})`,
+    );
     return;
   }
 
@@ -2327,13 +2883,18 @@ function syncModuleOnlineEffectForSession(session, item, options = {}) {
   }
 
   const active =
-    options.active === undefined ? isModuleOnline(item) : Boolean(options.active);
+    options.active === undefined ? isEffectivelyOnlineModule(item) : Boolean(options.active);
   // Use scene sim filetime when in space so online-effect timestamps stay
   // coherent with the solar system's TiDi clock.  Fall back to wallclock when
   // docked (no scene attached).
-  const now = (session._space && typeof session._space.simFileTime === "bigint")
+  const baseNow = (session._space && typeof session._space.simFileTime === "bigint")
     ? session._space.simFileTime
     : currentFileTime();
+  const timeOffset = Math.max(0, Math.trunc(Number(options.timeOffset) || 0));
+  const now =
+    typeof baseNow === "bigint"
+      ? baseNow + BigInt(timeOffset)
+      : Number(baseNow) + timeOffset;
   const environment = [
     moduleID,
     ownerID,
@@ -2365,6 +2926,78 @@ function syncModuleOnlineEffectForSession(session, item, options = {}) {
   return true;
 }
 
+function syncModuleOnlineBounceForSession(session, item, options = {}) {
+  if (
+    !session ||
+    !item ||
+    typeof item !== "object"
+  ) {
+    return false;
+  }
+
+  const moduleID = Number(item.itemID) || 0;
+  if (moduleID <= 0) {
+    return false;
+  }
+
+  const stopped = syncModuleOnlineEffectForSession(session, item, {
+    ...options,
+    active: false,
+    timeOffset: Number(options.stopTimeOffset) || 0,
+  });
+  const started = syncModuleOnlineEffectForSession(session, item, {
+    ...options,
+    active: true,
+    timeOffset:
+      Number(options.startTimeOffset) ||
+      (Number(options.stopTimeOffset) || 0) + 1,
+  });
+  if (stopped || started) {
+    log.debug(
+      `[module-effect-bounce] shipID=${Number(item.locationID) || 0} ` +
+      `moduleID=${moduleID} flagID=${Number(item.flagID) || 0} ` +
+      `typeID=${Number(item.typeID) || 0} inSpace=${Boolean(session && session._space)} effect=online`,
+    );
+  }
+  return stopped || started;
+}
+
+function syncOnlineModuleEffectsForSession(session, shipID = null, options = {}) {
+  if (
+    !session ||
+    typeof session.sendNotification !== "function"
+  ) {
+    return 0;
+  }
+
+  const charId = session.characterID || session.charid || 0;
+  if (!charId) {
+    return 0;
+  }
+
+  const resolvedShipID =
+    normalizeSessionShipValue(shipID) ||
+    normalizeSessionShipValue(session.shipID || session.shipid || null);
+  if (!resolvedShipID) {
+    return 0;
+  }
+
+  const fittedItems = getFittedModuleItems(charId, resolvedShipID)
+    .filter((item) => isEffectivelyOnlineModule(item));
+  let emittedCount = 0;
+  for (const moduleItem of fittedItems) {
+    if (syncModuleOnlineEffectForSession(session, moduleItem, options)) {
+      emittedCount += 1;
+    }
+  }
+
+  log.debug(
+    `[module-effect-sync] replay-online shipID=${Number(resolvedShipID) || 0} ` +
+    `charID=${Number(charId) || 0} emitted=${emittedCount}`,
+  );
+  return emittedCount;
+}
+
 function syncFittedModulesForSession(session, shipID = null, options = {}) {
   if (
     !session ||
@@ -2388,6 +3021,9 @@ function syncFittedModulesForSession(session, shipID = null, options = {}) {
   const onlyOnline = options.onlyOnline !== false;
   const onlyCharges = options.onlyCharges === true;
   const includeCharges = options.includeCharges === true || onlyCharges;
+  const onlyScannerProbeLaunchers = options.onlyScannerProbeLaunchers === true;
+  const allowInSpaceChargeInventoryRows =
+    options.allowInSpaceChargeInventoryRows === true;
   const isInSpaceSession = Boolean(
     session &&
       session._space &&
@@ -2396,17 +3032,77 @@ function syncFittedModulesForSession(session, shipID = null, options = {}) {
   const emitChargeInventoryRows =
     options.emitChargeInventoryRows === undefined
       ? !isInSpaceSession
-      : options.emitChargeInventoryRows === true && !isInSpaceSession;
+      : options.emitChargeInventoryRows === true &&
+        (!isInSpaceSession || allowInSpaceChargeInventoryRows);
   const emitOnlineEffects = options.emitOnlineEffects === true;
+  const preferSyntheticHardpointOnlineBounce =
+    emitOnlineEffects &&
+    isInSpaceSession &&
+    options.syntheticFitTransition === true;
+  const restrictToItemIDs = (
+    Array.isArray(options.restrictToItemIDs)
+      ? options.restrictToItemIDs
+      : options.restrictToItemIDs instanceof Set
+        ? [...options.restrictToItemIDs]
+        : []
+  )
+    .map((itemID) => Number(itemID) || 0)
+    .filter((itemID) => itemID > 0);
+  const restrictedItemIDSet =
+    restrictToItemIDs.length > 0 ? new Set(restrictToItemIDs) : null;
   const fittedItems = onlyCharges
     ? []
     : getFittedModuleItems(charId, resolvedShipID)
-      .filter((item) => (onlyOnline ? isModuleOnline(item) : true));
+      .filter((item) => (onlyOnline ? isEffectivelyOnlineModule(item) : true))
+      .filter((item) => (
+        onlyScannerProbeLaunchers !== true ||
+        Number(item && item.groupID) === GROUP_SCAN_PROBE_LAUNCHER
+      ));
+  const loadedChargeItems = preferSyntheticHardpointOnlineBounce
+    ? getLoadedChargeItems(charId, resolvedShipID)
+    : [];
+  const loadedChargeByFlag = new Map(
+    loadedChargeItems.map((chargeItem) => [
+      Number(chargeItem && chargeItem.flagID) || 0,
+      chargeItem,
+    ]),
+  );
   if (includeCharges && emitChargeInventoryRows) {
     fittedItems.push(...getLoadedChargeItems(charId, resolvedShipID));
   }
+  const restrictedChargeFlagSet =
+    restrictedItemIDSet instanceof Set
+      ? new Set(
+          fittedItems
+            .filter(
+              (item) =>
+                Number(item && item.categoryID) !== 8 &&
+                restrictedItemIDSet.has(Number(item && item.itemID) || 0),
+            )
+            .map((item) => Number(item && item.flagID) || 0)
+            .filter((flagID) => flagID > 0),
+        )
+      : null;
 
-  fittedItems.sort((left, right) => {
+  const replayItems =
+    restrictedItemIDSet instanceof Set
+      ? fittedItems.filter((item) => {
+          const itemID = Number(item && item.itemID) || 0;
+          if (restrictedItemIDSet.has(itemID)) {
+            return true;
+          }
+          if (Number(item && item.categoryID) !== 8) {
+            return false;
+          }
+          const flagID = Number(item && item.flagID) || 0;
+          return Boolean(
+            restrictedChargeFlagSet instanceof Set &&
+              restrictedChargeFlagSet.has(flagID),
+          );
+        })
+      : fittedItems;
+
+  replayItems.sort((left, right) => {
     const leftFlag = Number(left && left.flagID) || 0;
     const rightFlag = Number(right && right.flagID) || 0;
     if (leftFlag !== rightFlag) {
@@ -2429,16 +3125,31 @@ function syncFittedModulesForSession(session, shipID = null, options = {}) {
     `[fitting-sync] begin charID=${Number(charId) || 0} ` +
     `shipID=${Number(resolvedShipID) || 0} onlyOnline=${onlyOnline} ` +
     `onlyCharges=${onlyCharges} includeCharges=${includeCharges} ` +
+    `restrictToItemIDs=${JSON.stringify(restrictToItemIDs)} ` +
+    `onlyScannerProbeLaunchers=${onlyScannerProbeLaunchers} ` +
+    `allowInSpaceChargeInventoryRows=${allowInSpaceChargeInventoryRows} ` +
     `emitChargeInventoryRows=${emitChargeInventoryRows} ` +
     `emitOnlineEffects=${emitOnlineEffects} ` +
     `syntheticFit=${options.syntheticFitTransition === true} ` +
     `items=${JSON.stringify(
-      fittedItems.map((item) => summarizeMissileDebugItem(item)),
+      replayItems.map((item) => summarizeMissileDebugItem(item)),
     )}`,
   );
 
-  for (const moduleItem of fittedItems) {
+  for (const moduleItem of replayItems) {
     const isLoadedCharge = Number(moduleItem && moduleItem.categoryID) === 8;
+    const moduleFamily = preferSyntheticHardpointOnlineBounce
+      ? resolveModuleParityFamily(
+          moduleItem,
+          loadedChargeByFlag.get(Number(moduleItem && moduleItem.flagID) || 0) || null,
+        )
+      : null;
+    const suppressSyntheticModuleInventoryReplay =
+      preferSyntheticHardpointOnlineBounce &&
+      !isLoadedCharge &&
+      moduleFamily &&
+      moduleFamily.hardpointBound === true &&
+      moduleFamily.requiresOnlineEffectReplay === true;
     const previousState =
       options.syntheticFitTransition === true
         ? {
@@ -2447,9 +3158,10 @@ function syncFittedModulesForSession(session, shipID = null, options = {}) {
             locationID: 0,
             flagID: 0,
             singleton: 0,
-            // Real loaded charge rows stay docked/fitting-window only. In
-            // space the HUD must remain tuple-backed, so fitted charge rows are
-            // filtered out above and never reach this path.
+            // Real loaded charge rows normally stay docked/fitting-window only.
+            // Login's post-HUD repair explicitly opts them back into the
+            // in-space replay so the module HUD can bind to a stable loaded
+            // integer item instead of the tuple dogma sublocation.
             stacksize:
               isLoadedCharge
                 ? undefined
@@ -2474,35 +3186,92 @@ function syncFittedModulesForSession(session, shipID = null, options = {}) {
       `[fitting-sync] emit shipID=${Number(resolvedShipID) || 0} ` +
       `item=${JSON.stringify(summarizeMissileDebugItem(moduleItem))} ` +
       `previousState=${JSON.stringify(previousState)} ` +
-      `emitOnlineEffect=${emitOnlineEffects && isModuleOnline(moduleItem)}`,
+      `emitOnlineEffect=${emitOnlineEffects && isEffectivelyOnlineModule(moduleItem)} ` +
+      `suppressInventoryReplay=${suppressSyntheticModuleInventoryReplay}`,
     );
-    syncInventoryItemForSession(
-      session,
-      moduleItem,
-      previousState,
-      {
-        emitCfgLocation: false,
-      },
-    );
-    if (emitOnlineEffects && isModuleOnline(moduleItem)) {
-      syncModuleOnlineEffectForSession(session, moduleItem, {
-        active: true,
-      });
+    if (!suppressSyntheticModuleInventoryReplay) {
+      syncInventoryItemForSession(
+        session,
+        moduleItem,
+        previousState,
+        {
+          emitCfgLocation: false,
+        },
+      );
+    }
+    if (emitOnlineEffects && isEffectivelyOnlineModule(moduleItem)) {
+      if (
+        moduleFamily &&
+        moduleFamily.hardpointBound === true &&
+        moduleFamily.requiresOnlineEffectReplay === true
+      ) {
+        syncModuleOnlineBounceForSession(session, moduleItem);
+      } else {
+        syncModuleOnlineEffectForSession(session, moduleItem, {
+          active: true,
+        });
+      }
+    }
+    if (isInSpaceSession) {
+      syncModuleAttributeChangesForSession(
+        session,
+        buildScannerProbeLauncherBootstrapChanges(session, moduleItem),
+      );
     }
   }
 
-  return fittedItems.length;
+  return replayItems.length;
 }
 
 function syncShipFittingStateForSession(session, shipID = null, options = {}) {
-  return syncFittedModulesForSession(session, shipID, {
+  const charId = session && (session.characterID || session.charid || 0);
+  const resolvedShipID =
+    normalizeSessionShipValue(shipID) ||
+    normalizeSessionShipValue(session && (session.shipID || session.shipid || null));
+  const previousSnapshot =
+    charId > 0 && resolvedShipID
+      ? options.forceZeroShipAttributeBaseline === true
+        ? { trackedShipAttributes: {} }
+        : peekShipFittingSnapshot(charId, resolvedShipID)
+      : null;
+  const syncedItemCount = syncFittedModulesForSession(session, shipID, {
     onlyOnline: options.includeOfflineModules === true ? false : true,
     includeCharges: options.includeCharges !== false,
     onlyCharges: options.onlyCharges === true,
+    onlyScannerProbeLaunchers: options.onlyScannerProbeLaunchers === true,
     emitOnlineEffects: options.emitOnlineEffects === true,
     emitChargeInventoryRows: options.emitChargeInventoryRows,
+    allowInSpaceChargeInventoryRows:
+      options.allowInSpaceChargeInventoryRows === true,
     syntheticFitTransition: options.syntheticFitTransition === true,
+    restrictToItemIDs: options.restrictToItemIDs,
   });
+  if (
+    options.emitOnlineEffects === true &&
+    options.onlyCharges === true
+  ) {
+    syncOnlineModuleEffectsForSession(session, shipID, {
+      active: true,
+    });
+  }
+
+  if (charId > 0 && resolvedShipID) {
+    const refreshedShipRecord =
+      findCharacterShip(charId, resolvedShipID) ||
+      getActiveShipRecord(charId) ||
+      null;
+    const nextSnapshot = refreshShipFittingSnapshot(charId, resolvedShipID, {
+      shipItem: refreshedShipRecord,
+      reason: "character.fitting-replay",
+    });
+    syncShipFittingAttributeChangesForSession(
+      session,
+      resolvedShipID,
+      previousSnapshot,
+      nextSnapshot,
+    );
+  }
+  return syncedItemCount;
 }
 
 function queueDeferredDockedShipSessionChange(
@@ -2588,6 +3357,9 @@ function scheduleDeferredDockedFittingReplaySelfFlush(session, delayMs = 1500) {
   }
 
   const pending = session._deferredDockedFittingReplay;
+  if (pending.loginSelection === true) {
+    return;
+  }
   if (pending.selfFlushTimer) {
     return;
   }
@@ -2630,7 +3402,10 @@ function queueDeferredDockedFittingReplay(session, replay, options = {}) {
     shipID,
     includeOfflineModules: replay.includeOfflineModules === true,
     includeCharges: replay.includeCharges === true,
+    onlyCharges: replay.onlyCharges === true,
     emitChargeInventoryRows: replay.emitChargeInventoryRows !== false,
+    allowInSpaceChargeInventoryRows:
+      replay.allowInSpaceChargeInventoryRows === true,
     emitOnlineEffects: replay.emitOnlineEffects === true,
     syntheticFitTransition: replay.syntheticFitTransition === true,
     loginSelection: options.loginSelection === true,
@@ -2647,13 +3422,20 @@ function flushDeferredDockedFittingReplay(session, options = {}) {
   }
 
   const pending = session._deferredDockedFittingReplay;
+  const trigger = String(options.trigger || "unknown");
+  if (
+    pending.loginSelection === true &&
+    (trigger === "timer" || trigger === "dogma.GetAllInfo")
+  ) {
+    return false;
+  }
   clearDeferredDockedFittingReplayTimer(pending);
   session._deferredDockedFittingReplay = null;
 
   if (!isDockedSession(session)) {
     log.info(
       `[CharacterState] Dropped deferred docked fitting replay shipid=${pending.shipID} ` +
-      `trigger=${options.trigger || "unknown"} reason=session-not-docked`,
+      `trigger=${trigger} reason=session-not-docked`,
     );
     return false;
   }
@@ -2661,13 +3443,17 @@ function flushDeferredDockedFittingReplay(session, options = {}) {
   syncShipFittingStateForSession(session, pending.shipID, {
     includeOfflineModules: pending.includeOfflineModules === true,
     includeCharges: pending.includeCharges === true,
+    onlyCharges: pending.onlyCharges === true,
     emitChargeInventoryRows: pending.emitChargeInventoryRows !== false,
+    allowInSpaceChargeInventoryRows:
+      pending.allowInSpaceChargeInventoryRows === true,
     emitOnlineEffects: pending.emitOnlineEffects === true,
     syntheticFitTransition: pending.syntheticFitTransition === true,
+    forceZeroShipAttributeBaseline: true,
   });
   log.info(
     `[CharacterState] Flushed deferred docked fitting replay shipid=${pending.shipID} ` +
-    `trigger=${options.trigger || "unknown"}`,
+    `trigger=${trigger}`,
   );
   return true;
 }
@@ -2726,18 +3512,9 @@ function flushDeferredDockedShipSessionChange(session, options = {}) {
     return false;
   }
 
-  session.sendSessionChange(
-    {
-      shipid: [null, shipID],
-    },
-    {
-      // Login's deferred active-ship restore behaves like a late remote
-      // attribute update, not the initial character-select session bootstrap.
-      // Using the bootstrap SID here correlates with the client creating a
-      // second local session and logging "Session SID collision!".
-      sessionId: 0n,
-    },
-  );
+  session.sendSessionChange({
+    shipid: [null, shipID],
+  });
 
   session._deferredDockedShipSessionChange = null;
   log.info(
@@ -2944,8 +3721,14 @@ function buildCharacterSessionNotificationPlan(session, options = {}) {
       "role",
       isInitialCharacterSelection
         ? null
-        : normalizeOptionalRoleMask(options.oldRole),
-      normalizeOptionalRoleMask(session.role),
+        : composeSessionRoleMask(
+            options.oldAccountRole ?? options.oldRole,
+            options.oldChatRole ?? options.oldRole,
+          ),
+      composeSessionRoleMask(
+        session.accountRole ?? session.role,
+        session.chatRole ?? session.role,
+      ),
     );
     appendSessionChange(
       sessionChanges,
@@ -3118,6 +3901,8 @@ function applyCharacterToSession(session, charId, options = {}) {
   const oldCorpAccountKey =
     session.corpAccountKey ?? session.corpaccountkey ?? null;
   const oldRole = session.role ?? null;
+  const oldAccountRole = session.accountRole ?? null;
+  const oldChatRole = session.chatRole ?? null;
   const oldCorpRole = session.corprole ?? null;
   const oldRolesAtAll = session.rolesAtAll ?? null;
   const oldRolesAtBase = session.rolesAtBase ?? null;
@@ -3161,7 +3946,7 @@ function applyCharacterToSession(session, charId, options = {}) {
   session.charid = charId;
   session.characterName = charData.characterName || "Unknown";
   session.characterTypeID = charData.typeID || 1373;
-  session.genderID = charData.gender || 1;
+  session.genderID = normalizeCharacterGender(charData.gender, 1);
   session.genderid = session.genderID;
   session.bloodlineID = charData.bloodlineID || 1;
   session.bloodlineid = session.bloodlineID;
@@ -3233,6 +4018,10 @@ function applyCharacterToSession(session, charId, options = {}) {
   session.rolesAtOther = corporationRoleState.rolesAtOther;
   session.corpAccountKey = corporationRoleState.accountKey || 1000;
   session.corpaccountkey = session.corpAccountKey;
+  session.role = composeSessionRoleMask(
+    session.accountRole ?? session.role,
+    session.chatRole ?? session.role,
+  );
   const isCharacterSelection =
     options.selectionEvent !== false &&
     (oldCharID === undefined || oldCharID === null || oldCharID !== charId);
@@ -3275,6 +4064,8 @@ function applyCharacterToSession(session, charId, options = {}) {
     oldWarFactionID,
     oldCorpAccountKey,
     oldRole,
+    oldAccountRole,
+    oldChatRole,
     oldCorpRole,
     oldRolesAtAll,
     oldRolesAtBase,
@@ -3330,16 +4121,85 @@ function activateShipForSession(session, shipId, options = {}) {
     return updateResult;
   }
 
+  const shouldConsumePreviousCapsule =
+    currentShip &&
+    currentShip.itemID !== targetShip.itemID &&
+    Number(currentShip.typeID) === CAPSULE_TYPE_ID &&
+    Number(targetShip.typeID) !== CAPSULE_TYPE_ID;
+
+  if (
+    options.emitNotifications !== false &&
+    currentShip &&
+    currentShip.itemID !== targetShip.itemID
+  ) {
+    // Docked boarding mirrors the leave-ship capsule path: the target hull
+    // must exist in invCache before the shipid session change lands, otherwise
+    // hangar/dogma can race on large hulls and resolve the new active ship as
+    // missing during _MakeShipActive / ProcessActiveShipChanged.
+    syncInventoryItemForSession(
+      session,
+      targetShip,
+      {
+        locationID: 0,
+        flagID: 0,
+        quantity: 0,
+        singleton: 0,
+        stacksize: 0,
+      },
+      {
+        emitCfgLocation: true,
+      },
+    );
+  }
+
   const applyResult = applyCharacterToSession(session, charId, {
     emitNotifications: options.emitNotifications !== false,
     logSelection: options.logSelection !== false,
     selectionEvent: false,
   });
 
+  let previousCapsuleRemoved = false;
+  let previousCapsuleRemovalChanges = [];
+  if (shouldConsumePreviousCapsule) {
+    const removeResult = removeInventoryItem(currentShip.itemID, {
+      removeContents: true,
+    });
+    if (!removeResult.success) {
+      log.warn(
+        `[CharState] Failed to consume docked capsule ${currentShip.itemID} for char=${charId}: ${removeResult.errorMsg}`,
+      );
+    } else {
+      previousCapsuleRemoved = true;
+      previousCapsuleRemovalChanges = Array.isArray(removeResult.data && removeResult.data.changes)
+        ? removeResult.data.changes
+        : [];
+    }
+  }
+
   if (
     applyResult.success &&
     options.emitNotifications !== false
   ) {
+    for (const change of previousCapsuleRemovalChanges) {
+      if (!change || change.removed !== true || !change.previousData) {
+        continue;
+      }
+
+      const removedState = buildRemovedItemNotificationState(change.previousData);
+      if (!removedState) {
+        continue;
+      }
+
+      syncInventoryItemForSession(
+        session,
+        removedState,
+        change.previousData,
+        {
+          emitCfgLocation: true,
+        },
+      );
+    }
+
     // Docked boarding does not move the hull between containers, so the client
     // only sees a shipid session change unless we explicitly refresh the item
     // cache entries that back the hangar/active-ship presentation.
@@ -3347,7 +4207,11 @@ function activateShipForSession(session, shipId, options = {}) {
     const refreshQueue = [];
     const seenItemIds = new Set();
 
-    if (currentShip && currentShip.itemID !== targetShip.itemID) {
+    if (
+      currentShip &&
+      currentShip.itemID !== targetShip.itemID &&
+      !previousCapsuleRemoved
+    ) {
       refreshQueue.push(currentShip);
     }
     refreshQueue.push(refreshedTargetShip);
@@ -3590,13 +4454,17 @@ function spawnShipInHangarForSession(session, shipType) {
     return spawnResult;
   }
 
+  const shipItem =
+    (spawnResult.data.items && spawnResult.data.items[0]) || null;
+
   return {
     success: true,
+    errorMsg: null,
     created: Boolean(
       spawnResult.data.changes &&
         spawnResult.data.changes.some((change) => change && change.created),
     ),
-    ship: (spawnResult.data.items && spawnResult.data.items[0]) || null,
+    ship: shipItem,
     data: spawnResult.data,
   };
 }
@@ -3610,6 +4478,7 @@ module.exports = {
   DEFAULT_PLEX_BALANCE,
   DEFAULT_MCT_EXPIRY_FILETIME,
   getCharacterRecord,
+  writeCharacterRecord,
   updateCharacterRecord,
   resolveHomeStationInfo,
   getCharacterShips,
@@ -3631,7 +4500,9 @@ module.exports = {
   syncLoadedChargeQuantityBootstrapForSession,
   syncFittedModulesForSession,
   syncShipFittingStateForSession,
+  syncDamageStateAttributesForSession,
   syncModuleOnlineEffectForSession,
+  syncOnlineModuleEffectsForSession,
   shouldFlushDeferredDockedShipSessionChange,
   flushDeferredDockedShipSessionChange,
   clearDeferredDockedShipSessionChange,
@@ -3649,5 +4520,6 @@ module.exports = {
 module.exports._testing = {
   buildChargeDogmaPrimeEntry,
   buildInventoryDogmaPrimeEntry,
+  buildChargeSublocationRow,
   buildCharacterSessionNotificationPlan,
 };

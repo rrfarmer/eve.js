@@ -15,6 +15,7 @@ function createMovementStopSpeedCommands(deps = {}) {
     roundNumber,
     scaleVector,
     subtractVectors,
+    MICHELLE_HELD_FUTURE_DESTINY_LEAD,
     MAX_SUBWARP_SPEED_FRACTION,
   } = deps;
 
@@ -145,11 +146,29 @@ function createMovementStopSpeedCommands(deps = {}) {
         return true;
       }
 
-      const stamp = runtime.getHistorySafeSessionDestinyStamp(
-        entity.session || null,
-        now,
-        1,
-      );
+      const superweaponStop = String(options.reason || "") === "superweapon";
+      const stamp = superweaponStop
+        ? Math.max(
+            runtime.getHistorySafeSessionDestinyStamp(
+              entity.session || null,
+              now,
+              MICHELLE_HELD_FUTURE_DESTINY_LEAD,
+              MICHELLE_HELD_FUTURE_DESTINY_LEAD,
+            ),
+            entity.session &&
+              typeof runtime.getCurrentPresentedSessionDestinyStamp === "function"
+              ? runtime.getCurrentPresentedSessionDestinyStamp(
+                  entity.session,
+                  now,
+                  MICHELLE_HELD_FUTURE_DESTINY_LEAD,
+                )
+              : 0,
+          ) >>> 0
+        : runtime.getHistorySafeSessionDestinyStamp(
+            entity.session || null,
+            now,
+            1,
+          );
       // CCP's server runs identical C++ physics to the client, so their
       // SetBallVelocity on stop is a no-op confirmation.  Our JS physics
       // drifts slightly from the client's C++ integration, and any velocity
@@ -170,6 +189,12 @@ function createMovementStopSpeedCommands(deps = {}) {
         entity.session || null,
         updates,
         now,
+        superweaponStop
+          ? {
+              ownerDirectEchoLeadOverride:
+                MICHELLE_HELD_FUTURE_DESTINY_LEAD,
+            }
+          : {},
       );
       runtime.scheduleWatcherMovementAnchor(entity, now, "stop");
 

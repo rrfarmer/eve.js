@@ -59,3 +59,52 @@ test("station service returns all live guests docked in the current station", ()
     ],
   });
 });
+
+test("station service de-duplicates duplicate live sessions for the same character", () => {
+  const service = new StationSvcAlias();
+  sessionRegistry.getSessions = () => [
+    {
+      characterID: 140000001,
+      corporationID: 1000044,
+      allianceID: 99009999,
+      warFactionID: 500001,
+      stationid: 60003760,
+      lastActivity: 1000,
+      connectTime: 1000,
+      clientID: 700001,
+    },
+    {
+      characterID: 140000001,
+      corporationID: 1000044,
+      allianceID: 99009999,
+      warFactionID: 500001,
+      stationid: 60003760,
+      lastActivity: 2000,
+      connectTime: 2000,
+      clientID: 700002,
+    },
+    {
+      characterID: 140000002,
+      corporationID: 1000045,
+      allianceID: 0,
+      warFactionID: 0,
+      stationid: 60003760,
+      lastActivity: 1500,
+      connectTime: 1500,
+      clientID: 700003,
+    },
+  ];
+
+  const result = service.Handle_GetGuests([], {
+    characterID: 140000001,
+    stationid: 60003760,
+  });
+
+  assert.deepEqual(result, {
+    type: "list",
+    items: [
+      [140000001, 1000044, 99009999, 500001],
+      [140000002, 1000045, 0, 0],
+    ],
+  });
+});

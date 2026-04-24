@@ -99,6 +99,12 @@ function registerAttachedSession(session) {
   return session;
 }
 
+function registerLiveSession(session) {
+  registeredSessions.push(session);
+  sessionRegistry.register(session);
+  return session;
+}
+
 function readShipEntity(session) {
   const entity = spaceRuntime.getEntity(
     session,
@@ -148,9 +154,14 @@ function buildDbBackedSession(characterID) {
   };
 }
 
-function getDockedTransportCandidate() {
+function getDockedTransportCandidate(excludedCharacterIDs = []) {
   const charactersResult = database.read("characters", "/");
   assert.equal(charactersResult.success, true, "failed to read characters table");
+  const excluded = new Set(
+    (Array.isArray(excludedCharacterIDs) ? excludedCharacterIDs : [excludedCharacterIDs])
+      .map((value) => Number(value) || 0)
+      .filter((value) => value > 0),
+  );
 
   const characterIDs = Object.keys(charactersResult.data || {})
     .map((value) => Number(value) || 0)
@@ -158,6 +169,9 @@ function getDockedTransportCandidate() {
     .sort((left, right) => left - right);
 
   for (const characterID of characterIDs) {
+    if (excluded.has(characterID)) {
+      continue;
+    }
     const characterRecord = getCharacterRecord(characterID);
     const activeShip = getActiveShipRecord(characterID);
     const stationID = Number(
@@ -297,6 +311,81 @@ test("tr supports live character transport with noblock", () => {
     readPosition(readShipEntity(target)),
     readPosition(readShipEntity(invoker)),
   );
+});
+
+test("tele follows a live connected character in space", () => {
+  const targetCandidate = getDockedTransportCandidate();
+  const invokerCandidate = getDockedTransportCandidate([targetCandidate.characterID]);
+  const otherSolarSystemID = getOtherSolarSystemID(targetCandidate.solarSystemID);
+
+  const targetSession = registerLiveSession(buildDbBackedSession(targetCandidate.characterID));
+  const invokerSession = registerLiveSession(buildDbBackedSession(invokerCandidate.characterID));
+  const restoreEntries = [
+    targetCandidate,
+    invokerCandidate,
+  ];
+
+  const applyTarget = applyCharacterToSession(targetSession, targetCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+    selectionEvent: false,
+  });
+  assert.equal(applyTarget.success, true, "expected target session to hydrate");
+
+  const applyInvoker = applyCharacterToSession(invokerSession, invokerCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+    selectionEvent: false,
+  });
+  assert.equal(applyInvoker.success, true, "expected invoker session to hydrate");
+
+  try {
+    const preMoveResult = executeChatCommand(
+      targetSession,
+      `/tr me ${otherSolarSystemID}`,
+      null,
+      { emitChatFeedback: false },
+    );
+    assert.equal(preMoveResult.handled, true);
+    assert(targetSession._space, "expected target to be in space before /tele");
+
+    const result = executeChatCommand(
+      invokerSession,
+      `/tele ${targetCandidate.characterRecord.characterName}`,
+      null,
+      { emitChatFeedback: false },
+    );
+    assert.equal(result.handled, true);
+    assert.match(result.message, /Transported me to /i);
+    assert(invokerSession._space, "expected /tele to move the invoker into space");
+    assert.equal(
+      Number(invokerSession._space.systemID || 0),
+      Number(targetSession._space.systemID || 0),
+    );
+    assert.deepEqual(
+      readPosition(readShipEntity(invokerSession)),
+      readPosition(readShipEntity(targetSession)),
+    );
+  } finally {
+    if (targetSession._space) {
+      spaceRuntime.detachSession(targetSession, { broadcast: false });
+    }
+    if (invokerSession._space) {
+      spaceRuntime.detachSession(invokerSession, { broadcast: false });
+    }
+    for (const candidate of restoreEntries) {
+      const restoreCharacter = updateCharacterRecord(
+        candidate.characterID,
+        () => candidate.characterRecord,
+      );
+      assert.equal(restoreCharacter.success, true, "expected character restore to succeed");
+      const restoreShip = updateShipItem(
+        candidate.activeShipID,
+        () => candidate.activeShipRecord,
+      );
+      assert.equal(restoreShip.success, true, "expected ship restore to succeed");
+    }
+  }
 });
 
 test("tr self system and station targets use full session-change flows", () => {
@@ -452,6 +541,93 @@ test("tr self system and station targets use full session-change flows", () => {
       () => candidate.activeShipRecord,
     );
     assert.equal(restoreShip.success, true, "expected ship restore to succeed");
+  }
+});
+
+test("tele docks you when the target character is docked", () => {
+  const targetCandidate = getDockedTransportCandidate();
+  const invokerCandidate = getDockedTransportCandidate([targetCandidate.characterID]);
+  const otherSolarSystemID = getOtherSolarSystemID(targetCandidate.solarSystemID);
+
+  const targetSession = registerLiveSession(buildDbBackedSession(targetCandidate.characterID));
+  const invokerSession = registerLiveSession(buildDbBackedSession(invokerCandidate.characterID));
+  const restoreEntries = [
+    targetCandidate,
+    invokerCandidate,
+  ];
+
+  const applyTarget = applyCharacterToSession(targetSession, targetCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+    selectionEvent: false,
+  });
+  assert.equal(applyTarget.success, true, "expected docked target session to hydrate");
+
+  const applyInvoker = applyCharacterToSession(invokerSession, invokerCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+    selectionEvent: false,
+  });
+  assert.equal(applyInvoker.success, true, "expected invoker session to hydrate");
+
+  try {
+    const preMoveResult = executeChatCommand(
+      invokerSession,
+      `/tr me ${otherSolarSystemID}`,
+      null,
+      { emitChatFeedback: false },
+    );
+    assert.equal(preMoveResult.handled, true);
+    assert.equal(
+      Number(invokerSession.stationID || invokerSession.stationid || 0),
+      0,
+      "expected invoker to start the /tele check in space",
+    );
+
+    const teleResult = executeChatCommand(
+      invokerSession,
+      `/tele ${targetCandidate.characterRecord.characterName}`,
+      null,
+      { emitChatFeedback: false },
+    );
+    assert.equal(teleResult.handled, true);
+    assert.equal(
+      Number(invokerSession.stationID || invokerSession.stationid || 0),
+      targetCandidate.stationID,
+      "expected /tele to dock the invoker at the target station",
+    );
+    assert.equal(
+      invokerSession._space,
+      null,
+      "expected /tele to leave the invoker docked when the target is docked",
+    );
+    assert.equal(
+      Number(invokerSession.solarsystemid2 || 0),
+      targetCandidate.solarSystemID,
+    );
+    assert.match(
+      teleResult.message,
+      /Transported me to Jita IV - Moon 4 - Caldari Navy Assembly Plant\./,
+    );
+  } finally {
+    if (targetSession._space) {
+      spaceRuntime.detachSession(targetSession, { broadcast: false });
+    }
+    if (invokerSession._space) {
+      spaceRuntime.detachSession(invokerSession, { broadcast: false });
+    }
+    for (const candidate of restoreEntries) {
+      const restoreCharacter = updateCharacterRecord(
+        candidate.characterID,
+        () => candidate.characterRecord,
+      );
+      assert.equal(restoreCharacter.success, true, "expected character restore to succeed");
+      const restoreShip = updateShipItem(
+        candidate.activeShipID,
+        () => candidate.activeShipRecord,
+      );
+      assert.equal(restoreShip.success, true, "expected ship restore to succeed");
+    }
   }
 });
 

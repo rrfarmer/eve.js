@@ -42,6 +42,16 @@ const {
   isMiningEffectRecord,
   buildMiningModuleSnapshot,
 } = require("./miningDogma");
+const commandBurstRuntime = require(path.join(
+  __dirname,
+  "../../space/modules/commandBurstRuntime",
+));
+const {
+  getLocationModifierSourcesForSystem,
+} = require(path.join(
+  __dirname,
+  "../exploration/wormholes/wormholeEnvironmentRuntime",
+));
 const {
   ensureSceneMiningState,
   getMineableState,
@@ -215,7 +225,7 @@ function resolveEntityActiveModuleContexts(entity, excludeModuleID = 0) {
   return contexts;
 }
 
-function buildEntityMiningSnapshot(entity, moduleItem, effectRecord) {
+function buildEntityMiningSnapshot(entity, moduleItem, effectRecord, options = {}) {
   const shipItem = resolveEntityShipItem(entity);
   const resolvedModuleItem = resolveEntityModuleItem(
     entity,
@@ -225,6 +235,12 @@ function buildEntityMiningSnapshot(entity, moduleItem, effectRecord) {
   if (!shipItem || !resolvedModuleItem) {
     return null;
   }
+  const additionalModifierEntries =
+    commandBurstRuntime.collectModifierEntriesForItem(
+      entity,
+      resolvedModuleItem,
+      options.nowMs,
+    );
   return buildMiningModuleSnapshot({
     shipItem,
     moduleItem: resolvedModuleItem,
@@ -235,6 +251,10 @@ function buildEntityMiningSnapshot(entity, moduleItem, effectRecord) {
     activeModuleContexts: resolveEntityActiveModuleContexts(
       entity,
       resolvedModuleItem.itemID,
+    ),
+    additionalModifierEntries,
+    additionalLocationModifierSources: getLocationModifierSourcesForSystem(
+      entity && entity.systemID,
     ),
   });
 }
@@ -472,7 +492,12 @@ function resolveMiningActivation(scene, entity, moduleItem, effectRecord, option
     return { matched: true, success: false, errorMsg: "TARGET_NOT_LOCKED" };
   }
 
-  const snapshot = buildEntityMiningSnapshot(entity, moduleItem, effectRecord);
+  const snapshot = buildEntityMiningSnapshot(entity, moduleItem, effectRecord, {
+    nowMs:
+      scene && typeof scene.getCurrentSimTimeMs === "function"
+        ? scene.getCurrentSimTimeMs()
+        : Date.now(),
+  });
   if (!snapshot) {
     return { matched: true, success: false, errorMsg: "UNSUPPORTED_MODULE" };
   }
@@ -592,7 +617,9 @@ function executeMiningCycle(scene, entity, effectState, cycleBoundaryMs) {
   }
 
   const effectRecord = getEffectTypeRecord(toInt(effectState.effectID, 0));
-  const snapshot = buildEntityMiningSnapshot(entity, moduleItem, effectRecord);
+  const snapshot = buildEntityMiningSnapshot(entity, moduleItem, effectRecord, {
+    nowMs: cycleBoundaryMs,
+  });
   if (!snapshot || !isFamilyCompatibleWithYield(snapshot, mineableState)) {
     return { success: false, stopReason: "module" };
   }

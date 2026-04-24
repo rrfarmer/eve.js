@@ -34,11 +34,13 @@ function cloneValue(value) {
 
 test("photoUploadSvc stores uploaded character portraits across served sizes", async (t) => {
   const originalCharacters = cloneValue(database.read("characters", "/").data);
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
   const originalItems = cloneValue(database.read("items", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
 
   t.after(() => {
     database.write("characters", "/", originalCharacters);
+    database.write("identityState", "/", originalIdentityState);
     database.write("items", "/", originalItems);
     database.write("skills", "/", originalSkills);
     database.flushAllSync();

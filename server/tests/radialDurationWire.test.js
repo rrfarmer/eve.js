@@ -7,6 +7,24 @@ const DogmaService = require(path.join(
   repoRoot,
   "server/src/services/dogma/dogmaService",
 ));
+const {
+  buildInventoryItem,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/inventory/itemStore",
+));
+const {
+  resolveItemByName,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/inventory/itemTypeRegistry",
+));
+const {
+  getTypeAttributeValue,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/fitting/liveFittingState",
+));
 const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
 const {
   marshalEncode,
@@ -15,6 +33,7 @@ const {
 
 const MODULE_ATTRIBUTE_DURATION = 73;
 const MODULE_ATTRIBUTE_SPEED = 51;
+const ATTRIBUTE_RECHARGE_RATE = 55;
 const MWD_EFFECT_ID = 6730;
 
 function expectMarshalReal(value, expected) {
@@ -46,6 +65,13 @@ test("dogma duration attribute values stay marshaled as reals", () => {
     ),
     5184,
   );
+  expectMarshalReal(
+    DogmaService._testing.marshalDogmaAttributeValue(
+      ATTRIBUTE_RECHARGE_RATE,
+      900000,
+    ),
+    900000,
+  );
 });
 
 test("inventory item attributes preserve duration as a marshal real", () => {
@@ -57,6 +83,29 @@ test("inventory item attributes preserve duration as a marshal real", () => {
   });
 
   expectMarshalReal(attributes[MODULE_ATTRIBUTE_DURATION], 10000);
+});
+
+test("ship recharge rate attributes stay marshaled as reals for fitting consumers", () => {
+  const service = new DogmaService();
+  const shipType = resolveItemByName("Capsule");
+  assert.equal(shipType && shipType.success, true);
+
+  const ship = buildInventoryItem({
+    itemID: 990001234,
+    typeID: shipType.match.typeID,
+    ownerID: 9000001,
+    locationID: 9000001,
+    flagID: 4,
+    singleton: 1,
+    quantity: 1,
+    stacksize: 1,
+  });
+  const attributes = service._buildInventoryItemAttributes(ship);
+  const expectedRechargeRate = Number(
+    getTypeAttributeValue(ship.typeID, "rechargeRate"),
+  );
+
+  expectMarshalReal(attributes[ATTRIBUTE_RECHARGE_RATE], expectedRechargeRate);
 });
 
 test("active effect entries preserve positive duration as a marshal real", () => {

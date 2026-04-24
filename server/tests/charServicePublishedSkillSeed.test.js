@@ -19,6 +19,9 @@ const {
 const {
   PLEX_LOG_CATEGORY,
 } = require(path.join(repoRoot, "server/src/services/account/plexVaultLogState"));
+const {
+  getFittedModuleItems,
+} = require(path.join(repoRoot, "server/src/services/fitting/liveFittingState"));
 
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
@@ -28,16 +31,18 @@ test("CreateCharacterWithDoll gives non-dev Amarr characters the CCP starter ski
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalItems = cloneValue(database.read("items", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
-  const originalDevMode = config.devMode;
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
+  const originalDevBootstrapPublishedSkills = config.devBootstrapPublishedSkills;
   t.after(() => {
-    config.devMode = originalDevMode;
+    config.devBootstrapPublishedSkills = originalDevBootstrapPublishedSkills;
+    database.write("identityState", "/", originalIdentityState);
     database.write("characters", "/", originalCharacters);
     database.write("items", "/", originalItems);
     database.write("skills", "/", originalSkills);
     database.flushAllSync();
   });
 
-  config.devMode = false;
+  config.devBootstrapPublishedSkills = false;
   const service = new CharService();
   const expectedRaceProfile = getCharacterCreationRace(4, { refresh: true });
   assert.ok(expectedRaceProfile, "expected an Amarr creation-race profile");
@@ -52,6 +57,25 @@ test("CreateCharacterWithDoll gives non-dev Amarr characters the CCP starter ski
   assert.equal(characterResult.data.raceID, 4);
   assert.equal(characterResult.data.shipTypeID, expectedRaceProfile.shipTypeID);
   assert.equal(characterResult.data.shipName, expectedRaceProfile.shipName);
+  const starterShipResult = database.read(
+    "items",
+    `/${String(characterResult.data.shipID)}`,
+  );
+  assert.equal(starterShipResult.success, true);
+  assert.equal(starterShipResult.data.typeID, expectedRaceProfile.shipTypeID);
+  const fittedModuleNames = new Set(
+    getFittedModuleItems(newCharacterId, characterResult.data.shipID)
+      .map((item) => item && item.itemName)
+      .filter(Boolean),
+  );
+  assert.deepEqual(
+    fittedModuleNames,
+    new Set([
+      "1MN Civilian Afterburner",
+      "Civilian Gatling Pulse Laser",
+      "Civilian Miner",
+    ]),
+  );
 
   const skillsResult = database.read("skills", `/${newCharacterId}`);
   assert.equal(skillsResult.success, true);
@@ -74,20 +98,22 @@ test("CreateCharacterWithDoll gives non-dev Amarr characters the CCP starter ski
   }
 });
 
-test("CreateCharacterWithDoll seeds all published skills to V in dev mode and excludes unpublished skills", async (t) => {
+test("CreateCharacterWithDoll seeds all published skills to V when devBootstrapPublishedSkills is enabled and excludes unpublished skills", async (t) => {
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalItems = cloneValue(database.read("items", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
-  const originalDevMode = config.devMode;
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
+  const originalDevBootstrapPublishedSkills = config.devBootstrapPublishedSkills;
   t.after(() => {
-    config.devMode = originalDevMode;
+    config.devBootstrapPublishedSkills = originalDevBootstrapPublishedSkills;
+    database.write("identityState", "/", originalIdentityState);
     database.write("characters", "/", originalCharacters);
     database.write("items", "/", originalItems);
     database.write("skills", "/", originalSkills);
     database.flushAllSync();
   });
 
-  config.devMode = true;
+  config.devBootstrapPublishedSkills = true;
   const service = new CharService();
   const publishedSkillTypes = getPublishedSkillTypes({ refresh: true });
   const unpublishedSkillTypes = getUnpublishedSkillTypes({ refresh: true });
@@ -127,7 +153,9 @@ test("CreateCharacterWithDoll seeds initial ISK and PLEX history entries", async
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalItems = cloneValue(database.read("items", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
+  const originalIdentityState = cloneValue(database.read("identityState", "/").data);
   t.after(() => {
+    database.write("identityState", "/", originalIdentityState);
     database.write("characters", "/", originalCharacters);
     database.write("items", "/", originalItems);
     database.write("skills", "/", originalSkills);

@@ -21,6 +21,11 @@ function toPositiveInt(value, fallback = 0) {
   return numeric > 0 ? numeric : fallback;
 }
 
+function toNonNegativeInt(value, fallback = 0) {
+  const numeric = Math.trunc(Number(value) || 0);
+  return numeric >= 0 ? numeric : fallback;
+}
+
 function chooseRandomEntry(entries) {
   if (!Array.isArray(entries) || entries.length === 0) {
     return null;
@@ -150,8 +155,8 @@ function rollExplicitLootEntries(lootTable = null) {
     return lootEntries;
   }
 
-  const minEntries = toPositiveInt(lootTable.minEntries, 1);
-  const maxEntries = Math.max(minEntries, toPositiveInt(lootTable.maxEntries, minEntries));
+  const minEntries = toNonNegativeInt(lootTable.minEntries, 1);
+  const maxEntries = Math.max(minEntries, toNonNegativeInt(lootTable.maxEntries, minEntries));
   const entryCount = minEntries + Math.floor(Math.random() * ((maxEntries - minEntries) + 1));
   const allowDuplicates = lootTable.allowDuplicates === true;
   const candidateEntries = [...weightedEntries];

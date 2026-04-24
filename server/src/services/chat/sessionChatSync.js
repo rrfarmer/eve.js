@@ -8,6 +8,10 @@ const SCOPED_CHAT_SESSION_KEYS = new Set([
   "warfactionid",
   "fleetid",
 ]);
+const LOCAL_CHAT_SESSION_KEYS = new Set([
+  "solarsystemid2",
+  "solarsystemid",
+]);
 const CHAT_PRESENCE_SESSION_KEYS = new Set([
   ...SCOPED_CHAT_SESSION_KEYS,
   "role",
@@ -58,32 +62,70 @@ function getScopedAutoJoinKinds(changeKeys) {
   return joinKinds;
 }
 
+function normalizePositiveInteger(value, fallback = 0) {
+  const numericValue = Number(value);
+  return Number.isInteger(numericValue) && numericValue > 0
+    ? numericValue
+    : fallback;
+}
+
+function getLocalPreviousSolarSystemID(changes) {
+  if (!changes || typeof changes !== "object") {
+    return 0;
+  }
+
+  const solarsystemid2Change = changes.solarsystemid2;
+  if (Array.isArray(solarsystemid2Change)) {
+    return normalizePositiveInteger(solarsystemid2Change[0], 0);
+  }
+
+  const solarsystemidChange = changes.solarsystemid;
+  if (Array.isArray(solarsystemidChange)) {
+    return normalizePositiveInteger(solarsystemidChange[0], 0);
+  }
+
+  return 0;
+}
+
 function synchronizeSessionChatState(session, changes) {
   const changeKeys = getChangeKeys(changes);
   if (!session || changeKeys.length === 0) {
     return {
+      localSynced: false,
       scopedSynced: false,
       presenceRefreshed: false,
     };
   }
 
+  const shouldSyncLocal = hasMatchingKey(changeKeys, LOCAL_CHAT_SESSION_KEYS);
   const shouldSyncScoped = hasMatchingKey(changeKeys, SCOPED_CHAT_SESSION_KEYS);
   const shouldRefreshPresence = hasMatchingKey(
     changeKeys,
     CHAT_PRESENCE_SESSION_KEYS,
   );
 
-  if (!shouldSyncScoped && !shouldRefreshPresence) {
+  if (!shouldSyncLocal && !shouldSyncScoped && !shouldRefreshPresence) {
     return {
+      localSynced: false,
       scopedSynced: false,
       presenceRefreshed: false,
     };
   }
 
+  let localSynced = false;
   let scopedSynced = false;
   let presenceRefreshed = false;
 
   try {
+    if (shouldSyncLocal) {
+      const chatHub = require(path.join(__dirname, "./chatHub"));
+      if (typeof chatHub.moveLocalSession === "function") {
+        localSynced = Boolean(
+          chatHub.moveLocalSession(session, getLocalPreviousSolarSystemID(changes)),
+        );
+      }
+    }
+
     if (shouldSyncScoped) {
       const { syncSessionScopedRoomMembership } = require(path.join(
         __dirname,
@@ -113,12 +155,14 @@ function synchronizeSessionChatState(session, changes) {
   }
 
   return {
+    localSynced,
     scopedSynced,
     presenceRefreshed,
   };
 }
 
 module.exports = {
+  LOCAL_CHAT_SESSION_KEYS,
   synchronizeSessionChatState,
   SCOPED_CHAT_SESSION_KEYS,
   CHAT_PRESENCE_SESSION_KEYS,

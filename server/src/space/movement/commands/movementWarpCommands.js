@@ -1,6 +1,9 @@
 const path = require("path");
 
 const log = require(path.join(__dirname, "../../../utils/logger"));
+const {
+  DESTINY_CONTRACTS,
+} = require("../authority/destinyContracts");
 
 function createMovementWarpCommands(deps = {}) {
   const {
@@ -214,6 +217,8 @@ function createMovementWarpCommands(deps = {}) {
           // Michelle to flush/rebase the local warp-start handoff early, which
           // shortens the client-rendered accel into the tunnel.
           runtime.sendDestinyUpdates(session, prepareDispatch.pilotUpdates, false, {
+            destinyAuthorityContract:
+              DESTINY_CONTRACTS.CRITICAL_MOVEMENT_OR_SHIPPRIME,
             minimumLeadFromCurrentHistory: PILOT_WARP_ACTIVATION_DELAY_DESTINY_TICKS,
             maximumLeadFromCurrentHistory: PILOT_WARP_ACTIVATION_DELAY_DESTINY_TICKS,
           });
@@ -434,7 +439,10 @@ function createMovementWarpCommands(deps = {}) {
         ) {
           continue;
         }
-        runtime.sendDestinyUpdates(session, updates);
+        runtime.sendDestinyUpdates(session, updates, false, {
+          destinyAuthorityContract:
+            DESTINY_CONTRACTS.CRITICAL_MOVEMENT_OR_SHIPPRIME,
+        });
         deliveredCount += 1;
       }
 

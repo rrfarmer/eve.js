@@ -7,14 +7,53 @@
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const { findItemById } = require(path.join(
+  __dirname,
+  "../inventory/itemStore",
+));
 const { getCharacterRecord } = require(path.join(
   __dirname,
   "../character/characterState",
 ));
 const {
-  getCharacterSkillPointTotal,
   getCharacterSkills,
+  getSkillTypeByID,
 } = require(path.join(__dirname, "./skillState"));
+const {
+  abortTraining,
+  applyFreeSkillPoints,
+  applyFreeSkillPointsInternal,
+  buildPointsDict,
+  getCharacterIDFromSession,
+  getQueueSnapshot,
+  normalizeQueueInput,
+  previewFreeSkillPointsApplication,
+  readBooleanKwarg,
+  saveQueue,
+} = require(path.join(__dirname, "./training/skillQueueRuntime"));
+const {
+  checkInjectionConstraints,
+  combineSkillInjector,
+  extractSkills,
+  getDiminishedSpFromInjectors,
+  injectSkillPoints,
+  splitSkillInjector,
+} = require(path.join(__dirname, "./trading/skillTradingRuntime"));
+const {
+  getDirectPurchasePrice,
+  injectSkillbookItems,
+  isSkillAvailableForDirectPurchase,
+  isSkillInjected,
+  isSkillType,
+  purchaseSkills,
+} = require(path.join(__dirname, "./skillbooks/skillbookRuntime"));
+const {
+  consumeRecentSkillPointChanges,
+} = require(path.join(__dirname, "./certificates/skillChangeTracker"));
+const {
+  buildCharacterSkillDict,
+  buildCharacterSkillEntry,
+} = require(path.join(__dirname, "./skillTransport"));
 
 const ATTRIBUTE_CHARISMA = 164;
 const ATTRIBUTE_INTELLIGENCE = 165;
@@ -40,52 +79,102 @@ function buildList(items = []) {
   };
 }
 
+function toInt(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : fallback;
+}
+
+function unwrapValue(value) {
+  if (Buffer.isBuffer(value)) {
+    return value.toString("utf8");
+  }
+  if (value && typeof value === "object") {
+    if (Object.prototype.hasOwnProperty.call(value, "value")) {
+      return unwrapValue(value.value);
+    }
+    if (value.type === "int" || value.type === "long") {
+      return unwrapValue(value.value);
+    }
+  }
+  return value;
+}
+
+function normalizeSkillRequirements(skillTypeIDsAndLevels) {
+  if (!skillTypeIDsAndLevels) {
+    return [];
+  }
+
+  if (
+    skillTypeIDsAndLevels.type === "dict" &&
+    Array.isArray(skillTypeIDsAndLevels.entries)
+  ) {
+    return skillTypeIDsAndLevels.entries
+      .map(([typeID, level]) => ({
+        typeID: toInt(unwrapValue(typeID), 0),
+        toLevel: toInt(unwrapValue(level), 0),
+      }))
+      .filter((entry) => entry.typeID > 0 && entry.toLevel > 0);
+  }
+
+  if (Array.isArray(skillTypeIDsAndLevels)) {
+    return skillTypeIDsAndLevels
+      .map((entry) =>
+        Array.isArray(entry)
+          ? {
+              typeID: toInt(unwrapValue(entry[0]), 0),
+              toLevel: toInt(unwrapValue(entry[1]), 0),
+            }
+          : {
+              typeID: toInt(unwrapValue(entry && (entry.typeID ?? entry.trainingTypeID)), 0),
+              toLevel: toInt(unwrapValue(entry && (entry.toLevel ?? entry.trainingToLevel)), 0),
+            },
+      )
+      .filter((entry) => entry.typeID > 0 && entry.toLevel > 0);
+  }
+
+  return Object.entries(skillTypeIDsAndLevels)
+    .map(([typeID, level]) => ({
+      typeID: toInt(unwrapValue(typeID), 0),
+      toLevel: toInt(unwrapValue(level), 0),
+    }))
+    .filter((entry) => entry.typeID > 0 && entry.toLevel > 0);
+}
+
 class SkillMgrService extends BaseService {
   constructor() {
     super("skillMgr");
   }
 
   _getCharacterId(session) {
-    return (
-      (session && (session.characterID || session.charid || session.userid)) ||
-      140000001
+    return getCharacterIDFromSession(session) || 140000001;
+  }
+
+  _getSnapshot(session) {
+    return getQueueSnapshot(this._getCharacterId(session));
+  }
+
+  _getLiveSkillPointTotal(session) {
+    return this._getSnapshot(session).projectedSkills.reduce(
+      (sum, skillRecord) => sum + Number(skillRecord.trainedSkillPoints || skillRecord.skillPoints || 0),
+      0,
     );
   }
 
   _buildSkillInfo(skillRecord) {
-    return buildKeyVal([
-      ["itemID", skillRecord.itemID],
-      ["typeID", skillRecord.typeID],
-      ["ownerID", skillRecord.ownerID],
-      ["locationID", skillRecord.locationID],
-      ["flagID", skillRecord.flagID],
-      ["groupID", skillRecord.groupID],
-      ["groupName", skillRecord.groupName || ""],
-      ["skillLevel", skillRecord.skillLevel],
-      ["trainedSkillLevel", skillRecord.trainedSkillLevel],
-      ["effectiveSkillLevel", skillRecord.effectiveSkillLevel],
-      ["virtualSkillLevel", skillRecord.virtualSkillLevel ?? null],
-      ["skillRank", skillRecord.skillRank || 1],
-      ["skillPoints", skillRecord.skillPoints],
-      ["trainedSkillPoints", skillRecord.trainedSkillPoints ?? skillRecord.skillPoints],
-      ["published", Boolean(skillRecord.published)],
-      ["inTraining", Boolean(skillRecord.inTraining)],
-    ]);
+    return buildCharacterSkillEntry(skillRecord, {
+      includeMetadata: true,
+    });
   }
 
   _buildSkillsDict(session) {
     const skills = getCharacterSkills(this._getCharacterId(session));
-    return {
-      type: "dict",
-      entries: skills.map((skillRecord) => [
-        skillRecord.typeID,
-        this._buildSkillInfo(skillRecord),
-      ]),
-    };
+    return buildCharacterSkillDict(skills, {
+      includeMetadata: true,
+    });
   }
 
-  _buildSkillQueue() {
-    return buildList([]);
+  _buildSkillQueue(session) {
+    return this._getSnapshot(session).queuePayload;
   }
 
   _buildEmptyDict() {
@@ -119,22 +208,23 @@ class SkillMgrService extends BaseService {
 
   Handle_GetMySkillQueue(args, session) {
     log.debug("[SkillMgr] GetMySkillQueue");
-    return this._buildSkillQueue();
+    return this._buildSkillQueue(session);
   }
 
   Handle_GetMySkillInfo(args, session) {
     log.debug("[SkillMgr] GetMySkillInfo");
+    const snapshot = this._getSnapshot(session);
     return buildKeyVal([
       ["skills", this._buildSkillsDict(session)],
-      ["skillPoints", getCharacterSkillPointTotal(this._getCharacterId(session)) || 0],
-      ["freeSkillPoints", 0],
-      ["queue", this._buildSkillQueue()],
+      ["skillPoints", this._getLiveSkillPointTotal(session)],
+      ["freeSkillPoints", snapshot.freeSkillPoints],
+      ["queue", snapshot.queuePayload],
     ]);
   }
 
   Handle_GetSkillQueue(args, session) {
     log.debug("[SkillMgr] GetSkillQueue");
-    return this._buildSkillQueue();
+    return this._buildSkillQueue(session);
   }
 
   Handle_GetSkillHistory(args, session) {
@@ -154,9 +244,14 @@ class SkillMgrService extends BaseService {
     );
   }
 
+  Handle_GetSkillChangesForISIS(args, session) {
+    log.debug("[SkillMgr] GetSkillChangesForISIS");
+    return consumeRecentSkillPointChanges(this._getCharacterId(session));
+  }
+
   Handle_GetSkillPoints(args, session) {
     log.debug("[SkillMgr] GetSkillPoints");
-    return getCharacterSkillPointTotal(this._getCharacterId(session)) || 0;
+    return this._getLiveSkillPointTotal(session);
   }
 
   Handle_GetCharacterAttributeModifiers(args, session) {
@@ -179,14 +274,98 @@ class SkillMgrService extends BaseService {
     return this._buildSkillsDict(session);
   }
 
+  Handle_IsSkillInjected(args, session) {
+    const typeID = toInt(unwrapValue(args && args[0]), 0);
+    return isSkillInjected(this._getCharacterId(session), typeID);
+  }
+
+  Handle_IsSkillAvailableForPurchase(args) {
+    const typeID = toInt(unwrapValue(args && args[0]), 0);
+    return isSkillAvailableForDirectPurchase(typeID);
+  }
+
+  Handle_IsSkill(args) {
+    const typeID = toInt(unwrapValue(args && args[0]), 0);
+    return isSkillType(typeID);
+  }
+
+  Handle_GetDirectPurchasePrice(args) {
+    const typeID = toInt(unwrapValue(args && args[0]), 0);
+    return getDirectPurchasePrice(typeID);
+  }
+
+  Handle_PurchaseSkills(args, session) {
+    log.debug("[SkillMgr] PurchaseSkills");
+    const rawSkillTypeIDs = args && args.length === 1 ? args[0] : args;
+    return purchaseSkills(this._getCharacterId(session), rawSkillTypeIDs, session);
+  }
+
+  Handle_InjectSkillIntoBrain(args, session) {
+    log.debug("[SkillMgr] InjectSkillIntoBrain");
+    const rawItemIDs = args && args.length === 1 ? args[0] : args;
+    return injectSkillbookItems(this._getCharacterId(session), rawItemIDs, session);
+  }
+
   Handle_CharStartTrainingSkillByTypeID(args, session) {
     log.debug("[SkillMgr] CharStartTrainingSkillByTypeID");
-    return { type: "list", items: [] };
+    const characterID = this._getCharacterId(session);
+    const typeID = toInt(unwrapValue(args && args[0]), 0);
+    if (typeID <= 0 || !getSkillTypeByID(typeID)) {
+      return null;
+    }
+
+    const snapshot = getQueueSnapshot(characterID);
+    const existingSkill = snapshot.projectedSkillMap.get(typeID);
+    const explicitToLevel = toInt(unwrapValue(args && args[1]), 0);
+    const targetLevel =
+      explicitToLevel > 0
+        ? explicitToLevel
+        : Math.max(
+            1,
+            Math.min(
+              5,
+              Number(
+                existingSkill
+                  ? existingSkill.trainedSkillLevel || existingSkill.skillLevel || 0
+                  : 0,
+              ) + 1,
+            ),
+          );
+
+    const nextQueue = [
+      { typeID, toLevel: targetLevel },
+      ...snapshot.queueEntries
+        .filter(
+          (entry) =>
+            Number(entry.trainingTypeID || 0) !== typeID ||
+            Number(entry.trainingToLevel || 0) !== targetLevel,
+        )
+        .map((entry) => ({
+          typeID: Number(entry.trainingTypeID || 0),
+          toLevel: Number(entry.trainingToLevel || 0),
+        })),
+    ];
+    saveQueue(characterID, nextQueue, { activate: true });
+    return null;
+  }
+
+  Handle_CharStartTrainingSkill(args, session) {
+    log.debug("[SkillMgr] CharStartTrainingSkill");
+    const itemID = toInt(unwrapValue(args && args[0]), 0);
+    const item = findItemById(itemID);
+    if (!item || Number(item.typeID || 0) <= 0) {
+      return null;
+    }
+    return this.Handle_CharStartTrainingSkillByTypeID(
+      [item.typeID, args && args.length > 1 ? args[1] : null],
+      session,
+    );
   }
 
   Handle_CharStopTrainingSkill(args, session) {
     log.debug("[SkillMgr] CharStopTrainingSkill");
-    return { type: "list", items: [] };
+    abortTraining(this._getCharacterId(session));
+    return null;
   }
 
   Handle_GetRespecInfo(args, session) {
@@ -212,8 +391,8 @@ class SkillMgrService extends BaseService {
 
   Handle_GetSkillQueueAndFreePoints(args, session) {
     log.debug("[SkillMgr] GetSkillQueueAndFreePoints called");
-    const charData = this._getCharacterData(session);
-    return [this._buildSkillQueue(), Number(charData.freeSkillPoints || 0)];
+    const snapshot = this._getSnapshot(session);
+    return [snapshot.queuePayload, snapshot.freeSkillPoints];
   }
 
   Handle_GetBoosters(args, session) {
@@ -244,43 +423,125 @@ class SkillMgrService extends BaseService {
 
   Handle_GetFreeSkillPoints(args, session) {
     log.debug("[SkillMgr] GetFreeSkillPoints called");
-    const charData = this._getCharacterData(session);
-    return Number(charData.freeSkillPoints || 0);
+    return this._getSnapshot(session).freeSkillPoints;
   }
 
   Handle_GetFreeSkillPointsAppliedToQueue(args, session) {
     log.debug("[SkillMgr] GetFreeSkillPointsAppliedToQueue called");
-    return this._buildEmptyDict();
+    return buildPointsDict(
+      previewFreeSkillPointsApplication(this._getCharacterId(session)),
+    );
   }
 
   Handle_GetFreeSkillPointsAppliedToSkills(args, session) {
     log.debug("[SkillMgr] GetFreeSkillPointsAppliedToSkills called");
-    return this._buildEmptyDict();
+    return buildPointsDict(
+      previewFreeSkillPointsApplication(
+        this._getCharacterId(session),
+        normalizeSkillRequirements(args && args[0]),
+      ),
+    );
   }
 
   Handle_ApplyFreeSkillPointsToQueue(args, session) {
     log.debug("[SkillMgr] ApplyFreeSkillPointsToQueue called");
-    return 0;
+    return applyFreeSkillPointsInternal(this._getCharacterId(session)).newFreeSkillPoints;
   }
 
   Handle_ApplyFreeSkillPointsToSkills(args, session) {
     log.debug("[SkillMgr] ApplyFreeSkillPointsToSkills called");
-    return 0;
+    return applyFreeSkillPointsInternal(
+      this._getCharacterId(session),
+      normalizeSkillRequirements(args && args[0]),
+    ).newFreeSkillPoints;
   }
 
   Handle_ApplyFreeSkillPoints(args, session) {
     log.debug("[SkillMgr] ApplyFreeSkillPoints called");
-    return 0;
+    return applyFreeSkillPoints(
+      this._getCharacterId(session),
+      unwrapValue(args && args[0]),
+      unwrapValue(args && args[1]),
+    );
   }
 
-  Handle_SaveNewQueue(args, session) {
+  Handle_SaveNewQueue(args, session, kwargs) {
     log.debug("[SkillMgr] SaveNewQueue called");
+    saveQueue(
+      this._getCharacterId(session),
+      normalizeQueueInput(args && args[0]),
+      {
+        activate: readBooleanKwarg(kwargs, "activate", true),
+      },
+    );
     return null;
   }
 
   Handle_AbortTraining(args, session) {
     log.debug("[SkillMgr] AbortTraining called");
+    abortTraining(this._getCharacterId(session));
     return null;
+  }
+
+  Handle_InjectSkillpoints(args, session) {
+    log.debug("[SkillMgr] InjectSkillpoints called");
+    return injectSkillPoints(
+      this._getCharacterId(session),
+      toInt(unwrapValue(args && args[0]), 0),
+      toInt(unwrapValue(args && args[1]), 1),
+      session,
+    );
+  }
+
+  Handle_CheckInjectionConstraints(args, session) {
+    log.debug("[SkillMgr] CheckInjectionConstraints called");
+    checkInjectionConstraints(
+      this._getCharacterId(session),
+      toInt(unwrapValue(args && args[0]), 0),
+      toInt(unwrapValue(args && args[1]), 1),
+      session,
+    );
+    return null;
+  }
+
+  Handle_GetDiminishedSpFromInjectors(args, session) {
+    log.debug("[SkillMgr] GetDiminishedSpFromInjectors called");
+    return getDiminishedSpFromInjectors(
+      this._getCharacterId(session),
+      toInt(unwrapValue(args && args[0]), 0),
+      toInt(unwrapValue(args && args[1]), 1),
+      toInt(unwrapValue(args && args[2]), 0),
+    );
+  }
+
+  Handle_ExtractSkills(args, session) {
+    log.debug("[SkillMgr] ExtractSkills called");
+    return extractSkills(
+      this._getCharacterId(session),
+      args && args[0],
+      toInt(unwrapValue(args && args[1]), 0),
+      session,
+    );
+  }
+
+  Handle_SplitSkillInjector(args, session) {
+    log.debug("[SkillMgr] SplitSkillInjector called");
+    return splitSkillInjector(
+      this._getCharacterId(session),
+      toInt(unwrapValue(args && args[0]), 0),
+      toInt(unwrapValue(args && args[1]), 1),
+      session,
+    );
+  }
+
+  Handle_CombineSkillInjector(args, session) {
+    log.debug("[SkillMgr] CombineSkillInjector called");
+    return combineSkillInjector(
+      this._getCharacterId(session),
+      toInt(unwrapValue(args && args[0]), 0),
+      toInt(unwrapValue(args && args[1]), 1),
+      session,
+    );
   }
 
   Handle_CheckAndSendNotifications(args, session) {

@@ -5,6 +5,13 @@ const path = require("path");
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
+const destiny = require(path.join(repoRoot, "server/src/space/destiny"));
+const {
+  resolveMissileAppliedDamage,
+} = require(path.join(
+  repoRoot,
+  "server/src/space/combat/missiles/missileSolver",
+));
 const DogmaService = require(path.join(
   repoRoot,
   "server/src/services/dogma/dogmaService",
@@ -103,6 +110,53 @@ function getMissileEntities(scene) {
   return [...scene.dynamicEntities.values()].filter(
     (entity) => entity && entity.kind === "missile",
   );
+}
+
+function advanceSceneUntilNoMissiles(scene, options = {}) {
+  const stepMs = Math.max(50, Number(options.stepMs) || 500);
+  const maxIterations = Math.max(1, Number(options.maxIterations) || 40);
+  for (let index = 0; index < maxIterations; index += 1) {
+    if (getMissileEntities(scene).length <= 0) {
+      return;
+    }
+    advanceScene(scene, stepMs);
+  }
+  assert.equal(getMissileEntities(scene).length, 0, "expected all missile entities to resolve");
+}
+
+function getMarshalDictEntry(value, key) {
+  if (!value || value.type !== "dict" || !Array.isArray(value.entries)) {
+    return undefined;
+  }
+  const entry = value.entries.find(
+    (candidate) => Array.isArray(candidate) && candidate[0] === key,
+  );
+  return entry ? entry[1] : undefined;
+}
+
+function sumDamageVector(rawDamage) {
+  const resolvedDamage =
+    rawDamage && typeof rawDamage === "object"
+      ? rawDamage
+      : {};
+  return (
+    (Number(resolvedDamage.em) || 0) +
+    (Number(resolvedDamage.thermal) || 0) +
+    (Number(resolvedDamage.kinetic) || 0) +
+    (Number(resolvedDamage.explosive) || 0)
+  );
+}
+
+function readOnItemChangeItemID(notification) {
+  const payload = notification && Array.isArray(notification.payload)
+    ? notification.payload
+    : null;
+  const row = Array.isArray(payload) ? payload[0] : null;
+  return row &&
+    row.fields &&
+    row.fields.itemID !== undefined
+      ? row.fields.itemID
+      : null;
 }
 
 function createTransientCharacter(systemID) {
@@ -298,6 +352,47 @@ function createInventoryBackedLauncherScenario(options = {}) {
   };
 }
 
+function fitAdditionalLauncherToScenario(scenario, options = {}) {
+  const launcherType = resolveExactItem(options.launcherName ?? "Light Missile Launcher I");
+  const loadedChargeType = resolveExactItem(options.loadedChargeName ?? "Scourge Light Missile");
+  const flagID = options.flagID ?? 28;
+
+  const moduleGrantResult = grantItemToCharacterLocation(
+    scenario.characterRecord.characterID,
+    scenario.shipItem.itemID,
+    flagID,
+    launcherType,
+    1,
+    {
+      transient: true,
+      moduleState: {
+        online: true,
+        damage: 0,
+        charge: 0,
+        armorDamage: 0,
+        shieldCharge: 0,
+        incapacitated: false,
+      },
+    },
+  );
+  assert.equal(moduleGrantResult.success, true, "Failed to grant grouped launcher module");
+  const moduleItem = moduleGrantResult.data.items[0];
+
+  const loadedGrantResult = grantItemToCharacterLocation(
+    scenario.characterRecord.characterID,
+    scenario.shipItem.itemID,
+    moduleItem.flagID,
+    loadedChargeType,
+    options.loadedQuantity ?? 1,
+    {
+      transient: true,
+      singleton: false,
+    },
+  );
+  assert.equal(loadedGrantResult.success, true, "Failed to grant grouped launcher charge");
+  return moduleItem;
+}
+
 test.afterEach(() => {
   spaceRuntime._testing.clearScenes();
   while (transientCleanups.length > 0) {
@@ -349,7 +444,7 @@ test("standard missile launchers auto-reload on depletion and resume fire after 
   const reloadCompleteAtMs = Number(activeEffect.pendingMissileReload.completeAtMs || 0);
   assert.ok(reloadCompleteAtMs > scene.getCurrentSimTimeMs(), "expected reload to complete in the future");
 
-  advanceScene(scene, 6_000);
+  advanceSceneUntilNoMissiles(scene);
   assert.equal(getMissileEntities(scene).length, 0, "expected first missile to have impacted");
 
   const remainingReloadMs = Math.max(0, reloadCompleteAtMs - scene.getCurrentSimTimeMs());
@@ -411,7 +506,7 @@ test("rapid light missile launchers respect the long reload before firing again"
   const reloadCompleteAtMs = Number(activeEffect.pendingMissileReload.completeAtMs || 0);
   assert.ok(reloadCompleteAtMs > scene.getCurrentSimTimeMs(), "expected rapid-light reload to complete in the future");
 
-  advanceScene(scene, 6_000);
+  advanceSceneUntilNoMissiles(scene);
   assert.equal(getMissileEntities(scene).length, 0, "expected first rapid-light missile to impact");
 
   const remainingReloadMs = Math.max(0, reloadCompleteAtMs - scene.getCurrentSimTimeMs());
@@ -440,6 +535,194 @@ test("rapid light missile launchers respect the long reload before firing again"
   assert.equal(
     Number(reloadedCharge.stacksize || reloadedCharge.quantity || 0),
     getModuleChargeCapacity(moduleItem.typeID, reloadedCharge.typeID) - 1,
+  );
+});
+
+test("grouped missile launchers apply banked volley damage and consume one charge per launcher", () => {
+  const baseline = createInventoryBackedLauncherScenario({
+    systemID: 30000142,
+    launcherName: "Light Missile Launcher I",
+    loadedChargeName: "Scourge Light Missile",
+    cargoChargeName: "Scourge Light Missile",
+    loadedQuantity: 1,
+    cargoQuantity: 0,
+    targetX: 8_000,
+  });
+
+  const baselineActivationResult = baseline.scene.activateGenericModule(
+    baseline.attackerSession.session,
+    baseline.moduleItem,
+    null,
+    {
+      targetID: baseline.target.itemID,
+    },
+  );
+  assert.equal(baselineActivationResult.success, true);
+  const baselineMissiles = getMissileEntities(baseline.scene);
+  assert.equal(baselineMissiles.length, 1, "expected one baseline missile entity");
+  const baselineDamage = sumDamageVector(
+    resolveMissileAppliedDamage(
+      baselineMissiles[0].missileSnapshot,
+      baseline.target,
+    ).appliedDamage,
+  );
+  assert.ok(baselineDamage > 0, "expected baseline missile damage to land");
+
+  spaceRuntime._testing.clearScenes();
+
+  const grouped = createInventoryBackedLauncherScenario({
+    systemID: 30000144,
+    launcherName: "Light Missile Launcher I",
+    loadedChargeName: "Scourge Light Missile",
+    cargoChargeName: "Scourge Light Missile",
+    loadedQuantity: 1,
+    cargoQuantity: 0,
+    targetX: 8_000,
+  });
+  const groupedSlaveModule = fitAdditionalLauncherToScenario(grouped, {
+    launcherName: "Light Missile Launcher I",
+    loadedChargeName: "Scourge Light Missile",
+    loadedQuantity: 1,
+    flagID: 28,
+  });
+  const dogma = new DogmaService();
+  const bankInfo = dogma.Handle_LinkWeapons(
+    [grouped.shipItem.itemID, grouped.moduleItem.itemID, groupedSlaveModule.itemID],
+    grouped.attackerSession.session,
+  );
+  assert.ok(bankInfo, "expected grouped launcher bank creation to succeed");
+
+  const groupedActivationResult = dogma.Handle_Activate(
+    [groupedSlaveModule.itemID, "", grouped.target.itemID, null],
+    grouped.attackerSession.session,
+  );
+  assert.equal(groupedActivationResult, 1, "expected grouped DogmaIM activation to succeed");
+
+  const launchedMissiles = getMissileEntities(grouped.scene);
+  assert.equal(launchedMissiles.length, 1, "expected a single banked missile entity");
+  const missileSlim = destiny.buildSlimItemDict(launchedMissiles[0]);
+  const launchModules = getMarshalDictEntry(missileSlim, "launchModules");
+  assert.deepEqual(
+    Array.isArray(launchModules && launchModules.items) ? launchModules.items : [],
+    [grouped.moduleItem.itemID, groupedSlaveModule.itemID],
+    "expected the banked missile payload to carry both launcher module IDs",
+  );
+  assert.equal(
+    Boolean(launchedMissiles[0].missileSnapshot && launchedMissiles[0].missileSnapshot.isBanked),
+    true,
+    "expected the grouped missile snapshot to stay marked as banked for the impact damage path",
+  );
+
+  const groupedDamage = sumDamageVector(
+    resolveMissileAppliedDamage(
+      launchedMissiles[0].missileSnapshot,
+      grouped.target,
+    ).appliedDamage,
+  );
+  assert.ok(
+    groupedDamage >= baselineDamage * 1.95,
+    `expected grouped launcher volley damage to scale with the bank (${groupedDamage} vs ${baselineDamage})`,
+  );
+  assert.ok(
+    groupedDamage <= baselineDamage * 2.05,
+    `expected grouped launcher volley damage to stay close to a 2x bank multiplier (${groupedDamage} vs ${baselineDamage})`,
+  );
+
+  advanceSceneUntilNoMissiles(grouped.scene);
+
+  assert.equal(
+    getLoadedChargeByFlag(
+      grouped.characterRecord.characterID,
+      grouped.shipItem.itemID,
+      grouped.moduleItem.flagID,
+    ),
+    null,
+    "expected the grouped master launcher to consume its loaded charge",
+  );
+  assert.equal(
+    getLoadedChargeByFlag(
+      grouped.characterRecord.characterID,
+      grouped.shipItem.itemID,
+      groupedSlaveModule.flagID,
+    ),
+    null,
+    "expected the grouped slave launcher to consume its loaded charge",
+  );
+
+});
+
+test("in-space real-HUD weapon-bank mutations immediately replay the touched launcher charge rows", () => {
+  const scenario = createInventoryBackedLauncherScenario({
+    shipName: "Raven Navy Issue",
+    launcherName: "Torpedo Launcher II",
+    loadedChargeName: "Inferno Rage Torpedo",
+    cargoChargeName: "Inferno Rage Torpedo",
+    loadedQuantity: 40,
+    cargoQuantity: 650,
+    targetX: 15_000,
+  });
+  const groupedSlaveModule = fitAdditionalLauncherToScenario(scenario, {
+    launcherName: "Torpedo Launcher II",
+    loadedChargeName: "Inferno Rage Torpedo",
+    loadedQuantity: 40,
+    flagID: 28,
+  });
+  const dogma = new DogmaService();
+  const session = scenario.attackerSession.session;
+  session._space.useRealChargeInventoryHudRows = true;
+
+  const masterCharge = getLoadedChargeByFlag(
+    scenario.characterRecord.characterID,
+    scenario.shipItem.itemID,
+    scenario.moduleItem.flagID,
+  );
+  const slaveCharge = getLoadedChargeByFlag(
+    scenario.characterRecord.characterID,
+    scenario.shipItem.itemID,
+    groupedSlaveModule.flagID,
+  );
+  assert.ok(masterCharge, "expected the grouped master launcher to start with a loaded charge");
+  assert.ok(slaveCharge, "expected the grouped slave launcher to start with a loaded charge");
+
+  scenario.attackerSession.notifications.length = 0;
+  dogma.Handle_LinkWeapons(
+    [scenario.shipItem.itemID, scenario.moduleItem.itemID, groupedSlaveModule.itemID],
+    session,
+  );
+
+  const linkedChargeReplayItemIDs = scenario.attackerSession.notifications
+    .filter((entry) => entry.name === "OnItemChange")
+    .map(readOnItemChangeItemID);
+  assert.ok(
+    linkedChargeReplayItemIDs.includes(masterCharge.itemID),
+    "expected linking a real-HUD launcher bank to immediately replay the master charge row",
+  );
+  assert.ok(
+    linkedChargeReplayItemIDs.includes(slaveCharge.itemID),
+    "expected linking a real-HUD launcher bank to immediately replay the slave charge row",
+  );
+
+  scenario.attackerSession.notifications.length = 0;
+  const peeledModuleID = dogma.Handle_UnlinkModule(
+    [scenario.shipItem.itemID, scenario.moduleItem.itemID],
+    session,
+  );
+  assert.equal(
+    Number(peeledModuleID),
+    groupedSlaveModule.itemID,
+    "expected unlinking to peel the grouped slave launcher back out of the bank",
+  );
+
+  const unlinkedChargeReplayItemIDs = scenario.attackerSession.notifications
+    .filter((entry) => entry.name === "OnItemChange")
+    .map(readOnItemChangeItemID);
+  assert.ok(
+    unlinkedChargeReplayItemIDs.includes(masterCharge.itemID),
+    "expected unlinking a real-HUD launcher bank to immediately replay the master charge row",
+  );
+  assert.ok(
+    unlinkedChargeReplayItemIDs.includes(slaveCharge.itemID),
+    "expected unlinking a real-HUD launcher bank to immediately replay the peeled charge row",
   );
 });
 
@@ -553,5 +836,51 @@ test("manual missile reload swaps ammo types and returns the old clip to cargo",
     remainingInferno,
     60 - getModuleChargeCapacity(moduleItem.typeID, infernoLight.typeID),
     "expected the new ammo stack to be consumed from cargo by the reload",
+  );
+});
+
+test("login real-HUD reload completion rearms hardpoint activation bootstrap for the next fire", () => {
+  const {
+    scene,
+    shipItem,
+    attackerSession,
+    moduleItem,
+  } = createInventoryBackedLauncherScenario({
+    launcherName: "Light Missile Launcher I",
+    loadedChargeName: "Scourge Light Missile",
+    cargoChargeName: "Inferno Light Missile",
+    loadedQuantity: 5,
+    cargoQuantity: 60,
+  });
+  const infernoLight = resolveExactItem("Inferno Light Missile");
+  const session = attackerSession.session;
+  session._space.useRealChargeInventoryHudRows = true;
+  session._space.loginChargeHydrationProfile = "login";
+  session._space.pendingHardpointActivationBootstrapModuleIDs = new Set();
+
+  const dogma = new DogmaService();
+  dogma.Handle_LoadAmmo(
+    [
+      shipItem.itemID,
+      [moduleItem.itemID],
+      [{ typeID: infernoLight.typeID }],
+      shipItem.itemID,
+    ],
+    session,
+  );
+
+  const queuedReload = DogmaService._testing.getPendingModuleReloads().get(moduleItem.itemID);
+  const reloadCompleteAtMs = Number(queuedReload && queuedReload.completeAtMs || 0);
+  assert.ok(
+    reloadCompleteAtMs > scene.getCurrentSimTimeMs(),
+    "expected queued ammo-swap reload to complete in the future",
+  );
+
+  advanceSceneUntilSimTime(scene, reloadCompleteAtMs, 25);
+
+  assert.equal(
+    session._space.pendingHardpointActivationBootstrapModuleIDs.has(moduleItem.itemID),
+    true,
+    "expected login real-HUD reload completion to rearm the shared hardpoint activation bootstrap",
   );
 });

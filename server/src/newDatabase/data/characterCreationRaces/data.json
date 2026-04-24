@@ -842,16 +842,16 @@
         4,
         8
       ],
-      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3284752-jsonl",
-      "syncedAt": "2026-04-01T14:59:20.827Z",
-      "buildNumber": 3284752,
-      "releaseDate": "2026-03-31T11:27:11Z"
+      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
+      "syncedAt": "2026-04-09T16:52:02.513Z",
+      "buildNumber": 3294658,
+      "releaseDate": "2026-04-09T11:29:37Z"
     },
     "provider": "EVE Static Data JSONL",
-    "authority": "eve-online-static-data-3284752-jsonl",
-    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3284752-jsonl",
-    "generatedAt": "2026-04-01T14:59:20.827Z",
-    "buildNumber": 3284752,
-    "releaseDate": "2026-03-31T11:27:11Z"
+    "authority": "eve-online-static-data-3294658-jsonl",
+    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
+    "generatedAt": "2026-04-09T16:52:02.513Z",
+    "buildNumber": 3294658,
+    "releaseDate": "2026-04-09T11:29:37Z"
   }
 }

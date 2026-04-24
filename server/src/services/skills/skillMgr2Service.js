@@ -10,7 +10,7 @@ class SkillMgr2Service extends BaseService {
       type: "object",
       name: "carbon.common.script.net.moniker.Moniker",
       args: [
-        "skillMgr", // [0] __serviceName
+        "skillHandler", // [0] __serviceName
         null, // [1] __nodeID
         session && (session.characterID || session.charid || session.userid), // [2] __bindParams
         null, // [3] __sessionCheck

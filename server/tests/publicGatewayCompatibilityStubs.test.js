@@ -394,6 +394,7 @@ test("public gateway advertises dedicated gateway service modules", () => {
       "sovereignty",
       "mercenary-den",
       "local-chat",
+      "skill-plans",
       "compatibility",
     ],
   );
@@ -627,7 +628,9 @@ test("public gateway returns freelance creation and participation limits", () =>
 test("public gateway returns CCP-shaped structure paintwork catalogue and runtime license payloads", (t) => {
   const activeCharacterID = 140000003;
   const corporationID = 98000000;
-  const solarSystemID = 30000140;
+  const activeCharacter =
+    database.read("characters", `/${activeCharacterID}`).data || {};
+  const solarSystemID = Number(activeCharacter.solarSystemID || 30000140);
   const lpWalletsBackup = JSON.parse(
     JSON.stringify(database.read("lpWallets", "/").data || {}),
   );

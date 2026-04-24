@@ -1416,6 +1416,7 @@ module.exports = {
   FULL_ADMIN_ROLE_MASK,
   FULL_LOCATIONAL_ROLE_MASK,
   PAGE_SIZE,
+  DEFAULT_STRUCTURE_REINFORCE_HOUR,
   buildDefaultDivisionNames,
   buildDefaultMemberState,
   buildDefaultTitleMap,

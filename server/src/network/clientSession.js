@@ -21,6 +21,12 @@ const { encodeAddress } = require(
   path.join(__dirname, "../common/machoAddress"),
 );
 const config = require(path.join(__dirname, "../config"));
+const {
+  composeSessionRoleMask,
+} = require(path.join(
+  __dirname,
+  "../services/account/accountRoleProfiles",
+));
 const sessionChangeDebugPath = path.join(
   __dirname,
   "../../logs/session-change-debug.log",
@@ -58,6 +64,64 @@ const SESSION_CHANGE_ALLOWED_KEYS = new Set([
   "rolesAtHQ",
   "rolesAtOther",
 ]);
+
+function recordSpaceBootstrapTrace(session, event, details = {}) {
+  if (!session || !log.isVerboseDebugEnabled()) {
+    return false;
+  }
+  try {
+    const spaceRuntime = require(path.join(__dirname, "../space/runtime"));
+    if (
+      spaceRuntime &&
+      typeof spaceRuntime.recordSessionJumpTimingTrace === "function"
+    ) {
+      return (
+        spaceRuntime.recordSessionJumpTimingTrace(session, event, details) === true
+      );
+    }
+  } catch (error) {
+    log.debug(
+      `[Session] Failed to record space bootstrap trace: ${error.message}`,
+    );
+  }
+  return false;
+}
+
+function summarizeOutgoingPacket(value, explicitMeta = null) {
+  if (explicitMeta && typeof explicitMeta === "object") {
+    return explicitMeta;
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const packetName = String(value.name || "");
+  if (packetName.endsWith("SessionChangeNotification")) {
+    return {
+      kind: "session-change",
+      packetName,
+    };
+  }
+
+  if (!packetName.endsWith("CallRsp")) {
+    return null;
+  }
+
+  const args = Array.isArray(value.args) ? value.args : [];
+  const sourceAddress = args[1];
+  const sourceArgs =
+    sourceAddress && Array.isArray(sourceAddress.args) ? sourceAddress.args : [];
+  return {
+    kind: "call-response",
+    packetName,
+    service:
+      typeof sourceArgs[2] === "string" && sourceArgs[2].trim().length > 0
+        ? sourceArgs[2]
+        : null,
+    callID: Number(sourceArgs[3]) || 0,
+  };
+}
 
 function appendSessionChangeDebug(entry) {
   if (!log.isVerboseDebugEnabled()) {
@@ -124,6 +188,36 @@ function buildNotificationLogMessage(notifyType, idType, payloadTuple = []) {
   return `${base} changes=${changes.length} attrs=${summarizeAttributeChangeCounts(changes)}`;
 }
 
+function currentFileTime() {
+  return BigInt(Date.now()) * 10000n + 116444736000000000n;
+}
+
+function resolveBoundObjectRegistrationRefID(session, objectID) {
+  if (
+    !session ||
+    typeof objectID !== "string" ||
+    objectID.trim() === "" ||
+    !session._boundObjectState ||
+    typeof session._boundObjectState !== "object"
+  ) {
+    return currentFileTime();
+  }
+
+  for (const state of Object.values(session._boundObjectState)) {
+    if (
+      state &&
+      typeof state === "object" &&
+      state.objectID === objectID &&
+      state.boundAtFileTime !== undefined &&
+      state.boundAtFileTime !== null
+    ) {
+      return state.boundAtFileTime;
+    }
+  }
+
+  return currentFileTime();
+}
+
 class ClientSession {
   /**
    * @param {object} handshakeData - Data from the completed handshake
@@ -138,7 +232,10 @@ class ClientSession {
     this.clientId = this.clientID; // alias for camelCase consistency
     this.accountRole = handshakeData.accountRole || handshakeData.role || 0;
     this.chatRole = handshakeData.chatRole || handshakeData.role || 0;
-    this.role = handshakeData.role || 0;
+    this.role = composeSessionRoleMask(
+      this.accountRole,
+      this.chatRole,
+    );
     this.languageID = handshakeData.languageId || "EN";
     this.countryCode = handshakeData.countryCode || null;
     this.sid =
@@ -203,16 +300,42 @@ class ClientSession {
     }
 
     this.lastActivity = Date.now();
+    const pendingPerfMeta = this._pendingBootstrapPacketPerf || null;
+    this._pendingBootstrapPacketPerf = null;
+    const packetPerfMeta = summarizeOutgoingPacket(value, pendingPerfMeta);
 
     // Marshal the value
+    const encodeStartedAtMs = Date.now();
     const marshaled = marshalEncode(value);
+    const encodeElapsedMs = Date.now() - encodeStartedAtMs;
 
-    log.debug(`[Session] Sending packet (${marshaled.length} bytes)`);
-    log.debug(
-      `[Session] Outgoing hex: ${marshaled.toString("hex").substring(0, 160)}...`,
-    );
+    if (log.isPacketPayloadDebugEnabled()) {
+      log.debug(`[Session] Sending packet (${marshaled.length} bytes)`);
+      log.debug(
+        `[Session] Outgoing hex: ${marshaled.toString("hex").substring(0, 160)}...`,
+      );
+    }
 
+    const writeStartedAtMs = Date.now();
     this._writePayload(marshaled);
+    const writeElapsedMs = Date.now() - writeStartedAtMs;
+
+    if (packetPerfMeta) {
+      recordSpaceBootstrapTrace(this, "outgoing-packet", {
+        ...packetPerfMeta,
+        bytes: marshaled.length,
+        encodeMs: encodeElapsedMs,
+        writeMs: writeElapsedMs,
+        encrypted: this.encrypted === true,
+      });
+      if (encodeElapsedMs >= 100 || writeElapsedMs >= 25) {
+        log.info(
+          `[SessionPerf] packet kind=${packetPerfMeta.kind || "unknown"} ` +
+          `service=${packetPerfMeta.service || "?"} callID=${Number(packetPerfMeta.callID) || 0} ` +
+          `bytes=${marshaled.length} encodeMs=${encodeElapsedMs} writeMs=${writeElapsedMs}`,
+        );
+      }
+    }
   }
 
   /**
@@ -233,10 +356,12 @@ class ClientSession {
     this.lastActivity = Date.now();
 
     const label = options.label || "raw";
-    log.debug(`[Session] Sending raw payload (${payload.length} bytes) [${label}]`);
-    log.debug(
-      `[Session] Outgoing raw hex: ${payload.toString("hex").substring(0, 160)}...`,
-    );
+    if (log.isPacketPayloadDebugEnabled()) {
+      log.debug(`[Session] Sending raw payload (${payload.length} bytes) [${label}]`);
+      log.debug(
+        `[Session] Outgoing raw hex: ${payload.toString("hex").substring(0, 160)}...`,
+      );
+    }
 
     this._writePayload(payload);
   }
@@ -301,6 +426,13 @@ class ClientSession {
           : BigInt(options.sessionId || 0)
         : this.sid;
 
+    if (changeEntries.length === 0 && options.allowEmpty !== true) {
+      appendSessionChangeDebug(
+        `skip sid=${String(sessionID)} reason=empty payload=[]`,
+      );
+      return;
+    }
+
     appendSessionChangeDebug(
       `send sid=${String(sessionID)} keys=${JSON.stringify(changeEntries.map(([key]) => key))} payload=${JSON.stringify(changeEntries, (k, v) => (typeof v === "bigint" ? v.toString() : v))}`,
     );
@@ -350,6 +482,12 @@ class ClientSession {
       "SessionChange",
       `${changeEntries.length} changes → ${changeEntries.map(([k]) => k).join(", ")}`,
     );
+    this._pendingBootstrapPacketPerf = {
+      kind: "session-change",
+      packetName: packet.name,
+      changeKeys: changeEntries.map(([key]) => key),
+      sessionID: String(sessionID),
+    };
     this.sendPacket(packet);
 
     if (changeEntries.length > 0) {
@@ -393,7 +531,9 @@ class ClientSession {
     // explicitly marshal [1, payloadTuple] so BroadcastStuffGPCS properly parses the args array
     // 1 = object/RPC call, 0 = simple byte transfer
     const unpickledPayload = [1, payloadTuple];
+    const innerMarshalStartedAtMs = Date.now();
     const marshalledPayload = marshalEncode(unpickledPayload);
+    const innerMarshalElapsedMs = Date.now() - innerMarshalStartedAtMs;
 
     const responseTuple = [
       MACHONETMSG_TYPE.NOTIFICATION,
@@ -422,6 +562,13 @@ class ClientSession {
       notifyType || "Notification",
       buildNotificationLogMessage(notifyType, idType, payloadTuple),
     );
+    this._pendingBootstrapPacketPerf = {
+      kind: "notification",
+      notifyType: notifyType || "Notification",
+      idType: idType || "ownerid",
+      innerBytes: marshalledPayload.length,
+      innerMarshalMs: innerMarshalElapsedMs,
+    };
     this.sendPacket(packet);
   }
 
@@ -448,7 +595,9 @@ class ClientSession {
     const unpickledPayload = kwargs
       ? [1, methodName, payloadTuple, kwargs]
       : [1, methodName, payloadTuple];
+    const innerMarshalStartedAtMs = Date.now();
     const marshalledPayload = marshalEncode(unpickledPayload);
+    const innerMarshalElapsedMs = Date.now() - innerMarshalStartedAtMs;
 
     const responseTuple = [
       MACHONETMSG_TYPE.NOTIFICATION,
@@ -474,6 +623,83 @@ class ClientSession {
     };
 
     log.pktOut(serviceName || "Notification", `${methodName}()`);
+    this._pendingBootstrapPacketPerf = {
+      kind: "service-notification",
+      service: serviceName || null,
+      method: methodName,
+      innerBytes: marshalledPayload.length,
+      innerMarshalMs: innerMarshalElapsedMs,
+    };
+    this.sendPacket(packet);
+  }
+
+  /**
+   * Send a MACHONETMSG_TYPE.NOTIFICATION to a bound client-side object.
+   * This uses the object-call notification lane rather than exported service
+   * notifications, which is required for methods like `Michelle.OnDbuffUpdated`.
+   */
+  sendObjectNotification(objectID, methodName, payloadTuple = [], kwargs = null) {
+    if (!this.socket || this.socket.destroyed) return;
+    if (typeof objectID !== "string" || objectID.trim() === "") return;
+    if (typeof methodName !== "string" || methodName.trim() === "") return;
+
+    const sourceAddr = encodeAddress({
+      type: "node",
+      nodeID: config.proxyNodeId,
+    });
+
+    const destAddr = encodeAddress({
+      // Bound-object notifications ride the object-call lane, not the
+      // broadcast/service wrapper. Route them as node-bound notifications so
+      // the client enters ObjectCallGPCS.NotifyUp and resolves the object ID
+      // directly instead of falling through to BroadcastStuff.
+      type: "node",
+      nodeID: config.proxyNodeId,
+      service: null,
+    });
+
+    const objectPayload = kwargs
+      ? [objectID, methodName, payloadTuple, kwargs]
+      : [objectID, methodName, payloadTuple];
+    const marshalledObjectPayload = marshalEncode(objectPayload);
+    const objectRegistrationRefID = resolveBoundObjectRegistrationRefID(
+      this,
+      objectID,
+    );
+
+    const responseTuple = [
+      MACHONETMSG_TYPE.NOTIFICATION,
+      sourceAddr,
+      destAddr,
+      this.userid || null,
+      [[1, marshalledObjectPayload]],
+      { type: "dict", entries: [] },
+      {
+        type: "dict",
+        entries: [[
+          "OID+",
+          {
+            type: "dict",
+            entries: [[objectID, objectRegistrationRefID]],
+          },
+        ]],
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ];
+
+    const packet = {
+      type: "object",
+      name: "carbon.common.script.net.machoNetPacket.Notification",
+      args: responseTuple,
+    };
+
+    log.pktOut(objectID, `${methodName}()`);
     this.sendPacket(packet);
   }
 

@@ -1,0 +1,14 @@
+{
+  "1": {
+    "orderId": "1",
+    "ownerId": 140000003,
+    "isCorp": false,
+    "typeId": 34,
+    "stationId": 60003760,
+    "escrowLocationID": 9200000001,
+    "remainingQuantity": 2146083647,
+    "createdAt": "2026-04-06T13:22:15.199Z",
+    "updatedAt": "2026-04-07T16:01:38.046Z",
+    "escrowType": "sell"
+  }
+}

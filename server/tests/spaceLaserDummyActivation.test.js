@@ -568,8 +568,8 @@ test("dogma bootstrap keeps loaded laser charges on the MakeShipActive shipState
   );
   assert.equal(
     shipInfoEntries.has(Number(candidate.chargeItem.itemID)),
-    false,
-    "Expected loaded laser crystals to stay off the raw shipInfo inventory row map",
+    true,
+    "Expected loaded laser crystals to appear in shipInfo so stock MakeShipActive can see the real loaded charge rows on login",
   );
   assert.equal(
     shipInfo.entries.some(
@@ -671,12 +671,12 @@ test("login-in-space laser activation reuses the login-bootstrap tuple charge wi
   invBroker.Handle_GetAvailableTurretSlots([], session);
   invBroker.afterCallResponse("GetAvailableTurretSlots", session);
   assert.equal(
-    await waitFor(() => session._space && session._space.loginChargeDogmaReplayFlushed === true),
+    await waitFor(() => session._space && session._space.loginShipInventoryPrimed === true),
     true,
-    "Expected login HUD bootstrap to flush the one-shot shared tuple charge replay before the first live activation",
+    "Expected login attach to stay on the stock ship inventory bootstrap before the first live activation",
   );
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
   const scene = spaceRuntime.getSceneForSession(session);
   assert.ok(scene, "Expected a loaded space scene for the test character");
 
@@ -784,8 +784,8 @@ test("charge quantity transitions godma-prime the tuple and repair the clean HUD
         Number(Array.isArray(change) ? change[5] : 0) === 1
       );
     }),
-    true,
-    "Expected charge quantity transitions to bootstrap the tuple dogma quantity before the delayed clean HUD row repair",
+    false,
+    "Expected charge quantity transitions to defer the tuple quantity bootstrap until after the delayed clean HUD row repair",
   );
   assert.equal(
     extractOnGodmaPrimeItemIDs(session.notifications).some((itemID) =>
@@ -833,12 +833,23 @@ test("charge quantity transitions godma-prime the tuple and repair the clean HUD
         candidate.ship.itemID,
         candidate.moduleItem.flagID,
         candidate.chargeItem.typeID,
-      ) >= 1,
+      ) >= 1 &&
+      flattenModuleAttributeChanges(session.notifications).some((change) => {
+        const itemID = Array.isArray(change) ? change[2] : null;
+        return (
+          Array.isArray(itemID) &&
+          Number(itemID[0]) === Number(candidate.ship.itemID) &&
+          Number(itemID[1]) === Number(candidate.moduleItem.flagID) &&
+          Number(itemID[2]) === Number(candidate.chargeItem.typeID) &&
+          Number(Array.isArray(change) ? change[3] : 0) === 805 &&
+          Number(Array.isArray(change) ? change[5] : 0) === 1
+        );
+      }),
   );
   assert.equal(
     finalized,
     true,
-    "Expected charge quantity transitions to finish on a delayed clean tuple-backed HUD row after the tuple godma prime",
+    "Expected charge quantity transitions to finish on a delayed clean tuple-backed HUD row followed by the tuple quantity bootstrap",
   );
 });
 

@@ -30,6 +30,21 @@
           "offerID": null
         }
       }
+    },
+    "140000232": {
+      "shipLogosByKey": {
+        "2:77288": {
+          "characterID": 140000232,
+          "entitlementType": 2,
+          "cosmeticType": 2,
+          "shipTypeID": 77288,
+          "licenseID": 79088,
+          "fsdTypeID": 79088,
+          "grantedAtMs": 1776188304438,
+          "source": "public_gateway_admin_grant",
+          "offerID": null
+        }
+      }
     }
   }
 }

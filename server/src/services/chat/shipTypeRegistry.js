@@ -213,7 +213,16 @@ function getUnpublishedShipTypes() {
     .map((entry) => ({ ...entry }));
 }
 
+function getAllShipTypes(options = {}) {
+  const includeUnpublished = options.includeUnpublished !== false;
+  return [...loadRegistry().byTypeID.values()]
+    .filter((entry) => entry && (includeUnpublished || entry.published !== false))
+    .sort((left, right) => left.name.localeCompare(right.name) || left.typeID - right.typeID)
+    .map((entry) => ({ ...entry }));
+}
+
 module.exports = {
+  getAllShipTypes,
   getUnpublishedShipTypes,
   resolveShipByName,
   resolveShipByTypeID,

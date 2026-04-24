@@ -5,6 +5,13 @@ const {
   buildDict,
   buildList,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
+const {
+  buildBlueprintInstancePayload,
+} = require(path.join(__dirname, "./industryPayloads"));
+const {
+  getBlueprintByItemID,
+  listBlueprintInstancesByOwner,
+} = require(path.join(__dirname, "./industryRuntimeState"));
 const log = require(path.join(__dirname, "../../utils/logger"));
 
 class BlueprintManagerService extends BaseService {
@@ -19,23 +26,27 @@ class BlueprintManagerService extends BaseService {
     ]);
   }
 
-  Handle_GetBlueprintData(args) {
+  Handle_GetBlueprintData(args, session) {
     const blueprintID = args && args.length > 0 ? args[0] : null;
-    log.warn(
-      `[BlueprintManager] GetBlueprintData(${String(blueprintID)}) is not implemented yet`,
-    );
-    return buildDict([]);
+    log.debug(`[BlueprintManager] GetBlueprintData(${String(blueprintID)})`);
+    return buildBlueprintInstancePayload(getBlueprintByItemID(blueprintID, session) || {});
   }
 
-  Handle_GetBlueprintDataByOwner(args) {
+  Handle_GetBlueprintDataByOwner(args, session) {
     const ownerID = args && args.length > 0 ? args[0] : null;
     const facilityID = args && args.length > 1 ? args[1] : null;
     log.debug(
       `[BlueprintManager] GetBlueprintDataByOwner(ownerID=${String(ownerID)}, facilityID=${String(facilityID)})`,
     );
+    const result = listBlueprintInstancesByOwner(ownerID, facilityID, session);
     return [
-      buildList([]),
-      buildDict([]),
+      buildList(result.blueprints.map((blueprint) => buildBlueprintInstancePayload(blueprint))),
+      buildDict(
+        Object.entries(result.counts || {}).map(([key, count]) => [
+          key === "null" ? null : Number(key) || 0,
+          Number(count) || 0,
+        ]),
+      ),
     ];
   }
 }

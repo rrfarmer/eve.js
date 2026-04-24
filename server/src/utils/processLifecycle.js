@@ -177,7 +177,7 @@ function emitLifecycleLog(
 function installProcessLifecycleLogging(options = {}) {
   const processRef = options.processRef || process;
   const logger = options.logger || log;
-  const appName = options.appName || "eve.js";
+  const appName = options.appName || "EveJS Elysian";
   const signals = Array.isArray(options.signals) && options.signals.length > 0
     ? options.signals
     : ["SIGINT", "SIGTERM", "SIGBREAK", "SIGHUP"];

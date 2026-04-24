@@ -14,6 +14,9 @@ const nativeNpcWreckService = require(path.join(repoRoot, "server/src/space/npc/
 const shipDestruction = require(path.join(repoRoot, "server/src/space/shipDestruction"));
 const InvBrokerService = require(path.join(repoRoot, "server/src/services/inventory/invBrokerService"));
 const {
+  launchNpcFighterWing,
+} = require(path.join(repoRoot, "server/src/services/fighter/npc/npcSupercarrierDirector"));
+const {
   marshalEncode,
 } = require(path.join(repoRoot, "server/src/network/tcp/utils/marshal"));
 const {
@@ -111,6 +114,57 @@ function createTransientPirateNpc() {
   return spawnResult.data.spawned[0].entity;
 }
 
+function createTransientCapitalNpc(profileQuery) {
+  const spawnResult = npcService.spawnNpcBatchInSystem(TEST_SYSTEM_ID, {
+    entityType: "npc",
+    amount: 1,
+    profileQuery,
+    transient: true,
+    anchorDescriptor: {
+      kind: "coordinates",
+      position: { x: 260_000, y: 0, z: 115_000 },
+      direction: { x: 1, y: 0, z: 0 },
+    },
+  });
+  assert.equal(spawnResult.success, true);
+  assert.ok(spawnResult.data);
+  assert.equal(spawnResult.data.spawned.length, 1);
+  return spawnResult.data.spawned[0].entity;
+}
+
+function createTransientGeneratedNpc(profileQuery, position = { x: 240_000, y: 0, z: 105_000 }) {
+  const spawnResult = npcService.spawnNpcBatchInSystem(TEST_SYSTEM_ID, {
+    entityType: "npc",
+    amount: 1,
+    profileQuery,
+    transient: true,
+    anchorDescriptor: {
+      kind: "coordinates",
+      position,
+      direction: { x: 1, y: 0, z: 0 },
+    },
+  });
+  assert.equal(spawnResult.success, true);
+  assert.ok(spawnResult.data);
+  assert.equal(spawnResult.data.spawned.length, 1);
+  return spawnResult.data.spawned[0].entity;
+}
+
+function withMockedRandom(sequence, fn) {
+  const originalRandom = Math.random;
+  let index = 0;
+  Math.random = () => {
+    const value = sequence[index];
+    index += 1;
+    return typeof value === "number" ? value : 0;
+  };
+  try {
+    return fn();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 function createInventorySession() {
   return {
     characterID: 140000001,
@@ -124,6 +178,15 @@ function createInventorySession() {
     sendNotification() {},
     currentBoundObjectID: null,
   };
+}
+
+function getFighterEntities(scene, controllerID) {
+  const numericControllerID = Number(controllerID) || 0;
+  return [...scene.dynamicEntities.values()].filter((entity) => (
+    entity &&
+    entity.kind === "fighter" &&
+    Number(entity.controllerID) === numericControllerID
+  ));
 }
 
 test("native NPC destruction creates a native wreck without touching player tables", () => {
@@ -172,6 +235,313 @@ test("native NPC destruction creates a native wreck without touching player tabl
       skills: Object.keys(readTableSnapshot("skills")).length,
     };
     assert.deepEqual(playerCountsAfter, playerCountsBefore);
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("native NPC wreck broadcasts stay on the immediate lane instead of fresh-acquire bootstrap", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const scene = runtime.ensureScene(TEST_SYSTEM_ID);
+    const originalSpawnDynamicEntity = scene.spawnDynamicEntity.bind(scene);
+    let capturedWreckSpawnOptions = null;
+    scene.spawnDynamicEntity = (entity, options = {}) => {
+      if (entity && entity.nativeNpcWreck === true) {
+        capturedWreckSpawnOptions = cloneValue(options);
+      }
+      return originalSpawnDynamicEntity(entity, options);
+    };
+
+    const entity = createNativeCombatNpc();
+    const destroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      entity,
+    );
+    assert.equal(destroyResult.success, true);
+    assert.ok(capturedWreckSpawnOptions);
+    assert.equal(
+      capturedWreckSpawnOptions &&
+        capturedWreckSpawnOptions.broadcastOptions &&
+        capturedWreckSpawnOptions.broadcastOptions.freshAcquire,
+      false,
+      "expected live native NPC wreck handoff to avoid bootstrap-acquire lane",
+    );
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("native NPC wrecks reuse the shared inventory-backed runtime shape", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const entity = createNativeCombatNpc();
+    const destroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      entity,
+    );
+    assert.equal(destroyResult.success, true);
+
+    const wreckID = Number(
+      destroyResult &&
+      destroyResult.data &&
+      destroyResult.data.wreck &&
+      destroyResult.data.wreck.wreckID,
+    ) || 0;
+    assert.ok(wreckID > 0);
+
+    const wreckItem = nativeNpcStore.buildNativeWreckInventoryItem(wreckID);
+    assert.ok(wreckItem);
+    assert.ok(wreckItem.spaceState);
+    assert.deepEqual(wreckItem.spaceState.position, destroyResult.data.wreck.position);
+
+    const wreckRecord = nativeNpcStore.getNativeWreck(wreckID);
+    const wreckEntity = nativeNpcWreckService.buildNativeWreckRuntimeEntity(wreckRecord, {
+      nowMs: wreckRecord.createdAtMs,
+    });
+    assert.ok(wreckEntity);
+    assert.equal(wreckEntity.nativeNpcWreck, true);
+    assert.equal(wreckEntity.persistSpaceState, false);
+    assert.ok(wreckEntity.spaceState);
+    assert.deepEqual(wreckEntity.spaceState.position, wreckItem.spaceState.position);
+    assert.equal(wreckEntity.position.x, wreckItem.spaceState.position.x);
+    assert.equal(wreckEntity.position.y, wreckItem.spaceState.position.y);
+    assert.equal(wreckEntity.position.z, wreckItem.spaceState.position.z);
+    assert.equal(typeof wreckEntity.mass, "number");
+    assert.equal(typeof wreckEntity.inertia, "number");
+    assert.equal(typeof wreckEntity.maxVelocity, "number");
+    assert.ok(wreckEntity.passiveDerivedState);
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("ordinary pirate NPC destruction resolves faction-sized wrecks instead of empire hull wrecks", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const entity = createTransientPirateNpc();
+    assert.equal(String(entity.itemName || ""), "Blood Visionary");
+
+    const resolvedWreck = shipDestruction._testing.resolveEntityWreckType({
+      nativeNpc: true,
+      shipTypeID: entity.typeID,
+      itemName: entity.itemName,
+      profileID: "generic_hostile",
+      npcEntityType: "npc",
+    });
+    assert.ok(resolvedWreck);
+    assert.equal(String(resolvedWreck.name || ""), "Blood Small Wreck");
+
+    const destroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      entity,
+    );
+    assert.equal(destroyResult.success, true);
+    assert.equal(
+      String(destroyResult.data.wreck.itemName || ""),
+      "Blood Small Wreck",
+    );
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("generated Trig NPC destruction seeds authored survey-data loot through the native wreck path", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const entity = createTransientGeneratedNpc(
+      "parity_trig_renewing_rodiva",
+      { x: 225_000, y: 0, z: 90_000 },
+    );
+    const destroyResult = withMockedRandom([0, 0.99, 0, 0], () => (
+      shipDestruction._testing.destroyShipEntityWithWreck(
+        TEST_SYSTEM_ID,
+        entity,
+      )
+    ));
+    assert.equal(destroyResult.success, true);
+
+    const wreckItems = nativeNpcStore.listNativeWreckItemsForWreck(
+      destroyResult.data.wreck.wreckID,
+    );
+    assert.ok(wreckItems.length >= 2, "expected generated Trig wreck items");
+    assert.equal(
+      wreckItems.some((entry) => (
+        Number(entry && entry.typeID) === 48121 &&
+        Number(entry && entry.quantity) === 2
+      )),
+      true,
+      "expected authored Trig survey database drop in the wreck",
+    );
+    assert.equal(
+      wreckItems.some((entry) => Number(entry && entry.typeID) === 49735),
+      true,
+      "expected authored Trig mutaplasmid roll in the wreck",
+    );
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("generated Drifter NPC destruction seeds authored blue-loot drops through the native wreck path", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const entity = createTransientGeneratedNpc(
+      "parity_drifter_lancer",
+      { x: 245_000, y: 0, z: 110_000 },
+    );
+    const destroyResult = withMockedRandom([0, 0.99, 0, 0], () => (
+      shipDestruction._testing.destroyShipEntityWithWreck(
+        TEST_SYSTEM_ID,
+        entity,
+      )
+    ));
+    assert.equal(destroyResult.success, true);
+
+    const wreckItems = nativeNpcStore.listNativeWreckItemsForWreck(
+      destroyResult.data.wreck.wreckID,
+    );
+    assert.ok(wreckItems.length >= 2, "expected generated Drifter wreck items");
+    assert.equal(
+      wreckItems.some((entry) => (
+        Number(entry && entry.typeID) === 30745 &&
+        Number(entry && entry.quantity) === 4
+      )),
+      true,
+      "expected authored Drifter sleeper-library drop in the wreck",
+    );
+    assert.equal(
+      wreckItems.some((entry) => Number(entry && entry.typeID) === 34575),
+      true,
+      "expected authored Drifter Antikythera roll in the wreck",
+    );
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("capital NPC destruction uses explicit faction wreck mappings instead of the generic wreck fallback", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const bloodTitan = createTransientCapitalNpc("capital_dark_blood_titan");
+    const bloodTitanDestroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      bloodTitan,
+    );
+    assert.equal(bloodTitanDestroyResult.success, true);
+    assert.equal(
+      String(bloodTitanDestroyResult.data.wreck.itemName || ""),
+      "Blood Titan Wreck",
+    );
+
+    const sanshaSuper = createTransientCapitalNpc("capital_true_sanshas_supercarrier");
+    const sanshaSuperDestroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      sanshaSuper,
+    );
+    assert.equal(sanshaSuperDestroyResult.success, true);
+    assert.equal(
+      String(sanshaSuperDestroyResult.data.wreck.itemName || ""),
+      "Sanshas Supercarrier Wreck",
+    );
+
+    const rogueCarrier = createTransientCapitalNpc("capital_infested_carrier");
+    const rogueCarrierDestroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      rogueCarrier,
+    );
+    assert.equal(rogueCarrierDestroyResult.success, true);
+    assert.equal(
+      String(rogueCarrierDestroyResult.data.wreck.itemName || ""),
+      "Rogue Carrier Wreck",
+    );
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("capital NPC destruction still resolves the authored wreck when the profile record is unavailable at death time", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const bloodTitan = createTransientCapitalNpc("capital_dark_blood_titan");
+    nativeNpcStore.removeNativeEntityCascade(bloodTitan.itemID);
+    assert.equal(nativeNpcStore.getNativeEntity(bloodTitan.itemID), null);
+
+    const destroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      bloodTitan,
+    );
+    assert.equal(destroyResult.success, true);
+    assert.equal(
+      String(destroyResult.data.wreck.itemName || ""),
+      "Blood Titan Wreck",
+    );
+  } finally {
+    runtime._testing.clearScenes();
+    restoreAllTables(tableSnapshot);
+  }
+});
+
+test("fighter-capable capital destruction removes launched NPC fighters before wreck handoff", () => {
+  const tableSnapshot = snapshotAllTables();
+  runtime._testing.clearScenes();
+
+  try {
+    const supercarrier = createTransientCapitalNpc("capital_true_sanshas_supercarrier");
+    const scene = runtime.ensureScene(TEST_SYSTEM_ID);
+    const controller = npcService.getControllerByEntityID(supercarrier.itemID);
+    assert.ok(controller, "expected capital controller");
+    assert.ok(
+      Array.isArray(controller.behaviorProfile && controller.behaviorProfile.capitalFighterWingTypeIDs),
+      "expected fighter-capable behavior profile",
+    );
+
+    const launchResult = launchNpcFighterWing(
+      scene,
+      supercarrier,
+      controller.behaviorProfile,
+      {
+        maxLaunchCount: 5,
+      },
+    );
+    assert.equal(launchResult.success, true);
+    assert.ok(getFighterEntities(scene, supercarrier.itemID).length > 0, "expected launched NPC fighter squadrons");
+
+    const destroyResult = shipDestruction._testing.destroyShipEntityWithWreck(
+      TEST_SYSTEM_ID,
+      supercarrier,
+    );
+    assert.equal(destroyResult.success, true);
+    assert.ok(
+      Number(destroyResult.data && destroyResult.data.destroyedFighterCount) > 0,
+      "expected the death path to report destroyed fighter squadrons",
+    );
+    assert.equal(
+      getFighterEntities(scene, supercarrier.itemID).length,
+      0,
+      "expected launched fighter squadrons to be removed when the capital dies",
+    );
   } finally {
     runtime._testing.clearScenes();
     restoreAllTables(tableSnapshot);

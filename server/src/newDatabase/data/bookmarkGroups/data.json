@@ -1,0 +1,116 @@
+{
+  "records": {
+    "800001": {
+      "groupID": 800001,
+      "creatorID": 1000044,
+      "name": "School of Applied Knowledge Bookmarks",
+      "description": "",
+      "admins": [
+        1000044
+      ],
+      "members": [
+        1000044
+      ],
+      "membershipType": 2,
+      "created": "134200729414570000"
+    },
+    "800002": {
+      "groupID": 800002,
+      "creatorID": 98000000,
+      "name": "Elysian Corp Bookmarks",
+      "description": "",
+      "admins": [
+        98000000
+      ],
+      "members": [
+        98000000
+      ],
+      "membershipType": 2,
+      "created": "134200745365140000"
+    },
+    "800003": {
+      "groupID": 800003,
+      "creatorID": 1000006,
+      "name": "Deep Core Mining Inc. Bookmarks",
+      "description": "",
+      "admins": [
+        1000006
+      ],
+      "members": [
+        1000006
+      ],
+      "membershipType": 2,
+      "created": "134201297150300000"
+    },
+    "800004": {
+      "groupID": 800004,
+      "creatorID": 1000060,
+      "name": "Native Freshfood Bookmarks",
+      "description": "",
+      "admins": [
+        1000060
+      ],
+      "members": [
+        1000060
+      ],
+      "membershipType": 2,
+      "created": "134205091234250000"
+    },
+    "800005": {
+      "groupID": 800005,
+      "creatorID": 1000066,
+      "name": "Viziam Bookmarks",
+      "description": "",
+      "admins": [
+        1000066
+      ],
+      "members": [
+        1000066
+      ],
+      "membershipType": 2,
+      "created": "134205108787780000"
+    },
+    "800006": {
+      "groupID": 800006,
+      "creatorID": 1000107,
+      "name": "The Scope Bookmarks",
+      "description": "",
+      "admins": [
+        1000107
+      ],
+      "members": [
+        1000107
+      ],
+      "membershipType": 2,
+      "created": "134205134804560000"
+    },
+    "800007": {
+      "groupID": 800007,
+      "creatorID": 1000046,
+      "name": "Sebiestor Tribe Bookmarks",
+      "description": "",
+      "admins": [
+        1000046
+      ],
+      "members": [
+        1000046
+      ],
+      "membershipType": 2,
+      "created": "134206091955290000"
+    },
+    "800008": {
+      "groupID": 800008,
+      "creatorID": 1000080,
+      "name": "Ministry of War Bookmarks",
+      "description": "",
+      "admins": [
+        1000080
+      ],
+      "members": [
+        1000080
+      ],
+      "membershipType": 2,
+      "created": "134206101238200000"
+    }
+  }
+}

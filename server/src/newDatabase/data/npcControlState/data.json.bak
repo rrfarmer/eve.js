@@ -1,0 +1,12 @@
+{
+  "startupRuleOverrides": {
+    "jita_concord_gate_checkpoint_startup": {
+      "enabled": false
+    },
+    "tanoo_blood_gate_ambush_startup": {
+      "enabled": false
+    }
+  },
+  "characterFlags": {},
+  "systemGateControls": {}
+}

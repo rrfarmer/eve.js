@@ -6,9 +6,6 @@ const {
   currentFileTime,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
-const {
   getCorporationMember,
 } = require(path.join(__dirname, "./corporationRuntimeState"));
 const {
@@ -25,6 +22,16 @@ const EVERMARK_ISSUER_CORP_ID = 1000419;
 const EM_DONATION_MIN_MEMBERSHIP_DAYS = 0;
 const CORP_ROLE_DIRECTOR = 1n;
 const CORP_ROLE_BRAND_MANAGER = 34359738368n;
+
+function getCharacterRecord(characterID) {
+  const characterState = require(path.join(
+    __dirname,
+    "../character/characterState",
+  ));
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
 
 const DEFAULT_LP_WALLET_TABLE = Object.freeze({
   _meta: {

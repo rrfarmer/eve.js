@@ -17,9 +17,9 @@ function clearRuntimeCycle() {
   }
 }
 
-function buildSession() {
+function buildSession(userID) {
   return {
-    userid: 2,
+    userid: userID,
     clientID: 999,
     clientId: 999,
     sid: 1n,
@@ -31,19 +31,22 @@ function buildSession() {
   };
 }
 
-function findSpaceCharacterID(database, getActiveShipRecord) {
+function findSpaceCharacter(database, getActiveShipRecord) {
   const charactersResult = database.read("characters", "/");
   assert.equal(charactersResult.success, true, "Failed to read characters table");
 
-  const characterID = Object.keys(charactersResult.data || {})
-    .map((value) => Number(value) || 0)
+  const entry = Object.entries(charactersResult.data || {})
+    .map(([characterID, character]) => ({
+      characterID: Number(characterID) || 0,
+      accountID: Number(character && (character.accountId ?? character.accountID)) || 0,
+    }))
     .find((candidate) => {
-      const ship = getActiveShipRecord(candidate);
-      return ship && ship.spaceState;
+      const ship = getActiveShipRecord(candidate.characterID);
+      return candidate.accountID > 0 && ship && ship.spaceState;
     });
 
-  assert.ok(characterID, "Expected an in-space character for runtime startup test");
-  return characterID;
+  assert.ok(entry, "Expected an owned in-space character for runtime startup test");
+  return entry;
 }
 
 test("space runtime export survives runtime-first circular startup order", () => {
@@ -62,8 +65,8 @@ test("space runtime export survives runtime-first circular startup order", () =>
     "server/src/services/character/characterState",
   ));
 
-  const characterID = findSpaceCharacterID(database, getActiveShipRecord);
-  const session = buildSession();
+  const { characterID, accountID } = findSpaceCharacter(database, getActiveShipRecord);
+  const session = buildSession(accountID);
   const service = new CharService();
 
   runtime._testing.clearScenes();

@@ -1273,7 +1273,10 @@ function setChannelOwner(roomName, ownerCharacterID) {
 }
 
 function getLiveSessions() {
-  return sessionRegistry.getSessions();
+  return sessionRegistry.getSessions().filter((session) => (
+    session &&
+    (!session.socket || session.socket.destroyed !== true)
+  ));
 }
 
 function getLocalSessionsForRoom(roomName) {

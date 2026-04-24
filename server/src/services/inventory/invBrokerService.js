@@ -26,6 +26,7 @@ const {
   flushDeferredDockedFittingReplay,
   syncInventoryItemForSession,
   syncShipFittingStateForSession,
+  syncLoadedChargeDogmaBootstrapForSession,
 } = require(path.join(__dirname, "../character/characterState"));
 const {
   ITEM_FLAGS,
@@ -35,9 +36,9 @@ const {
   findShipItemById,
   getItemMetadata,
   moveItemToLocation,
+  removeInventoryItem,
   transferItemToOwnerLocation,
   mergeItemStacks,
-  removeInventoryItem,
 } = require(path.join(__dirname, "./itemStore"));
 const {
   getCorporationOfficeByInventoryID,
@@ -50,15 +51,28 @@ const {
   listFittedItems,
   selectAutoFitFlagForType,
   validateFitForShip,
-  calculateShipDerivedAttributes,
   getShipBaseAttributeValue,
   SLOT_FAMILY_FLAGS,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
+const {
+  getShipFittingSnapshot,
+} = require(path.join(__dirname, "../../_secondary/fitting/fittingRuntime"));
+const {
+  clearModuleFromBanksAndNotify,
+  getMasterModuleID: getWeaponBankMasterModuleID,
+  notifyWeaponBanksChanged,
+  getShipWeaponBanks,
+} = require(path.join(__dirname, "../moduleGrouping/moduleGroupingRuntime"));
 const {
   MINING_SHIP_BAY_FLAGS,
   isItemTypeAllowedInHoldFlag,
   getShipHoldCapacityByFlag,
 } = require(path.join(__dirname, "../mining/miningInventory"));
+const {
+  isFuelBayFlag,
+  isFuelBayCompatibleItem,
+  getFuelBayCapacity,
+} = require(path.join(__dirname, "./fuelBayInventory"));
 const {
   isDroneItemRecord,
   isFighterItemRecord,
@@ -97,12 +111,17 @@ const {
   getDockedLocationID,
   isDockedSession,
 } = require(path.join(__dirname, "../structure/structureLocation"));
+const {
+  buildList,
+  unwrapMarshalValue,
+} = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const fleetRuntime = require(path.join(__dirname, "../fleets/fleetRuntime"));
 
 const inventoryDebugPath = path.join(
   __dirname,
   "../../../logs/inventory-debug.log",
 );
+const CANNOT_TRASH_ERROR = "CannotTrashItem";
 const CONTAINER_HANGAR_ID = 10004;
 const CONTAINER_CORP_MARKET_ID = 10012;
 const CONTAINER_STRUCTURE_ID = 10014;
@@ -147,6 +166,7 @@ const INVENTORY_ROW_DESCRIPTOR_COLUMNS = [
 const SHIP_BAY_FLAGS = new Set([
   ITEM_FLAGS.HANGAR,
   ITEM_FLAGS.CARGO_HOLD,
+  ITEM_FLAGS.FUEL_BAY,
   ITEM_FLAGS.DRONE_BAY,
   ITEM_FLAGS.FIGHTER_BAY,
   ITEM_FLAGS.SHIP_HANGAR,
@@ -480,6 +500,149 @@ class InvBrokerService extends BaseService {
     return normalizedItems.length > 0;
   }
 
+  _buildStableFittingChargeRepairKey(
+    session,
+    boundContext,
+    requestedFlag,
+    items = [],
+  ) {
+    if (
+      !this._isActiveInSpaceShipInventory(session, boundContext) ||
+      requestedFlag !== null
+    ) {
+      return "";
+    }
+
+    const numericShipID = this._normalizeInventoryId(
+      boundContext && boundContext.inventoryID,
+      0,
+    );
+    if (numericShipID <= 0) {
+      return "";
+    }
+
+    return (Array.isArray(items) ? items : [])
+      .filter((item) => {
+        if (!item || typeof item !== "object") {
+          return false;
+        }
+        if (
+          this._normalizeInventoryId(item.locationID, 0) !== numericShipID ||
+          !isShipFittingFlag(item.flagID)
+        ) {
+          return false;
+        }
+        return this._normalizeInventoryId(item.categoryID, 0) === 8;
+      })
+      .map((item) => {
+        const numericFlagID = this._normalizeInventoryId(item.flagID, 0);
+        const numericTypeID = this._normalizeInventoryId(item.typeID, 0);
+        const numericQuantity = Math.max(
+          0,
+          Number(item.stacksize ?? item.quantity ?? 0) || 0,
+        );
+        return `${numericFlagID}:${numericTypeID}:${numericQuantity}`;
+      })
+      .sort()
+      .join("|");
+  }
+
+  _shouldRepairStableShipInventoryChargeRowsForFitting(
+    session,
+    boundContext,
+    requestedFlag,
+  ) {
+    if (
+      !this._isActiveInSpaceShipInventory(session, boundContext) ||
+      !session ||
+      !session._space ||
+      requestedFlag !== null ||
+      session._space.useRealChargeInventoryHudRows !== true
+    ) {
+      return false;
+    }
+
+    if (Boolean(session._pendingCommandShipFittingReplay)) {
+      return false;
+    }
+
+    if (
+      session._loginInventoryBootstrapPending === true ||
+      session._space.loginInventoryBootstrapPending === true ||
+      session._space.loginChargeDogmaReplayPending === true
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  _repairStableShipInventoryChargeRowsForFitting(
+    session,
+    boundContext,
+    requestedFlag,
+    items = [],
+  ) {
+    if (
+      !this._shouldRepairStableShipInventoryChargeRowsForFitting(
+        session,
+        boundContext,
+        requestedFlag,
+      )
+    ) {
+      return false;
+    }
+
+    const shipID = this._normalizeInventoryId(
+      boundContext && boundContext.inventoryID,
+      0,
+    );
+    if (shipID <= 0) {
+      return false;
+    }
+
+    const nextRepairKey = this._buildStableFittingChargeRepairKey(
+      session,
+      boundContext,
+      requestedFlag,
+      items,
+    );
+    if (!session._space.stableFittingChargeRepairKeys) {
+      session._space.stableFittingChargeRepairKeys = Object.create(null);
+    }
+    const previousRepairKey =
+      session._space.stableFittingChargeRepairKeys[shipID] || "";
+
+    if (!nextRepairKey) {
+      session._space.stableFittingChargeRepairKeys[shipID] = "";
+      return false;
+    }
+
+    if (previousRepairKey === nextRepairKey) {
+      return false;
+    }
+
+    const repairedCount = syncLoadedChargeDogmaBootstrapForSession(
+      session,
+      shipID,
+      {
+        mode: CHARGE_DOGMA_REPLAY_MODE_REFRESH_ONLY,
+        refreshDelayMs: 0,
+      },
+    );
+    if ((Number(repairedCount) || 0) <= 0) {
+      return false;
+    }
+
+    session._space.stableFittingChargeRepairKeys[shipID] = nextRepairKey;
+    log.debug(
+      `[InvBroker] stable fitting charge repair shipID=${shipID} ` +
+      `count=${Number(repairedCount) || 0} key=${nextRepairKey} ` +
+      `${describeSessionHydrationState(session, shipID)}`,
+    );
+    return true;
+  }
+
   _isActiveShipInventory(session, boundContext) {
     if (
       !session ||
@@ -561,6 +724,79 @@ class InvBrokerService extends BaseService {
     );
   }
 
+  _primeDeferredSpaceBallparkVisuals(
+    session,
+    boundContext = null,
+    options = {},
+  ) {
+    if (
+      !this._isActiveInSpaceShipInventory(session, boundContext) ||
+      !session ||
+      !session._space
+    ) {
+      return false;
+    }
+
+    if (
+      session._space.initialBallparkVisualsSent === true ||
+      session._space.initialStateSent === true
+    ) {
+      return false;
+    }
+
+    // Direct login keeps restore-time attach as "no bootstrap yet" so the
+    // packaged client can finish spinning up Michelle/GameUI first. Once the
+    // active ship inventory is already being bound, it is safe to seed just
+    // the AddBalls2 visual half early, while still leaving the authoritative
+    // SetState for the later beyonce bind.
+    if (session._space.beyonceBound !== true) {
+      session._space.deferInitialBallparkStateUntilBind = true;
+    }
+
+    const startedAtMs = Date.now();
+    const primed = runtime.ensureInitialBallpark(session, {
+      allowDeferredJumpBootstrapVisuals: true,
+    });
+    const elapsedMs = Date.now() - startedAtMs;
+    if (
+      runtime &&
+      typeof runtime.recordSessionJumpTimingTrace === "function"
+    ) {
+      runtime.recordSessionJumpTimingTrace(
+        session,
+        "invbroker-prime-deferred-ballpark",
+        {
+          primed: primed === true,
+          elapsedMs,
+          reason:
+            typeof options.reason === "string" && options.reason.trim().length > 0
+              ? options.reason.trim()
+              : "unknown",
+          beyonceBound: session._space.beyonceBound === true,
+        },
+      );
+    }
+    if (primed) {
+      log.debug(
+        `[InvBroker] Primed deferred ballpark visuals source=${
+          typeof options.reason === "string" && options.reason.trim().length > 0
+            ? options.reason.trim()
+            : "unknown"
+        } ${describeSessionHydrationState(session)}`,
+      );
+    }
+    if (elapsedMs >= 100) {
+      log.info(
+        `[InvBroker] Deferred ballpark prime source=${
+          typeof options.reason === "string" && options.reason.trim().length > 0
+            ? options.reason.trim()
+            : "unknown"
+        } took ${elapsedMs}ms primed=${primed ? 1 : 0}`,
+      );
+    }
+    return primed;
+  }
+
   _primePendingSpaceShipInventoryReplay(
     session,
     boundContext = null,
@@ -571,6 +807,12 @@ class InvBrokerService extends BaseService {
     }
 
     session._space.loginShipInventoryPrimed = true;
+    this._primeDeferredSpaceBallparkVisuals(session, boundContext, {
+      reason:
+        typeof options.reason === "string" && options.reason.trim().length > 0
+          ? options.reason.trim()
+          : "shipInventoryPrime",
+    });
     const fittingReplayFlushed =
       tryFlushPendingShipFittingReplay(session) === true;
     if (
@@ -593,6 +835,22 @@ class InvBrokerService extends BaseService {
         })
       ) {
         return;
+      }
+    }
+    if (
+      !fittingReplayFlushed &&
+      Boolean(session._pendingCommandShipFittingReplay) &&
+      session._pendingCommandShipFittingReplay.awaitPostLoginHudTurretBootstrap === true
+    ) {
+      const implicitHudBootstrapDelayMs = Math.max(
+        0,
+        Number(session._space.loginImplicitHudBootstrapDelayMs) || 0,
+      );
+      if (implicitHudBootstrapDelayMs > 0) {
+        requestPendingShipFittingReplayFromHud(session, null, {
+          delayMs: implicitHudBootstrapDelayMs,
+          reason: "invbroker.shipInventoryPrimeImplicitHud",
+        });
       }
     }
     if (
@@ -799,6 +1057,115 @@ class InvBrokerService extends BaseService {
 
     const normalizedValue = Math.trunc(numericValue);
     return normalizedValue > 0 ? normalizedValue : null;
+  }
+
+  _extractFitFittingEntryPairs(value) {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+
+    if (value instanceof Map) {
+      return [...value.entries()];
+    }
+
+    if (value.type === "dict" && Array.isArray(value.entries)) {
+      return value.entries;
+    }
+
+    if (
+      (value.type === "objectex1" || value.type === "objectex2") &&
+      Array.isArray(value.dict)
+    ) {
+      return value.dict;
+    }
+
+    if (
+      value.type === "object" &&
+      value.args &&
+      value.args.type === "dict" &&
+      Array.isArray(value.args.entries)
+    ) {
+      return value.args.entries;
+    }
+
+    return null;
+  }
+
+  _appendFitFittingItemsByType(byType, rawTypeID, rawItemIDs) {
+    const typeID = this._normalizeInventoryId(unwrapMarshalValue(rawTypeID), 0);
+    if (typeID <= 0) {
+      return;
+    }
+
+    const unwrappedItemIDs = unwrapMarshalValue(rawItemIDs);
+    const itemIDs = (Array.isArray(unwrappedItemIDs) ? unwrappedItemIDs : [unwrappedItemIDs])
+      .map((entry) => this._normalizeInventoryId(unwrapMarshalValue(entry), 0))
+      .filter((entry) => entry > 0);
+    if (itemIDs.length <= 0) {
+      return;
+    }
+
+    const existingItemIDs = byType.get(typeID) || [];
+    existingItemIDs.push(...itemIDs);
+    byType.set(typeID, existingItemIDs);
+  }
+
+  _normalizeFitFittingItemsByType(value) {
+    const byType = new Map();
+    const rawEntryPairs = this._extractFitFittingEntryPairs(value);
+    if (Array.isArray(rawEntryPairs)) {
+      for (const [rawTypeID, rawItemIDs] of rawEntryPairs) {
+        this._appendFitFittingItemsByType(byType, rawTypeID, rawItemIDs);
+      }
+
+      return byType;
+    }
+
+    const unwrapped = unwrapMarshalValue(value);
+    const unwrappedEntryPairs =
+      unwrapped && typeof unwrapped === "object" && Array.isArray(unwrapped.dict)
+        ? unwrapped.dict
+        : null;
+    if (Array.isArray(unwrappedEntryPairs)) {
+      for (const [rawTypeID, rawItemIDs] of unwrappedEntryPairs) {
+        this._appendFitFittingItemsByType(byType, rawTypeID, rawItemIDs);
+      }
+
+      return byType;
+    }
+
+    const source =
+      unwrapped && typeof unwrapped === "object" && !Array.isArray(unwrapped)
+        ? unwrapped
+        : {};
+
+    for (const [rawTypeID, rawItemIDs] of Object.entries(source)) {
+      this._appendFitFittingItemsByType(byType, rawTypeID, rawItemIDs);
+    }
+
+    return byType;
+  }
+
+  _normalizeFitFittingModulesByFlag(value) {
+    const unwrapped = unwrapMarshalValue(value);
+    const payload =
+      unwrapped && typeof unwrapped === "object" && !Array.isArray(unwrapped)
+        ? unwrapped
+        : {};
+    const source =
+      payload.modulesByFlag &&
+      typeof payload.modulesByFlag === "object" &&
+      !Array.isArray(payload.modulesByFlag)
+        ? payload.modulesByFlag
+        : payload;
+
+    return Object.entries(source)
+      .map(([rawFlagID, rawTypeID]) => ({
+        flagID: this._normalizeInventoryId(rawFlagID, 0),
+        typeID: this._normalizeInventoryId(rawTypeID, 0),
+      }))
+      .filter((entry) => entry.flagID > 0 && entry.typeID > 0)
+      .sort((left, right) => left.flagID - right.flagID);
   }
 
   _resolveMoveQuantity(item, destination, requestedQuantity = null) {
@@ -1396,6 +1763,15 @@ class InvBrokerService extends BaseService {
     }
 
     const destinationFlagID = this._normalizeInventoryId(destination.flagID, 0);
+    if (isFuelBayFlag(destinationFlagID)) {
+      return isFuelBayCompatibleItem(item)
+        ? { success: true }
+        : {
+            success: false,
+            errorMsg: "NotEnoughCargoSpace",
+          };
+    }
+
     if (destinationFlagID === ITEM_FLAGS.DRONE_BAY) {
       return isDroneItemRecord(item)
         ? { success: true }
@@ -1533,6 +1909,103 @@ class InvBrokerService extends BaseService {
     };
   }
 
+  _resolveInventoryRootLocationID(itemOrItemID) {
+    let currentItem =
+      itemOrItemID && typeof itemOrItemID === "object"
+        ? itemOrItemID
+        : findItemById(this._normalizeInventoryId(itemOrItemID, 0));
+    const seen = new Set();
+
+    while (currentItem) {
+      const currentItemID = this._normalizeInventoryId(currentItem.itemID, 0);
+      const locationID = this._normalizeInventoryId(currentItem.locationID, 0);
+      if (locationID <= 0) {
+        return 0;
+      }
+
+      if (seen.has(currentItemID)) {
+        return locationID;
+      }
+      seen.add(currentItemID);
+
+      const parentItem = findItemById(locationID);
+      if (!parentItem) {
+        return locationID;
+      }
+      currentItem = parentItem;
+    }
+
+    return 0;
+  }
+
+  _isInventoryItemTrashable(session, item, requestedLocationID = 0) {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const characterID = this._getCharacterId(session);
+    const itemID = this._normalizeInventoryId(item.itemID, 0);
+    const ownerID = this._normalizeInventoryId(item.ownerID, 0);
+    const activeShipID = this._getShipId(session);
+    if (itemID <= 0 || ownerID !== characterID) {
+      return false;
+    }
+
+    if (itemID === activeShipID) {
+      return false;
+    }
+
+    if (isShipFittingFlag(item.flagID)) {
+      return false;
+    }
+
+    const normalizedRequestedLocationID = this._normalizeInventoryId(
+      requestedLocationID,
+      0,
+    );
+    if (normalizedRequestedLocationID <= 0) {
+      return true;
+    }
+
+    return (
+      this._resolveInventoryRootLocationID(item) === normalizedRequestedLocationID
+    );
+  }
+
+  _filterTopLevelTrashItemIDs(itemIDs = []) {
+    const normalizedItemIDs = this._normalizeItemIdList(itemIDs);
+    const selected = new Set(normalizedItemIDs);
+    const topLevelIDs = [];
+
+    for (const itemID of normalizedItemIDs) {
+      let currentItem = findItemById(itemID);
+      let coveredByAncestor = false;
+      const seen = new Set([itemID]);
+
+      while (currentItem) {
+        const parentID = this._normalizeInventoryId(currentItem.locationID, 0);
+        if (parentID <= 0) {
+          break;
+        }
+        if (selected.has(parentID)) {
+          coveredByAncestor = true;
+          break;
+        }
+        if (seen.has(parentID)) {
+          break;
+        }
+        seen.add(parentID);
+        currentItem = findItemById(parentID);
+      }
+
+      if (!coveredByAncestor) {
+        topLevelIDs.push(itemID);
+      }
+    }
+
+    return topLevelIDs;
+  }
+
   _moveSourceItemToDestination(session, sourceItemDescriptor, destination, quantity = null) {
     if (!sourceItemDescriptor || !sourceItemDescriptor.item || !destination) {
       return {
@@ -1540,6 +2013,19 @@ class InvBrokerService extends BaseService {
         errorMsg: "ITEM_NOT_FOUND",
       };
     }
+
+    const sourceItem = sourceItemDescriptor.item;
+    const groupingContext = {
+      shipID: this._normalizeInventoryId(sourceItem.locationID, 0),
+      moduleID: this._normalizeInventoryId(sourceItem.itemID, 0),
+      wasGrouped:
+        Number(sourceItem.categoryID) === 7 &&
+        isShipFittingFlag(sourceItem.flagID) &&
+        getWeaponBankMasterModuleID(
+          this._normalizeInventoryId(sourceItem.locationID, 0),
+          this._normalizeInventoryId(sourceItem.itemID, 0),
+        ) > 0,
+    };
 
     if (sourceItemDescriptor.sourceKind === "nativeWreck") {
       return nativeNpcWreckService.transferNativeWreckItemToCharacterLocation({
@@ -1566,21 +2052,87 @@ class InvBrokerService extends BaseService {
       destinationOffice &&
       this._isCorporationHangarFlag(destination.flagID)
     ) {
-      return transferItemToOwnerLocation(
+      const transferResult = transferItemToOwnerLocation(
         this._normalizeInventoryId(sourceItemDescriptor.item.itemID, 0),
         this._getCorporationId(session),
         this._normalizeInventoryId(destinationOffice.officeID, 0),
         destination.flagID,
         quantity,
       );
+      return this._applyModuleGroupingMoveCleanup(
+        session,
+        sourceItemDescriptor,
+        destination,
+        transferResult,
+        groupingContext,
+      );
     }
 
-    return moveItemToLocation(
+    const moveResult = moveItemToLocation(
       this._normalizeInventoryId(sourceItemDescriptor.item.itemID, 0),
       destination.locationID,
       destination.flagID,
       quantity,
     );
+    return this._applyModuleGroupingMoveCleanup(
+      session,
+      sourceItemDescriptor,
+      destination,
+      moveResult,
+      groupingContext,
+    );
+  }
+
+  _applyModuleGroupingMoveCleanup(
+    session,
+    sourceItemDescriptor,
+    destination,
+    moveResult,
+    groupingContext = null,
+  ) {
+    if (
+      !moveResult ||
+      !moveResult.success ||
+      !sourceItemDescriptor ||
+      !sourceItemDescriptor.item
+    ) {
+      return moveResult;
+    }
+
+    const sourceItem = sourceItemDescriptor.item;
+    const sourceShipID = this._normalizeInventoryId(sourceItem.locationID, 0);
+    const sourceFlagID = this._normalizeInventoryId(sourceItem.flagID, 0);
+    const destinationLocationID = this._normalizeInventoryId(destination.locationID, 0);
+    const destinationFlagID = this._normalizeInventoryId(destination.flagID, 0);
+    const movedOutOfShipFitting =
+      Number(sourceItem.categoryID) === 7 &&
+      isShipFittingFlag(sourceFlagID) &&
+      (
+        destinationLocationID !== sourceShipID ||
+        !isShipFittingFlag(destinationFlagID)
+      );
+    if (!movedOutOfShipFitting) {
+      return moveResult;
+    }
+
+    clearModuleFromBanksAndNotify(
+      session,
+      sourceShipID,
+      [sourceItem.itemID],
+      {
+        characterID: this._getCharacterId(session),
+      },
+    );
+    if (groupingContext && groupingContext.wasGrouped) {
+      notifyWeaponBanksChanged(
+        session,
+        groupingContext.shipID,
+        getShipWeaponBanks(groupingContext.shipID, {
+          characterID: this._getCharacterId(session),
+        }),
+      );
+    }
+    return moveResult;
   }
 
   _buildCharacterItemOverrides(session) {
@@ -2004,17 +2556,25 @@ class InvBrokerService extends BaseService {
     let capacity = 1000000.0;
     const shipRecord = this._getShipInventoryRecord(session, boundContext);
     if (shipRecord) {
+      const requiresDerivedShipState =
+        numericFlag === ITEM_FLAGS.CARGO_HOLD ||
+        isFuelBayFlag(numericFlag) ||
+        MINING_SHIP_BAY_FLAGS.includes(numericFlag);
+      const fittingSnapshot = requiresDerivedShipState
+        ? getShipFittingSnapshot(this._getCharacterId(session), shipRecord.itemID, {
+            shipItem: shipRecord,
+            reason: "invbroker.capacity",
+          })
+        : null;
+      const resourceState = fittingSnapshot && fittingSnapshot.resourceState
+        ? fittingSnapshot.resourceState
+        : {};
+
       if (numericFlag === ITEM_FLAGS.CARGO_HOLD) {
-        const { resourceState } = calculateShipDerivedAttributes(
-          this._getCharacterId(session),
-          shipRecord,
-        );
         capacity = Number(resourceState.cargoCapacity) || 0;
+      } else if (isFuelBayFlag(numericFlag)) {
+        capacity = Number(getFuelBayCapacity(resourceState)) || 0;
       } else if (MINING_SHIP_BAY_FLAGS.includes(numericFlag)) {
-        const { resourceState } = calculateShipDerivedAttributes(
-          this._getCharacterId(session),
-          shipRecord,
-        );
         capacity = Number(getShipHoldCapacityByFlag(resourceState, numericFlag)) || 0;
       } else if (numericFlag === ITEM_FLAGS.DRONE_BAY) {
         capacity = Number(
@@ -2048,6 +2608,8 @@ class InvBrokerService extends BaseService {
         capacity;
     } else if (numericFlag === ITEM_FLAGS.CARGO_HOLD) {
       capacity = 5000.0;
+    } else if (isFuelBayFlag(numericFlag)) {
+      capacity = 0.0;
     } else if (MINING_SHIP_BAY_FLAGS.includes(numericFlag)) {
       capacity = 0.0;
     } else if (numericFlag === ITEM_FLAGS.DRONE_BAY) {
@@ -2495,6 +3057,12 @@ class InvBrokerService extends BaseService {
         reason: "invbroker.List.postResult",
       });
     }
+    this._repairStableShipInventoryChargeRowsForFitting(
+      session,
+      boundContext,
+      requestedFlag,
+      itemsForContainer,
+    );
     return result;
   }
 
@@ -2712,29 +3280,32 @@ class InvBrokerService extends BaseService {
 
   Handle_TrashItems(args, session) {
     this._traceInventory("TrashItems", session, { args });
-    const itemIDs = this._normalizeItemIdList(args && args.length > 0 ? args[0] : args);
-    log.debug(`[InvBroker] TrashItems itemCount=${itemIDs.length}`);
+    log.debug("[InvBroker] TrashItems");
+    const itemIDs = this._normalizeItemIdList(args && args.length > 0 ? args[0] : []);
+    const requestedLocationID = this._normalizeInventoryId(
+      args && args.length > 1 ? args[1] : this._getStationId(session),
+      this._getStationId(session),
+    );
 
-    const allChanges = [];
-    let removedCount = 0;
-
-    for (const itemID of itemIDs) {
-      const removeResult = removeInventoryItem(itemID, { removeContents: true });
-      if (!removeResult.success) {
-        if (removeResult.errorMsg === "ITEM_NOT_FOUND") {
-          log.debug(`[InvBroker] TrashItems skipped itemID=${itemID} (not found)`);
-        } else {
-          log.warn(`[InvBroker] TrashItems failed to remove itemID=${itemID} error=${removeResult.errorMsg}`);
-        }
-        continue;
-      }
-
-      removedCount += 1;
-      allChanges.push(...((removeResult.data && removeResult.data.changes) || []));
+    if (itemIDs.length === 0) {
+      return null;
     }
 
-    if (removedCount <= 0) {
-      return null;
+    const inventoryItems = itemIDs.map((itemID) => findItemById(itemID));
+    const hasInvalidItem = inventoryItems.some(
+      (item) => !this._isInventoryItemTrashable(session, item, requestedLocationID),
+    );
+    if (hasInvalidItem) {
+      return [CANNOT_TRASH_ERROR];
+    }
+
+    const allChanges = [];
+    for (const itemID of this._filterTopLevelTrashItemIDs(itemIDs)) {
+      const removeResult = removeInventoryItem(itemID, { removeContents: true });
+      if (!removeResult.success) {
+        return [CANNOT_TRASH_ERROR];
+      }
+      allChanges.push(...((removeResult.data && removeResult.data.changes) || []));
     }
 
     this._emitInventoryMoveChanges(session, allChanges);
@@ -3172,6 +3743,130 @@ class InvBrokerService extends BaseService {
     return true;
   }
 
+  Handle_FitFitting(args, session, kwargs) {
+    this._traceInventory("FitFitting", session, { args, kwargs });
+    const shipID = this._normalizeInventoryId(args && args.length > 0 ? args[0] : 0, 0);
+    const sourceLocationID = this._normalizeInventoryId(
+      args && args.length > 3 ? args[3] : this._getStationId(session),
+      this._getStationId(session),
+    );
+    const itemsByType = this._normalizeFitFittingItemsByType(
+      args && args.length > 2 ? args[2] : {},
+    );
+    const modulesByFlag = this._normalizeFitFittingModulesByFlag(
+      args && args.length > 4 ? args[4] : {},
+    );
+    const shipRecord =
+      findCharacterShip(this._getCharacterId(session), shipID) ||
+      findShipItemById(shipID);
+    const fittedItemsSnapshot = shipRecord
+      ? listFittedItems(this._getCharacterId(session), shipRecord.itemID).map((item) => ({ ...item }))
+      : [];
+    const missingByType = new Map();
+    const allChanges = [];
+    let fittedCount = 0;
+
+    log.debug(
+      `[InvBroker] FitFitting shipID=${shipID} source=${sourceLocationID} moduleSlots=${modulesByFlag.length}`,
+    );
+
+    if (!shipRecord || modulesByFlag.length <= 0) {
+      return buildList([]);
+    }
+
+    for (const entry of modulesByFlag) {
+      const candidateItemIDs = itemsByType.get(entry.typeID) || [];
+      let fitted = false;
+
+      while (candidateItemIDs.length > 0) {
+        const itemID = candidateItemIDs.shift();
+        const sourceItemDescriptor = this._findTransferSourceItem(itemID, sourceLocationID);
+        const item = sourceItemDescriptor && sourceItemDescriptor.item
+          ? sourceItemDescriptor.item
+          : null;
+        if (!item || Number(item.typeID) !== entry.typeID) {
+          continue;
+        }
+
+        const destination = {
+          locationID: shipRecord.itemID,
+          flagID: entry.flagID,
+        };
+        const fitValidation = this._validateFittingMove(
+          session,
+          shipRecord,
+          item,
+          destination,
+          fittedItemsSnapshot,
+        );
+        if (!fitValidation.success) {
+          continue;
+        }
+        const shipBayValidation = this._validateShipBayMove(
+          session,
+          shipRecord,
+          item,
+          destination,
+        );
+        if (!shipBayValidation.success) {
+          continue;
+        }
+        const capacityCheck = this._checkCapacityForMove(
+          session,
+          { kind: "shipInventory", inventoryID: shipRecord.itemID, flagID: entry.flagID },
+          destination,
+          item,
+          1,
+        );
+        if (!capacityCheck.success) {
+          continue;
+        }
+
+        const moveResult = this._moveSourceItemToDestination(
+          session,
+          sourceItemDescriptor,
+          destination,
+          this._resolveAppliedMoveQuantity(item, destination, 1),
+        );
+        if (!moveResult.success) {
+          continue;
+        }
+
+        const movedItemID =
+          this._resolveMovedItemID(moveResult, itemID, destination) || itemID;
+        const movedItem = findItemById(movedItemID) || item;
+        fittedItemsSnapshot.push({
+          itemID: movedItemID,
+          typeID: movedItem.typeID,
+          flagID: entry.flagID,
+          locationID: shipRecord.itemID,
+          categoryID: movedItem.categoryID,
+          groupID: movedItem.groupID,
+        });
+        allChanges.push(...((moveResult.data && moveResult.data.changes) || []));
+        fittedCount += 1;
+        fitted = true;
+        break;
+      }
+
+      if (!fitted) {
+        missingByType.set(entry.typeID, (missingByType.get(entry.typeID) || 0) + 1);
+      }
+    }
+
+    if (fittedCount > 0) {
+      this._emitInventoryMoveChanges(session, allChanges);
+      this._refreshBallparkShipPresentation(session, allChanges);
+      this._refreshBallparkInventoryPresentation(session, allChanges);
+    }
+
+    return buildList(
+      [...missingByType.entries()]
+        .sort(([leftTypeID], [rightTypeID]) => leftTypeID - rightTypeID)
+        .map(([typeID, quantity]) => [typeID, quantity]),
+    );
+  }
+
   _listShipInventoryFlagContents(session, flagID) {
     const boundContext = this._getBoundContext(session);
     const shipInventoryID =
@@ -3217,6 +3912,12 @@ class InvBrokerService extends BaseService {
     this._traceInventory("ListFighterBay", session, { args, kwargs });
     log.debug("[InvBroker] ListFighterBay");
     return this._listShipInventoryFlagContents(session, ITEM_FLAGS.FIGHTER_BAY);
+  }
+
+  Handle_ListFuelBay(args, session, kwargs) {
+    this._traceInventory("ListFuelBay", session, { args, kwargs });
+    log.debug("[InvBroker] ListFuelBay");
+    return this._listShipInventoryFlagContents(session, ITEM_FLAGS.FUEL_BAY);
   }
 
   Handle_TakeOutTrash(args, session, kwargs) {
@@ -3334,6 +4035,13 @@ class InvBrokerService extends BaseService {
     log.debug(
       `[InvBroker] GetAvailableTurretSlots ${describeSessionHydrationState(session)}`,
     );
+    this._primeDeferredSpaceBallparkVisuals(
+      session,
+      this._getBoundContext(session),
+      {
+        reason: "GetAvailableTurretSlots",
+      },
+    );
     const charId = Number(
       session && (session.characterID || session.charid || session.userid),
     ) || 0;
@@ -3348,7 +4056,13 @@ class InvBrokerService extends BaseService {
       return 0;
     }
 
-    const { resourceState } = calculateShipDerivedAttributes(charId, shipRecord);
+    const fittingSnapshot = getShipFittingSnapshot(charId, shipRecord.itemID, {
+      shipItem: shipRecord,
+      reason: "invbroker.turret-slots",
+    });
+    const resourceState = fittingSnapshot && fittingSnapshot.resourceState
+      ? fittingSnapshot.resourceState
+      : {};
     return Math.max(0, Number(resourceState && resourceState.turretSlotsLeft) || 0);
   }
 

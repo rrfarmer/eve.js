@@ -1,11 +1,14 @@
 const path = require("path");
 
+const log = require(path.join(__dirname, "../../utils/logger"));
 const spaceRuntime = require(path.join(__dirname, "../runtime"));
 const {
   resolveItemByTypeID,
 } = require(path.join(__dirname, "../../services/inventory/itemTypeRegistry"));
 const {
   normalizeModuleState,
+  getTypeAttributeValue,
+  typeHasEffectName,
 } = require(path.join(__dirname, "../../services/fitting/liveFittingState"));
 const {
   selectAutoFitFlagForNpcModuleType,
@@ -57,8 +60,115 @@ function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function isTransientStartupControllerRecord(entityRecord, controllerRecord) {
+  if (!entityRecord || !controllerRecord) {
+    return false;
+  }
+
+  const startupRuleID = String(controllerRecord.startupRuleID || "").trim();
+  const operatorKind = String(controllerRecord.operatorKind || "").trim();
+  return (
+    (entityRecord.transient === true || controllerRecord.transient === true) &&
+    (startupRuleID !== "" || operatorKind !== "")
+  );
+}
+
+function buildStoredControllerDebugContext(entityRecord, controllerRecord) {
+  return {
+    entityID: toPositiveInt(
+      controllerRecord && controllerRecord.entityID,
+      toPositiveInt(entityRecord && entityRecord.entityID, 0),
+    ),
+    systemID: toPositiveInt(
+      controllerRecord && controllerRecord.systemID,
+      toPositiveInt(entityRecord && entityRecord.systemID, 0),
+    ),
+    startupRuleID: String(controllerRecord && controllerRecord.startupRuleID || "").trim() || null,
+    operatorKind: String(controllerRecord && controllerRecord.operatorKind || "").trim() || null,
+    profileID: String(controllerRecord && controllerRecord.profileID || "").trim() || null,
+    loadoutID: String(entityRecord && entityRecord.loadoutID || "").trim() || null,
+    behaviorProfileID: String(entityRecord && entityRecord.behaviorProfileID || "").trim() || null,
+    entityType: String(controllerRecord && controllerRecord.entityType || "").trim().toLowerCase() || null,
+  };
+}
+
+function pruneInvalidStoredStartupController(entityRecord, controllerRecord) {
+  const context = buildStoredControllerDebugContext(entityRecord, controllerRecord);
+  const removeResult = nativeNpcStore.removeNativeEntityCascade(context.entityID);
+  if (!removeResult.success) {
+    return {
+      success: false,
+      errorMsg: removeResult.errorMsg || "NPC_INVALID_STARTUP_CONTROLLER_PRUNE_FAILED",
+    };
+  }
+
+  log.warn(
+    `[NativeNpc] Pruned invalid transient startup controller ` +
+      `entity=${context.entityID} system=${context.systemID} ` +
+      `rule=${context.startupRuleID || "-"} operator=${context.operatorKind || "-"} ` +
+      `profile=${context.profileID || "-"} loadout=${context.loadoutID || "-"} ` +
+      `behavior=${context.behaviorProfileID || "-"} type=${context.entityType || "-"}: ` +
+      `NPC_DEFINITION_INCOMPLETE`,
+  );
+
+  return {
+    success: true,
+    data: {
+      entity: null,
+      controller: null,
+      prunedInvalidStoredController: true,
+      ...context,
+    },
+  };
+}
+
+function normalizeExplicitFlagList(moduleEntry, quantity) {
+  const explicitFlags = Array.isArray(moduleEntry && moduleEntry.flagIDs)
+    ? moduleEntry.flagIDs
+    : (
+      moduleEntry && moduleEntry.flagID !== undefined && moduleEntry.flagID !== null
+        ? [moduleEntry.flagID]
+        : []
+    );
+  const normalizedFlags = explicitFlags
+    .map((value) => toPositiveInt(value, 0))
+    .filter((value) => value > 0);
+  if (normalizedFlags.length <= 0) {
+    return [];
+  }
+  if (normalizedFlags.length >= quantity) {
+    return normalizedFlags.slice(0, quantity);
+  }
+  const nextFlags = [...normalizedFlags];
+  while (nextFlags.length < quantity) {
+    nextFlags.push(nextFlags[nextFlags.length - 1]);
+  }
+  return nextFlags;
+}
+
+function countExplicitFlagAssignments(moduleEntry) {
+  const explicitFlags = Array.isArray(moduleEntry && moduleEntry.flagIDs)
+    ? moduleEntry.flagIDs
+    : (
+      moduleEntry && moduleEntry.flagID !== undefined && moduleEntry.flagID !== null
+        ? [moduleEntry.flagID]
+        : []
+    );
+  return explicitFlags
+    .map((value) => toPositiveInt(value, 0))
+    .filter((value) => value > 0)
+    .length;
+}
+
+function resolveAuthoredModuleQuantity(moduleEntry) {
+  const explicitFlagCount = countExplicitFlagAssignments(moduleEntry);
+  const authoredQuantity = toPositiveInt(moduleEntry && moduleEntry.quantity, 0);
+  return Math.max(1, authoredQuantity, explicitFlagCount);
+}
+
 const TRANSIENT_CONCORD_TARGETING_SCAN_RESOLUTION = 5_000;
 const TRANSIENT_CONCORD_TARGETING_RANGE_METERS = 250_000;
+const MIN_NATIVE_NPC_LOCK_SLOTS = 1;
 
 function applyTransientConcordCombatOverrides(entity, entityRecord) {
   if (
@@ -84,6 +194,135 @@ function applyTransientConcordCombatOverrides(entity, entityRecord) {
     entity.passiveDerivedState.scanResolution = entity.scanResolution;
     entity.passiveDerivedState.maxTargetRange = entity.maxTargetRange;
     entity.passiveDerivedState.cloakingTargetingDelay = 0;
+  }
+  return entity;
+}
+
+function applyCapitalNpcCombatOverrides(entity, entityRecord, definition) {
+  if (
+    !entity ||
+    entity.kind !== "ship" ||
+    !entityRecord ||
+    entityRecord.capitalNpc !== true
+  ) {
+    return entity;
+  }
+
+  const behaviorProfile = definition && definition.behaviorProfile &&
+    typeof definition.behaviorProfile === "object"
+    ? definition.behaviorProfile
+    : {};
+  const aggressionRangeMeters = Math.max(
+    0,
+    toFiniteNumber(behaviorProfile.aggressionRangeMeters, 0),
+  );
+  if (aggressionRangeMeters > 0) {
+    entity.maxTargetRange = Math.max(
+      toFiniteNumber(entity.maxTargetRange, 0),
+      aggressionRangeMeters,
+    );
+  }
+
+  const supportHullTypeID = toPositiveInt(
+    definition &&
+    definition.profile &&
+    definition.profile.titanSuperweaponHullTypeID,
+    0,
+  );
+  if (supportHullTypeID > 0) {
+    entity.capacitorCapacity = Math.max(
+      toFiniteNumber(entity.capacitorCapacity, 0),
+      toFiniteNumber(getTypeAttributeValue(supportHullTypeID, "capacitorCapacity"), 0),
+    );
+    entity.scanResolution = Math.max(
+      toFiniteNumber(entity.scanResolution, 0),
+      toFiniteNumber(getTypeAttributeValue(supportHullTypeID, "scanResolution"), 0),
+    );
+    entity.maxTargetRange = Math.max(
+      toFiniteNumber(entity.maxTargetRange, 0),
+      toFiniteNumber(getTypeAttributeValue(supportHullTypeID, "maxTargetRange"), 0),
+    );
+  }
+
+  if (entity.passiveDerivedState && typeof entity.passiveDerivedState === "object") {
+    entity.passiveDerivedState.maxTargetRange = entity.maxTargetRange;
+    entity.passiveDerivedState.scanResolution = entity.scanResolution;
+    entity.passiveDerivedState.capacitorCapacity = entity.capacitorCapacity;
+  }
+  return entity;
+}
+
+function applyNativeNpcHullCombatOverrides(entity, entityRecord, definition) {
+  if (
+    !entity ||
+    entity.kind !== "ship" ||
+    !entityRecord ||
+    String(entityRecord.npcEntityType || "").trim().toLowerCase() !== "npc"
+  ) {
+    return entity;
+  }
+
+  const behaviorProfile = definition && definition.behaviorProfile &&
+    typeof definition.behaviorProfile === "object"
+    ? definition.behaviorProfile
+    : {};
+  const shipTypeID = toPositiveInt(entityRecord.typeID, 0);
+  const dogmaScanResolution = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(shipTypeID, "scanResolution"), 0),
+  );
+  const dogmaTargetRange = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(shipTypeID, "maxTargetRange"), 0),
+  );
+  const dogmaMaxLockedTargets = Math.max(
+    MIN_NATIVE_NPC_LOCK_SLOTS,
+    toPositiveInt(getTypeAttributeValue(shipTypeID, "maxLockedTargets"), 0),
+  );
+  const dogmaCapacitorCapacity = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(shipTypeID, "capacitorCapacity"), 0),
+  );
+  const dogmaEntitySuperweaponRange = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(shipTypeID, "entitySuperWeaponMaxRange"), 0),
+  );
+  const dogmaEntitySuperweaponFalloff = Math.max(
+    0,
+    toFiniteNumber(getTypeAttributeValue(shipTypeID, "entitySuperWeaponFallOff"), 0),
+  );
+  const aggressionRangeMeters = Math.max(
+    0,
+    toFiniteNumber(behaviorProfile.aggressionRangeMeters, 0),
+  );
+
+  entity.scanResolution = Math.max(
+    toFiniteNumber(entity.scanResolution, 0),
+    dogmaScanResolution,
+  );
+  entity.maxTargetRange = Math.max(
+    toFiniteNumber(entity.maxTargetRange, 0),
+    dogmaTargetRange,
+    dogmaEntitySuperweaponRange + dogmaEntitySuperweaponFalloff,
+    aggressionRangeMeters,
+  );
+  entity.maxLockedTargets = Math.max(
+    toPositiveInt(entity.maxLockedTargets, 0),
+    dogmaMaxLockedTargets,
+  );
+  entity.capacitorCapacity = Math.max(
+    toFiniteNumber(entity.capacitorCapacity, 0),
+    dogmaCapacitorCapacity,
+  );
+  if (typeHasEffectName(shipTypeID, "entitySuperWeapon")) {
+    entity.component_turboshield = 0;
+  }
+
+  if (entity.passiveDerivedState && typeof entity.passiveDerivedState === "object") {
+    entity.passiveDerivedState.scanResolution = entity.scanResolution;
+    entity.passiveDerivedState.maxTargetRange = entity.maxTargetRange;
+    entity.passiveDerivedState.maxLockedTargets = entity.maxLockedTargets;
+    entity.passiveDerivedState.capacitorCapacity = entity.capacitorCapacity;
   }
   return entity;
 }
@@ -181,7 +420,7 @@ function buildNativeModuleRecords(entityRecord, definition, options = {}) {
       continue;
     }
 
-    const quantity = Math.max(1, toPositiveInt(moduleEntry && moduleEntry.quantity, 1));
+    const quantity = resolveAuthoredModuleQuantity(moduleEntry);
     const moduleType = resolveItemByTypeID(toPositiveInt(moduleEntry && moduleEntry.typeID, 0));
     const npcCapabilityTypeID = toPositiveInt(
       moduleEntry && moduleEntry.npcCapabilityTypeID,
@@ -200,8 +439,9 @@ function buildNativeModuleRecords(entityRecord, definition, options = {}) {
       };
     }
 
+    const explicitFlags = normalizeExplicitFlagList(moduleEntry, quantity);
     for (let index = 0; index < quantity; index += 1) {
-      const flagID = selectAutoFitFlagForNpcModuleType(
+      const flagID = explicitFlags[index] || selectAutoFitFlagForNpcModuleType(
         shipLike,
         moduleRecords.map((moduleRecord) => ({
           itemID: moduleRecord.moduleID,
@@ -339,6 +579,62 @@ function buildNativeCargoRecords(entityRecord, moduleRecords, definition, option
     }
   }
 
+  const authoredCargo = Array.isArray(
+    definition && definition.loadout && definition.loadout.cargo,
+  )
+    ? definition.loadout.cargo
+    : [];
+  for (const cargoEntry of authoredCargo) {
+    const cargoType = resolveItemByTypeID(toPositiveInt(cargoEntry && cargoEntry.typeID, 0));
+    if (!cargoType) {
+      return {
+        success: false,
+        errorMsg: "NPC_NATIVE_CARGO_TYPE_NOT_FOUND",
+      };
+    }
+
+    const cargoIDResult = nativeNpcStore.allocateCargoID({
+      transient,
+    });
+    if (!cargoIDResult.success || !cargoIDResult.data) {
+      return cargoIDResult;
+    }
+
+    const quantity = Math.max(1, toPositiveInt(cargoEntry && cargoEntry.quantity, 1));
+    const singleton = cargoEntry && cargoEntry.singleton === true;
+    const cargoRecord = {
+      cargoID: cargoIDResult.data,
+      entityID: entityRecord.entityID,
+      ownerID: entityRecord.ownerID,
+      moduleID: 0,
+      typeID: cargoType.typeID,
+      groupID: toPositiveInt(cargoType.groupID, 0),
+      categoryID: toPositiveInt(cargoType.categoryID, 0),
+      itemName: String(cargoType.name || ""),
+      quantity,
+      singleton,
+      flagID: Math.max(5, toPositiveInt(cargoEntry && cargoEntry.flagID, 5)),
+      moduleState: singleton
+        ? normalizeModuleState({
+          online: true,
+          damage: 0,
+          charge: 0,
+          armorDamage: 0,
+          shieldCharge: 0,
+          incapacitated: false,
+        })
+        : null,
+      transient,
+    };
+    const upsertResult = nativeNpcStore.upsertNativeCargo(cargoRecord, {
+      transient,
+    });
+    if (!upsertResult.success) {
+      return upsertResult;
+    }
+    cargoRecords.push(cargoRecord);
+  }
+
   return {
     success: true,
     data: cargoRecords,
@@ -366,6 +662,7 @@ function buildNativeControllerRecord(context, definition, entityRecord, spawnSta
     loadoutID: definition.loadout.loadoutID,
     behaviorProfileID: definition.behaviorProfile.behaviorProfileID,
     lootTableID: definition.lootTable ? definition.lootTable.lootTableID : null,
+    definitionSnapshot: definition ? cloneValue(definition) : null,
     behaviorOverrides: normalizeBehaviorOverrides(options.behaviorOverrides),
     preferredTargetID: toPositiveInt(options.preferredTargetID, toPositiveInt(context.preferredTargetID, 0)),
     currentTargetID: 0,
@@ -419,6 +716,9 @@ function buildNativeRuntimeShipSpec(entityRecord) {
     securityStatus: entityRecord.securityStatus,
     bounty: entityRecord.bounty,
     npcEntityType: entityRecord.npcEntityType,
+    capitalNpc: entityRecord.capitalNpc === true,
+    capitalClassID: entityRecord.capitalClassID || null,
+    capitalRarity: entityRecord.capitalRarity || null,
     nativeNpc: true,
     nativeNpcOccupied: true,
     transient: entityRecord.transient === true,
@@ -443,7 +743,7 @@ function buildNativeRuntimeShipSpec(entityRecord) {
   };
 }
 
-function applyNativeRuntimeNpcPresentation(entity, entityRecord) {
+function applyNativeRuntimeNpcPresentation(entity, entityRecord, definition = null) {
   if (!entity || entity.kind !== "ship" || !entityRecord) {
     return entity;
   }
@@ -462,13 +762,24 @@ function applyNativeRuntimeNpcPresentation(entity, entityRecord) {
   entity.securityStatus = entityRecord.securityStatus;
   entity.bounty = entityRecord.bounty;
   entity.npcEntityType = entityRecord.npcEntityType;
+  entity.capitalNpc = entityRecord.capitalNpc === true;
+  entity.capitalClassID = entityRecord.capitalClassID || null;
+  entity.capitalRarity = entityRecord.capitalRarity || null;
   entity.hostileResponseThreshold = entityRecord.hostileResponseThreshold;
   entity.friendlyResponseThreshold = entityRecord.friendlyResponseThreshold;
   entity.transient = entityRecord.transient === true;
   entity.fittedItems = nativeNpcStore.buildNativeFittedItems(entityRecord.entityID);
   entity.nativeCargoItems = nativeNpcStore.buildNativeCargoItems(entityRecord.entityID);
   entity.modules = nativeNpcStore.buildNativeSlimModuleTuples(entityRecord.entityID);
-  return applyTransientConcordCombatOverrides(entity, entityRecord);
+  return applyNativeNpcHullCombatOverrides(
+    applyCapitalNpcCombatOverrides(
+      applyTransientConcordCombatOverrides(entity, entityRecord),
+      entityRecord,
+      definition,
+    ),
+    entityRecord,
+    definition,
+  );
 }
 
 function resolveIdleOrbitDistance(entity, controller, anchorEntity, behaviorProfile) {
@@ -548,6 +859,9 @@ function registerNativeRuntimeController(entityRecord, controllerRecord, definit
     currentTargetID: toPositiveInt(controllerRecord.currentTargetID, 0),
     ownerCharacterID: 0,
     entityType: entityRecord.npcEntityType,
+    capitalNpc: entityRecord.capitalNpc === true,
+    capitalClassID: entityRecord.capitalClassID || null,
+    capitalRarity: entityRecord.capitalRarity || null,
     runtimeKind,
     nextThinkAtMs:
       runtimeKind === "nativeAmbient"
@@ -565,7 +879,7 @@ function materializeNativeRuntimeEntity(scene, entityRecord, controllerRecord, d
   const existingEntity = scene.getEntityByID(entityRecord.entityID);
   if (existingEntity) {
     const controller = registerNativeRuntimeController(entityRecord, controllerRecord, definition);
-    applyNativeRuntimeNpcPresentation(existingEntity, entityRecord);
+    applyNativeRuntimeNpcPresentation(existingEntity, entityRecord, definition);
     if (runtimeKind === "nativeAmbient") {
       syncNativeAmbientIdleState(scene, existingEntity, controller, definition);
     }
@@ -597,6 +911,7 @@ function materializeNativeRuntimeEntity(scene, entityRecord, controllerRecord, d
   const entity = applyNativeRuntimeNpcPresentation(
     spawnResult.data.entity,
     entityRecord,
+    definition,
   );
   const controller = registerNativeRuntimeController(entityRecord, controllerRecord, definition);
   if (runtimeKind === "nativeAmbient") {
@@ -636,8 +951,18 @@ function materializeStoredNativeController(scene, entityID, options = {}) {
     };
   }
 
-  const definition = buildNpcDefinition(controllerRecord.profileID);
+  const definition =
+    buildNpcDefinition(controllerRecord.profileID) ||
+    (
+      controllerRecord.definitionSnapshot &&
+      typeof controllerRecord.definitionSnapshot === "object"
+        ? cloneValue(controllerRecord.definitionSnapshot)
+        : null
+    );
   if (!definition) {
+    if (isTransientStartupControllerRecord(entityRecord, controllerRecord)) {
+      return pruneInvalidStoredStartupController(entityRecord, controllerRecord);
+    }
     return {
       success: false,
       errorMsg: "NPC_DEFINITION_INCOMPLETE",
@@ -692,6 +1017,10 @@ function buildStoredControllerRecordFromRuntimeController(controllerRecord, runt
     ).trim() || "nativeAmbient";
   return {
     ...cloneValue(controllerRecord || {}),
+    definitionSnapshot:
+      runtimeController && runtimeController.definitionSnapshot
+        ? cloneValue(runtimeController.definitionSnapshot)
+        : cloneValue(controllerRecord && controllerRecord.definitionSnapshot || null),
     behaviorOverrides: normalizeBehaviorOverrides(
       (runtimeController && runtimeController.behaviorOverrides) ||
         (controllerRecord && controllerRecord.behaviorOverrides),
@@ -704,6 +1033,29 @@ function buildStoredControllerRecordFromRuntimeController(controllerRecord, runt
       runtimeController && runtimeController.currentTargetID,
       0,
     ),
+    preferredTargetOwnerID: toPositiveInt(
+      runtimeController && runtimeController.preferredTargetOwnerID,
+      toPositiveInt(controllerRecord && controllerRecord.preferredTargetOwnerID, 0),
+    ),
+    lastAggressorID: toPositiveInt(
+      runtimeController && runtimeController.lastAggressorID,
+      toPositiveInt(controllerRecord && controllerRecord.lastAggressorID, 0),
+    ),
+    lastAggressorOwnerID: toPositiveInt(
+      runtimeController && runtimeController.lastAggressorOwnerID,
+      toPositiveInt(controllerRecord && controllerRecord.lastAggressorOwnerID, 0),
+    ),
+    lastAggressedAtMs: Math.max(
+      0,
+      toFiniteNumber(
+        runtimeController && runtimeController.lastAggressedAtMs,
+        controllerRecord && controllerRecord.lastAggressedAtMs,
+      ),
+    ),
+    drifterCombatState:
+      runtimeController && runtimeController.drifterCombatState
+        ? cloneValue(runtimeController.drifterCombatState)
+        : cloneValue(controllerRecord && controllerRecord.drifterCombatState || null),
     runtimeKind,
     homePosition: cloneVector(
       runtimeController && runtimeController.homePosition,
@@ -854,6 +1206,9 @@ function spawnNativeNpcEntityInContext(context, definition, options = {}) {
     securityStatus: identity.securityStatus,
     bounty: identity.bounty,
     npcEntityType: identity.npcEntityType,
+    capitalNpc: definition.profile.capitalNpc === true,
+    capitalClassID: String(definition.profile.capitalClassID || "").trim() || null,
+    capitalRarity: String(definition.profile.capitalRarity || "").trim() || null,
     hostileResponseThreshold: identity.hostileResponseThreshold,
     friendlyResponseThreshold: identity.friendlyResponseThreshold,
     nativeNpc: true,
@@ -1191,6 +1546,36 @@ function destroyNativeNpcController(controller, options = {}) {
 
   const scene = spaceRuntime.ensureScene(systemID);
   const runtimeEntity = scene ? scene.getEntityByID(entityID) : null;
+  let removedFighterCount = 0;
+  if (
+    scene &&
+    controller &&
+    Array.isArray(
+      controller.behaviorProfile &&
+      controller.behaviorProfile.capitalFighterWingTypeIDs,
+    )
+  ) {
+    const {
+      resetNpcSupercarrierWing,
+    } = require(path.join(
+      __dirname,
+      "../../services/fighter/npc/npcSupercarrierDirector",
+    ));
+    const cleanupResult = resetNpcSupercarrierWing(
+      scene,
+      runtimeEntity || { itemID: entityID },
+      controller,
+      {
+        removeContents: options.removeContents !== false,
+      },
+    );
+    removedFighterCount = Number(
+      cleanupResult &&
+      cleanupResult.success &&
+      cleanupResult.data &&
+      cleanupResult.data.destroyedCount,
+    ) || 0;
+  }
   if (runtimeEntity) {
     spaceRuntime.removeDynamicEntity(systemID, entityID, {
       allowSessionOwned: true,
@@ -1204,6 +1589,7 @@ function destroyNativeNpcController(controller, options = {}) {
     data: {
       entityID,
       systemID,
+      removedFighterCount,
       removedRuntimeEntity: Boolean(runtimeEntity),
     },
   };

@@ -1,4 +1,4 @@
-// EVE.js TCP Server
+// EveJS Elysian TCP Server
 // Handles client connections and drives the handshake state machine.
 // After handshake, routes packets via the PacketDispatcher.
 
@@ -38,6 +38,24 @@ const { normalizeCountryCode } = require(path.join(
   __dirname,
   "../../services/machoNet/globalConfig",
 ));
+const {
+  composeSessionRoleMask,
+} = require(path.join(
+  __dirname,
+  "../../services/account/accountRoleProfiles",
+));
+const dungeonUniverseRuntime = require(path.join(
+  __dirname,
+  "../../services/dungeon/dungeonUniverseRuntime",
+));
+const dungeonRuntime = require(path.join(
+  __dirname,
+  "../../services/dungeon/dungeonRuntime",
+));
+const dungeonUniverseSiteService = require(path.join(
+  __dirname,
+  "../../services/dungeon/dungeonUniverseSiteService",
+));
 
 /**
  * start the tcp server.
@@ -75,6 +93,58 @@ module.exports = function (serviceManager) {
     },
   );
 
+  const universePrepareStartedAtMs = Date.now();
+  log.info(
+    `[Startup] Dungeon universe prepare: evaluating persistent site state for ` +
+      `${startupPreloadPlan.systemIDs.length} startup system(s)`,
+  );
+  const universeStartup = dungeonUniverseRuntime.prepareStartupUniversePersistentSites({
+    startupSystemIDs: startupPreloadPlan.systemIDs,
+  });
+  const universePrepareElapsedMs = Date.now() - universePrepareStartedAtMs;
+  log.info(
+    `[Startup] Dungeon universe prepare complete in ${universePrepareElapsedMs}ms ` +
+      `(fullUpToDate=${universeStartup && universeStartup.status && universeStartup.status.fullUpToDate === true} ` +
+      `background=${universeStartup && universeStartup.background && universeStartup.background.reason})`,
+  );
+
+  const universeResumeStartedAtMs = Date.now();
+  const seededCountsBeforeResume = dungeonUniverseRuntime.summarizeActiveUniverseSeededCounts();
+  log.info("[Startup] Dungeon universe resume tick: reconciling expired/rotating persistent sites");
+  const immediateUniverseTick = dungeonUniverseRuntime.advanceUniversePersistentSites({
+    nowMs: Date.now(),
+    lifecycleReason: "startup-resume",
+  });
+  const universeResumeElapsedMs = Date.now() - universeResumeStartedAtMs;
+  const seededCountsAfterResume = dungeonUniverseRuntime.summarizeActiveUniverseSeededCounts();
+  const expectedSeededTotalAfterResume =
+    Number(seededCountsBeforeResume && seededCountsBeforeResume.totalCount || 0) -
+    (Number(immediateUniverseTick && immediateUniverseTick.expiredCount) || 0) +
+    (Number(immediateUniverseTick && immediateUniverseTick.rotatedCount) || 0);
+  log.info(
+    `[Startup] Dungeon universe resume tick complete in ${universeResumeElapsedMs}ms ` +
+      `(expired=${Number(immediateUniverseTick && immediateUniverseTick.expiredCount) || 0} ` +
+      `rotated=${Number(immediateUniverseTick && immediateUniverseTick.rotatedCount) || 0} ` +
+      `removed=${Number(immediateUniverseTick && immediateUniverseTick.removedCount) || 0} ` +
+      `seeded=${Number(seededCountsBeforeResume && seededCountsBeforeResume.totalCount) || 0}` +
+      `->${Number(seededCountsAfterResume && seededCountsAfterResume.totalCount) || 0})`,
+  );
+  if ((Number(seededCountsAfterResume && seededCountsAfterResume.totalCount) || 0) !== expectedSeededTotalAfterResume) {
+    log.warn(
+      `[Startup] Dungeon universe resume tick count mismatch ` +
+        `(expected=${expectedSeededTotalAfterResume} actual=${Number(seededCountsAfterResume && seededCountsAfterResume.totalCount) || 0} ` +
+        `persistent=${Number(seededCountsAfterResume && seededCountsAfterResume.persistentCount) || 0} ` +
+        `generatedMining=${Number(seededCountsAfterResume && seededCountsAfterResume.generatedMiningCount) || 0})`,
+    );
+  }
+
+  log.info("[Startup] Starting dungeon universe runtime sync");
+  dungeonUniverseSiteService.startRuntimeSync();
+  log.info("[Startup] Starting dungeon universe ticker");
+  dungeonUniverseRuntime.startTicker();
+  log.info("[Startup] Starting dungeon runtime ticker");
+  dungeonRuntime.startTicker();
+  log.info("[Startup] Starting space scene preload");
   spaceRuntime.preloadStartupSolarSystems({ broadcast: false });
 
   function logDebug(t) {
@@ -141,7 +211,10 @@ module.exports = function (serviceManager) {
                     clientId: handshake.clientId,
                     accountRole: handshake.accountRole,
                     chatRole: handshake.role,
-                    role: handshake.role,
+                    role: composeSessionRoleMask(
+                      handshake.accountRole,
+                      handshake.role,
+                    ),
                     languageId: handshake.languageId,
                     countryCode: handshake.countryCode,
                     sessionId: handshake.sessionId,
@@ -191,24 +264,25 @@ module.exports = function (serviceManager) {
               // Unmarshal the packet
               const decoded = marshalDecode(data);
 
-              if (decoded && decoded.type === "object" && decoded.args) {
+              if (log.isPacketPayloadDebugEnabled()) {
+                if (decoded && decoded.type === "object" && decoded.args) {
+                  logDebug(
+                    `[TCP] incoming PyPacket: ${decoded.name} has tuple length: ${decoded.args.length}`,
+                  );
+                }
+
                 logDebug(
-                  `[TCP] incoming PyPacket: ${decoded.name} has tuple length: ${decoded.args.length}`,
+                  `[TCP] decoded packet: ${JSON.stringify(decoded, (k, v) => {
+                    if (typeof v === "bigint") return v.toString();
+                    if (v && v.type === "Buffer" && v.data) {
+                      try {
+                        return `<Buffer:${Buffer.from(v.data).toString("utf8")}>`;
+                      } catch (e) {}
+                    }
+                    return v;
+                  }).substring(0, 500)}`,
                 );
               }
-
-              logDebug(
-                `[TCP] decoded packet: ${JSON.stringify(decoded, (k, v) => {
-                  if (typeof v === "bigint") return v.toString();
-                  if (v && v.type === "Buffer" && v.data) {
-                    // Decode buffer data to readable string
-                    try {
-                      return `<Buffer:${Buffer.from(v.data).toString("utf8")}>`;
-                    } catch (e) {}
-                  }
-                  return v;
-                }).substring(0, 500)}`,
-              );
 
               // Dispatch asynchronously so services can await external RPC calls
               Promise.resolve(dispatcher.dispatch(decoded, clientSession)).catch((err) => {
@@ -251,13 +325,32 @@ module.exports = function (serviceManager) {
       });
     })
     .listen(config.serverPort, "0.0.0.0", () => {
-      log.success(`eve.js is running!`);
+      log.success(`EveJS Elysian is running!`);
       log.success(`(port: ${config.serverPort})`);
       try {
         logStartupDataSummary();
       } catch (error) {
         log.warn(
           `[Startup] Failed to print data summary: ${error.message}`,
+        );
+      }
+      const universeStatus = universeStartup && universeStartup.status
+        ? universeStartup.status
+        : null;
+      const universeBackground = universeStartup && universeStartup.background
+        ? universeStartup.background
+        : null;
+      if (universeStatus && universeStatus.fullUpToDate === true) {
+        log.info("[DungeonUniverse] cached universe site state is current; skipped full startup rebuild");
+        if (immediateUniverseTick && immediateUniverseTick.rotatedCount > 0) {
+          log.info(
+            `[DungeonUniverse] resumed ${immediateUniverseTick.rotatedCount} expired persistent site slots on startup`,
+          );
+        }
+      } else if (universeBackground && universeBackground.needsFullReconcile === true) {
+        log.warn(
+          "[DungeonUniverse] persistent universe site state is stale; startup will not auto-reconcile it. " +
+          "Run tools\\universe-site-seed\\BuildUniverseSiteSeed.bat to inspect or reseed the universe.",
         );
       }
       tidiAutoscaler.init();
@@ -302,10 +395,13 @@ function _sendSessionInitNotification(session, config) {
         "role",
         {
           type: "long",
-          value: session.role ? BigInt(session.role) : 6917529029788565504n,
+          value: composeSessionRoleMask(
+            session.accountRole || session.role || 0,
+            session.chatRole || 0,
+          ),
         },
       ],
-      ["address", session.address || "127.0.0.1"],
+      ["address", session.address || config.gameServerHost || "127.0.0.1"],
       ["languageID", session.languageID || "EN"],
       [
         "countryCode",

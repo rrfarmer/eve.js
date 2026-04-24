@@ -37,6 +37,19 @@ function buildLiveSession(characterID) {
   };
 }
 
+function hasSkillInventoryRowChange(session) {
+  return session._notifications.some((entry) => {
+    if (!entry || entry.name !== "OnItemChange") {
+      return false;
+    }
+    const payload = Array.isArray(entry.payload) ? entry.payload[0] : null;
+    const fields = payload && payload.fields && typeof payload.fields === "object"
+      ? payload.fields
+      : null;
+    return Number(fields && fields.categoryID) === 16;
+  });
+}
+
 test("/removeskill removes a single skill record from the target character", async (t) => {
   const originalCharacters = cloneValue(database.read("characters", "/").data);
   const originalSkills = cloneValue(database.read("skills", "/").data);
@@ -165,9 +178,10 @@ test("/removeskill emits removal-style skill refresh notifications for live sess
     notificationNames.includes("OnSkillsChanged"),
     "expected /removeskill to notify live clients about skill changes",
   );
-  assert.ok(
-    notificationNames.includes("OnItemChange"),
-    "expected /removeskill to sync removed skill inventory rows",
+  assert.equal(
+    hasSkillInventoryRowChange(liveSession),
+    false,
+    "expected /removeskill to avoid faking skill inventory row removals",
   );
   assert.equal(
     notificationNames.includes("OnSkillLevelsTrained"),

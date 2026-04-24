@@ -16,6 +16,9 @@ const {
   resolvePaperDollState,
 } = require(path.join(__dirname, "./paperDollPayloads"));
 const {
+  normalizeCharacterGender,
+} = require(path.join(__dirname, "./characterIdentity"));
+const {
   getStationRecord,
 } = require(path.join(__dirname, "../_shared/stationStaticData"));
 const {
@@ -174,7 +177,7 @@ function buildPublicInfoEntries(charId, charData, session) {
     ["factionID", factionID],
     ["empireID", empireID],
     ["schoolID", charData.schoolID ?? charData.corporationID ?? null],
-    ["gender", charData.gender || 1],
+    ["gender", normalizeCharacterGender(charData.gender, 1)],
     ["createDateTime", createDateTime],
     ["startDateTime", startDateTime],
     ["description", charData.description || ""],
@@ -345,7 +348,7 @@ class CharMgrService extends BaseService {
       ],
       [
         charId,
-        charData.gender || 1,
+        normalizeCharacterGender(charData.gender, 1),
         buildFiletimeLong(charData.createDateTime),
         charData.raceID || 1,
         charData.bloodlineID || 1,

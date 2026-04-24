@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "version": 1,
+    "nextBookmarkID": 140000002118,
+    "nextFolderID": 500024,
+    "nextSubfolderID": 700003,
+    "nextGroupID": 800009,
+    "migratedCharacterIDs": {
+      "140000001": true,
+      "140000003": true,
+      "140000004": true,
+      "140000005": true,
+      "140000009": true,
+      "140000010": true,
+      "140000043": true,
+      "140000080": true,
+      "140000137": true,
+      "140000138": true,
+      "140000177": true,
+      "140000225": true,
+      "140000227": true,
+      "140000228": true,
+      "140000232": true,
+      "140000237": true
+    }
+  }
+}

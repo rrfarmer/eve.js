@@ -47,6 +47,10 @@ const {
   resolveMissileAppliedDamage,
 } = require(path.join(__dirname, "../../space/combat/missiles/missileSolver"));
 const crimewatchState = require(path.join(__dirname, "../security/crimewatchState"));
+const jammerModuleRuntime = require(path.join(
+  __dirname,
+  "../../space/modules/jammerModuleRuntime",
+));
 
 const destiny = require(path.join(__dirname, "../../space/destiny"));
 
@@ -330,6 +334,15 @@ function isMobilityAbilitySnapshot(abilityMeta) {
       ),
     ),
   );
+}
+
+function isJammerAbilitySnapshot(abilityMeta) {
+  return normalizeEffectFamily(
+    abilityMeta && (
+      abilityMeta.normalizedEffectFamily ||
+      abilityMeta.effectFamily
+    ),
+  ) === "fighterabilityecm";
 }
 
 function resolveFighterPassiveMaxVelocity(entity) {
@@ -1736,10 +1749,40 @@ function executeFighterOffensiveCycle(scene, fighterEntity, controllerEntity, sl
   };
 }
 
-function executeFighterUtilityCycle(scene, fighterEntity, controllerEntity, slotID, abilityState) {
+function buildFighterJammerRuntimeCallbacks(scene) {
+  return {
+    getEntityByID(entityID) {
+      return scene && typeof scene.getEntityByID === "function"
+        ? scene.getEntityByID(entityID)
+        : null;
+    },
+    isEntityLockedTarget() {
+      return true;
+    },
+    getEntitySurfaceDistance(sourceEntity, targetEntity) {
+      return surfaceDistance(sourceEntity, targetEntity);
+    },
+    clearOutgoingTargetLocksExcept(targetEntity, allowedTargetIDs, options = {}) {
+      return scene && typeof scene.clearOutgoingTargetLocksExcept === "function"
+        ? scene.clearOutgoingTargetLocksExcept(targetEntity, allowedTargetIDs, options)
+        : {
+          clearedTargetIDs: [],
+          cancelledPendingIDs: [],
+        };
+    },
+    random() {
+      return scene && typeof scene.__jammerRandom === "function"
+        ? Number(scene.__jammerRandom()) || 0
+        : Math.random();
+    },
+  };
+}
+
+function executeFighterUtilityCycle(scene, fighterEntity, controllerEntity, slotID, abilityState, nowMs) {
   if (!scene || !isFighterEntity(fighterEntity)) {
     return { continueActive: false, deactivate: true };
   }
+  const runtime = getRuntime();
 
   const snapshot = resolveFighterAbilitySnapshot(
     fighterEntity,
@@ -1768,6 +1811,98 @@ function executeFighterUtilityCycle(scene, fighterEntity, controllerEntity, slot
     fighterEntity.direction = jumpDirection;
     fighterEntity.targetPoint = cloneVector(targetPoint);
     persistFighterEntityState(fighterEntity);
+  }
+
+  if (
+    normalizeEffectFamily(snapshot.normalizedEffectFamily || snapshot.effectFamily) ===
+      "fighterabilityecm"
+  ) {
+    const targetID = toInt(abilityState && abilityState.targetID, 0);
+    const targetEntity = targetID > 0 ? scene.getEntityByID(targetID) : null;
+    if (!targetEntity || targetEntity.kind !== "ship" || !hasDamageableHealth(targetEntity)) {
+      return { continueActive: false, deactivate: true };
+    }
+
+    syncFighterOffensiveMovement(scene, fighterEntity, targetEntity, {
+      rangeMeters: snapshot.jammerOptimalRangeMeters || snapshot.rangeMeters || 0,
+      falloffMeters: snapshot.jammerFalloffMeters || snapshot.falloffMeters || 0,
+    });
+    const rangeGate = Math.max(
+      0,
+      toNumber(snapshot.jammerOptimalRangeMeters || snapshot.rangeMeters, 0) +
+        Math.max(0, toNumber(snapshot.jammerFalloffMeters || snapshot.falloffMeters, 0)),
+    );
+    if (rangeGate > 0 && surfaceDistance(fighterEntity, targetEntity) > rangeGate + 1) {
+      return { continueActive: true, deactivate: false };
+    }
+
+    const pseudoModuleItem = buildFighterPseudoModuleItem(fighterEntity, slotID);
+    if (snapshot.effectGuid) {
+      scene.broadcastSpecialFx(
+        fighterEntity.itemID,
+        snapshot.effectGuid,
+        {
+          moduleID: pseudoModuleItem.itemID,
+          moduleTypeID: pseudoModuleItem.typeID,
+          targetID: targetEntity.itemID,
+          isOffensive: true,
+          start: true,
+          active: false,
+          duration: Math.max(1, toNumber(snapshot.durationMs, 1_000)),
+          repeat: 1,
+          useCurrentVisibleStamp: true,
+        },
+        fighterEntity,
+      );
+    }
+    const effectState = {
+      moduleID: pseudoModuleItem.itemID,
+      targetID: targetEntity.itemID,
+      hostileJammingType: jammerModuleRuntime.ECM_JAMMING_TYPE,
+      jammerModuleEffect: true,
+      jammerStrengthBySensorType: snapshot.jammerStrengthBySensorType || {},
+      jammerMaxRangeMeters: Math.max(
+        0,
+        toNumber(snapshot.jammerOptimalRangeMeters, toNumber(snapshot.rangeMeters, 0)),
+      ),
+      jammerFalloffMeters: Math.max(
+        0,
+        toNumber(snapshot.jammerFalloffMeters, toNumber(snapshot.falloffMeters, 0)),
+      ),
+      durationMs: Math.max(1, toNumber(snapshot.durationMs, 1000)),
+      jamDurationMs: Math.max(
+        1,
+        toNumber(snapshot.jammerDurationMs, toNumber(snapshot.durationMs, 1000)),
+      ),
+      nextCycleAtMs: Math.max(0, toNumber(nowMs, Date.now())) + Math.max(
+        1,
+        toNumber(snapshot.durationMs, 1000),
+      ),
+    };
+    const cycleResult = jammerModuleRuntime.executeJammerModuleCycle({
+      scene,
+      entity: fighterEntity,
+      effectState,
+      nowMs,
+      callbacks: buildFighterJammerRuntimeCallbacks(scene),
+    });
+    if (
+      cycleResult.success &&
+      runtime &&
+      typeof runtime.applyJammerCyclePresentation === "function"
+    ) {
+      runtime.applyJammerCyclePresentation(
+        scene,
+        fighterEntity,
+        effectState,
+        nowMs,
+        cycleResult,
+      );
+    }
+    return {
+      continueActive: false,
+      deactivate: true,
+    };
   }
 
   return {
@@ -2758,7 +2893,10 @@ function tickScene(scene, now) {
         }
 
         if (toNumber(abilityState.activeUntilMs, 0) > 0) {
-          const cycleResult = abilityMeta && abilityMeta.isOffensive
+          const cycleResult =
+            abilityMeta &&
+            abilityMeta.isOffensive &&
+            !isJammerAbilitySnapshot(abilityMeta)
             ? executeFighterOffensiveCycle(
               scene,
               fighterEntity,
@@ -2773,6 +2911,7 @@ function tickScene(scene, now) {
               controllerEntity,
               slotID,
               abilityState,
+              numericNow,
             );
           const nextState = {
             ...abilityState,

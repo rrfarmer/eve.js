@@ -39,15 +39,32 @@ function buildStructureGuestTuple(session) {
   return [corporationID, allianceID, warFactionID];
 }
 
+function collectPreferredSessionsByCharacter(sessions = []) {
+  const preferredSessions = new Map();
+  for (const session of Array.isArray(sessions) ? sessions : []) {
+    const [characterID] = buildGuestIdentityTuple(session);
+    if (!characterID) {
+      continue;
+    }
+    const currentSession = preferredSessions.get(characterID) || null;
+    if (sessionRegistry.isPreferredCharacterSession(session, currentSession)) {
+      preferredSessions.set(characterID, session);
+    }
+  }
+  return [...preferredSessions.values()];
+}
+
 function getStationGuestTuples(stationID) {
   const resolvedStationID = normalizePositiveInt(stationID, 0);
   if (!resolvedStationID) {
     return [];
   }
 
-  return sessionRegistry
-    .getSessions()
-    .filter((guestSession) => getSessionStationID(guestSession) === resolvedStationID)
+  return collectPreferredSessionsByCharacter(
+    sessionRegistry
+      .getSessions()
+      .filter((guestSession) => getSessionStationID(guestSession) === resolvedStationID),
+  )
     .map((guestSession) => buildGuestIdentityTuple(guestSession))
     .filter(([characterID]) => characterID > 0)
     .sort((left, right) => left[0] - right[0]);
@@ -59,9 +76,11 @@ function getStructureGuestEntries(structureID) {
     return [];
   }
 
-  return sessionRegistry
-    .getSessions()
-    .filter((guestSession) => getSessionStructureID(guestSession) === resolvedStructureID)
+  return collectPreferredSessionsByCharacter(
+    sessionRegistry
+      .getSessions()
+      .filter((guestSession) => getSessionStructureID(guestSession) === resolvedStructureID),
+  )
     .map((guestSession) => {
       const [characterID] = buildGuestIdentityTuple(guestSession);
       return [characterID, buildStructureGuestTuple(guestSession)];

@@ -10,6 +10,10 @@ const {
   listCharacterItems,
   getItemMetadata,
 } = require(path.join(__dirname, "../inventory/itemStore"));
+const {
+  buildDockableAssetLocationMetadata,
+  isHiddenPersonalAssetLocation,
+} = require(path.join(__dirname, "../inventory/inventoryVisibilityRules"));
 
 const CONTAINER_GLOBAL_ID = 10002;
 const FLAG_WALLET = 1;
@@ -251,87 +255,21 @@ class CharMgrGlobalAssets {
     return Boolean(item) && toInteger(item.stacksize, 0) !== 0;
   }
 
-  _isTransientLocation(locationID, session) {
-    const numericLocationID = toInteger(locationID, 0);
-    if (numericLocationID <= 0) {
-      return true;
-    }
-
-    if (numericLocationID === this._getSessionCharacterId(session)) {
-      return true;
-    }
-
-    return Boolean(worldData.getSolarSystemByID(numericLocationID));
-  }
-
-  _buildStationLocation(stationID, session, stationLocationByStationID = null) {
-    const numericStationID = toInteger(stationID, 0);
-    if (numericStationID <= 0) {
-      return null;
-    }
-
-    if (
-      stationLocationByStationID instanceof Map &&
-      stationLocationByStationID.has(numericStationID)
-    ) {
-      return stationLocationByStationID.get(numericStationID) || null;
-    }
-
-    const station = worldData.getStationByID(numericStationID);
-    const location = {
-      locationID: numericStationID,
-      stationID: numericStationID,
-      typeID: station ? toInteger(station.stationTypeID, 0) : null,
-      stationTypeID: station ? toInteger(station.stationTypeID, 0) : null,
-      solarSystemID: station
-        ? toInteger(station.solarSystemID, 0)
-        : toInteger(session && (session.solarsystemid2 || session.solarsystemid), 0),
-      constellationID: station
-        ? toInteger(station.constellationID, 0)
-        : toInteger(session && (session.constellationid || session.constellationID), 0),
-      regionID: station
-        ? toInteger(station.regionID, 0)
-        : toInteger(session && (session.regionid || session.regionID), 0),
-      upkeepState: null,
-    };
-
-    if (station && stationLocationByStationID instanceof Map) {
-      stationLocationByStationID.set(numericStationID, location);
-    }
-
-    return location;
-  }
-
-  _buildSyntheticDockableLocation(locationID, session, syntheticLocationByContext = null) {
+  _buildDockableLocation(locationID, session, dockableLocationByContext = null) {
     const numericLocationID = toInteger(locationID, 0);
     const cacheKey = `${numericLocationID}|${this._buildSessionContextKey(session)}`;
 
     if (
-      syntheticLocationByContext instanceof Map &&
-      syntheticLocationByContext.has(cacheKey)
+      dockableLocationByContext instanceof Map &&
+      dockableLocationByContext.has(cacheKey)
     ) {
-      return syntheticLocationByContext.get(cacheKey) || null;
+      return dockableLocationByContext.get(cacheKey) || null;
     }
 
-    const location = {
-      locationID: toInteger(locationID, 0),
-      stationID: toInteger(locationID, 0),
-      typeID: toInteger(session && session.structureTypeID, 0) || null,
-      stationTypeID: toInteger(session && session.structureTypeID, 0) || null,
-      solarSystemID: toInteger(
-        session && (session.solarsystemid2 || session.solarsystemid),
-        0,
-      ),
-      constellationID: toInteger(
-        session && (session.constellationid || session.constellationID),
-        0,
-      ),
-      regionID: toInteger(session && (session.regionid || session.regionID), 0),
-      upkeepState: null,
-    };
+    const location = buildDockableAssetLocationMetadata(locationID, session);
 
-    if (syntheticLocationByContext instanceof Map) {
-      syntheticLocationByContext.set(cacheKey, location);
+    if (dockableLocationByContext instanceof Map) {
+      dockableLocationByContext.set(cacheKey, location);
     }
 
     return location;
@@ -370,11 +308,11 @@ class CharMgrGlobalAssets {
         break;
       }
 
-      if (worldData.getStationByID(locationID)) {
-        resolvedRootLocation = this._buildStationLocation(
+      if (worldData.getStationByID(locationID) || worldData.getStructureByID(locationID)) {
+        resolvedRootLocation = this._buildDockableLocation(
           locationID,
           session,
-          caches.stationLocationByStationID,
+          caches.dockableLocationByContext,
         );
         break;
       }
@@ -389,12 +327,12 @@ class CharMgrGlobalAssets {
       if (!parentItem) {
         if (
           isDockableAssetFlag(currentItem.flagID) &&
-          !this._isTransientLocation(locationID, session)
+          !isHiddenPersonalAssetLocation(locationID, session)
         ) {
-          resolvedRootLocation = this._buildSyntheticDockableLocation(
+          resolvedRootLocation = this._buildDockableLocation(
             locationID,
             session,
-            caches.syntheticLocationByContext,
+            caches.dockableLocationByContext,
           );
         }
         break;
@@ -438,8 +376,7 @@ class CharMgrGlobalAssets {
     const allEntries = [];
     const caches = {
       rootLocationByItemID: new Map(),
-      stationLocationByStationID: new Map(),
-      syntheticLocationByContext: new Map(),
+      dockableLocationByContext: new Map(),
     };
 
     for (const item of items) {

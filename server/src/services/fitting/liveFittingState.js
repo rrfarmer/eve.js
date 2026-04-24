@@ -16,8 +16,13 @@ const {
 const {
   MINING_HOLD_DEFINITIONS,
 } = require(path.join(__dirname, "../mining/miningConstants"));
+const {
+  FUEL_BAY_ATTRIBUTE_ID,
+  FUEL_BAY_RESOURCE_KEY,
+} = require(path.join(__dirname, "../inventory/fuelBayInventory"));
 
 const CHARGE_CATEGORY_ID = 8;
+const GROUP_SCAN_PROBE_LAUNCHER = 481;
 const SLOT_FAMILY_FLAGS = Object.freeze({
   low: Object.freeze([11, 12, 13, 14, 15, 16, 17, 18]),
   med: Object.freeze([19, 20, 21, 22, 23, 24, 25, 26]),
@@ -61,6 +66,11 @@ const DEFAULT_MODULE_STATE = Object.freeze({
 });
 
 let cachedDogmaLookups = null;
+let cachedNormalizedTypeAttributeMaps = null;
+let cachedTypeEffectRecords = null;
+let cachedSkillEffectiveAttributes = null;
+let cachedSkillExplicitShipAttributeModifiers = null;
+let cachedSkillFallbackShipEligibility = null;
 
 function toInt(value, fallback = 0) {
   const numeric = Number(value);
@@ -135,6 +145,31 @@ function isModuleOnline(item) {
   return getItemModuleState(item).online;
 }
 
+function hasExplicitModuleOnlineState(item) {
+  return Boolean(
+    item &&
+    item.moduleState &&
+    typeof item.moduleState === "object" &&
+    Object.prototype.hasOwnProperty.call(item.moduleState, "online"),
+  );
+}
+
+function isEffectivelyOnlineModule(item) {
+  if (!item || !isFittedModuleItem(item)) {
+    return false;
+  }
+
+  if (!item.moduleState || typeof item.moduleState !== "object") {
+    return true;
+  }
+
+  if (!hasExplicitModuleOnlineState(item)) {
+    return true;
+  }
+
+  return isModuleOnline(item);
+}
+
 function buildNameIndex(entries = {}) {
   const byName = new Map();
   for (const entry of Object.values(entries || {})) {
@@ -194,6 +229,41 @@ function getDogmaLookups() {
   return cachedDogmaLookups;
 }
 
+function ensureNormalizedTypeAttributeMapCache() {
+  if (!cachedNormalizedTypeAttributeMaps) {
+    cachedNormalizedTypeAttributeMaps = new Map();
+  }
+  return cachedNormalizedTypeAttributeMaps;
+}
+
+function ensureTypeEffectRecordCache() {
+  if (!cachedTypeEffectRecords) {
+    cachedTypeEffectRecords = new Map();
+  }
+  return cachedTypeEffectRecords;
+}
+
+function ensureSkillEffectiveAttributeCache() {
+  if (!cachedSkillEffectiveAttributes) {
+    cachedSkillEffectiveAttributes = new Map();
+  }
+  return cachedSkillEffectiveAttributes;
+}
+
+function ensureSkillExplicitShipAttributeModifierCache() {
+  if (!cachedSkillExplicitShipAttributeModifiers) {
+    cachedSkillExplicitShipAttributeModifiers = new Map();
+  }
+  return cachedSkillExplicitShipAttributeModifiers;
+}
+
+function ensureSkillFallbackShipEligibilityCache() {
+  if (!cachedSkillFallbackShipEligibility) {
+    cachedSkillFallbackShipEligibility = new Map();
+  }
+  return cachedSkillFallbackShipEligibility;
+}
+
 function getAttributeIDByNames(...names) {
   const { attributeIDsByName } = getDogmaLookups();
   for (const name of names) {
@@ -241,15 +311,34 @@ function getTypeDogmaAttributes(typeID) {
   return record.attributes;
 }
 
+function getNormalizedTypeAttributeMap(typeID) {
+  const numericTypeID = toInt(typeID, 0);
+  if (numericTypeID <= 0) {
+    return Object.freeze({});
+  }
+
+  const cache = ensureNormalizedTypeAttributeMapCache();
+  const cached = cache.get(numericTypeID);
+  if (cached) {
+    return cached;
+  }
+
+  const normalized = Object.freeze(
+    normalizeNumericAttributeMap(getTypeDogmaAttributes(numericTypeID)),
+  );
+  cache.set(numericTypeID, normalized);
+  return normalized;
+}
+
 function getTypeAttributeValue(typeID, ...names) {
-  const attributes = getTypeDogmaAttributes(typeID);
+  const attributes = getNormalizedTypeAttributeMap(typeID);
   for (const name of names) {
     const attributeID = getAttributeIDByNames(name);
-    if (!attributeID || !attributes || attributes[String(attributeID)] === undefined) {
+    if (!attributeID || !attributes || attributes[attributeID] === undefined) {
       continue;
     }
 
-    const numericValue = Number(attributes[String(attributeID)]);
+    const numericValue = Number(attributes[attributeID]);
     if (Number.isFinite(numericValue)) {
       return numericValue;
     }
@@ -414,6 +503,13 @@ function getLoadedChargeByFlag(charID, shipID, flagID) {
   );
 }
 
+function hasLoadedScanProbeLauncherCharge(charID, shipID) {
+  return getLoadedChargeItems(charID, shipID).some((chargeItem) => {
+    const moduleItem = getFittedModuleByFlag(charID, shipID, chargeItem.flagID);
+    return Number(moduleItem && moduleItem.groupID) === GROUP_SCAN_PROBE_LAUNCHER;
+  });
+}
+
 function getRequiredSkillRequirements(typeID) {
   const requirements = [];
 
@@ -473,16 +569,27 @@ const ATTRIBUTE_CPU_OUTPUT = getAttributeIDByNames("cpuOutput") || 48;
 const ATTRIBUTE_POWER_OUTPUT = getAttributeIDByNames("powerOutput") || 11;
 const ATTRIBUTE_CPU_LOAD = getAttributeIDByNames("cpuLoad") || 49;
 const ATTRIBUTE_POWER_LOAD = getAttributeIDByNames("powerLoad") || 15;
+const ATTRIBUTE_MODULE_CPU_NEED = getAttributeIDByNames("cpu") || 50;
+const ATTRIBUTE_MODULE_POWER_NEED = getAttributeIDByNames("power") || 30;
 const ATTRIBUTE_CAPACITY = getAttributeIDByNames("capacity") || 38;
 const ATTRIBUTE_MAX_VELOCITY = getAttributeIDByNames("maxVelocity") || 37;
 const ATTRIBUTE_AGILITY = getAttributeIDByNames("agility") || 70;
 const ATTRIBUTE_MASS = getAttributeIDByNames("mass") || 4;
+const ATTRIBUTE_SPEED_FACTOR = getAttributeIDByNames("speedFactor") || 20;
+const ATTRIBUTE_SPEED_BOOST_FACTOR =
+  getAttributeIDByNames("speedBoostFactor") || 567;
+const ATTRIBUTE_MASS_ADDITION = getAttributeIDByNames("massAddition") || 796;
+const ATTRIBUTE_SIGNATURE_RADIUS_BONUS =
+  getAttributeIDByNames("signatureRadiusBonus") || 554;
 const ATTRIBUTE_MAX_TARGET_RANGE = getAttributeIDByNames("maxTargetRange") || 76;
 const ATTRIBUTE_MAX_LOCKED_TARGETS =
   getAttributeIDByNames("maxLockedTargets") || 192;
 const ATTRIBUTE_SIGNATURE_RADIUS = getAttributeIDByNames("signatureRadius") || 552;
 const ATTRIBUTE_CLOAKING_TARGETING_DELAY =
   getAttributeIDByNames("cloakingTargetingDelay") || 560;
+const PROPULSION_SKILL_ACCELERATION_CONTROL = 3452;
+const PROPULSION_EFFECT_AFTERBURNER = "modulebonusafterburner";
+const PROPULSION_EFFECT_MICROWARPDRIVE = "modulebonusmicrowarpdrive";
 const ATTRIBUTE_SCAN_RESOLUTION =
   getAttributeIDByNames("scanResolution") || 564;
 const ATTRIBUTE_CAPACITOR_CAPACITY =
@@ -517,17 +624,7 @@ const SKILL_ATTRIBUTE_BONUS_FALLBACKS = Object.freeze({
   3429: Object.freeze({ maxLockedTargetsBonus: 1 }), // Target Management
   3430: Object.freeze({ maxLockedTargetsBonus: 1 }), // Advanced Target Management
 });
-const ACTIVATABLE_EFFECT_CATEGORIES = new Set([1, 2, 3]);
-const PASSIVE_SLOT_EFFECTS = new Set([
-  "online",
-  "hipower",
-  "medpower",
-  "lopower",
-  "rigslot",
-  "subsystem",
-  "turretfitted",
-  "launcherfitted",
-]);
+const PASSIVE_MODIFIER_EFFECT_CATEGORIES = new Set([0, 4]);
 const DOGMA_OP_PRE_MUL = 0;
 const DOGMA_OP_MOD_ADD = 2;
 const DOGMA_OP_MOD_SUB = 3;
@@ -566,13 +663,28 @@ function getEffectTypeRecord(effectID) {
 }
 
 function getTypeEffectRecords(typeID) {
-  return [...getTypeDogmaEffects(typeID)]
-    .map((effectID) => getEffectTypeRecord(effectID))
-    .filter(Boolean);
+  const numericTypeID = toInt(typeID, 0);
+  if (numericTypeID <= 0) {
+    return [];
+  }
+
+  const cache = ensureTypeEffectRecordCache();
+  const cached = cache.get(numericTypeID);
+  if (cached) {
+    return cached;
+  }
+
+  const effectRecords = Object.freeze(
+    [...getTypeDogmaEffects(numericTypeID)]
+      .map((effectID) => getEffectTypeRecord(effectID))
+      .filter(Boolean),
+  );
+  cache.set(numericTypeID, effectRecords);
+  return effectRecords;
 }
 
 function getTypeAttributeMap(typeID) {
-  return normalizeNumericAttributeMap(getTypeDogmaAttributes(typeID));
+  return cloneAttributeMap(getNormalizedTypeAttributeMap(typeID));
 }
 
 function cloneAttributeMap(source = {}) {
@@ -585,7 +697,7 @@ function cloneAttributeMap(source = {}) {
 }
 
 function getRequiredSkillTypeIDs(typeID) {
-  const attributeMap = getTypeAttributeMap(typeID);
+  const attributeMap = getNormalizedTypeAttributeMap(typeID);
   const requiredSkillTypeIDs = [];
   for (let index = 1; index <= 6; index += 1) {
     const requiredSkillTypeID = toInt(
@@ -606,6 +718,16 @@ function moduleRequiresSkillType(moduleItem, skillTypeID) {
   return getRequiredSkillTypeIDs(moduleItem.typeID).includes(toInt(skillTypeID, 0));
 }
 
+function getPassiveModifierEffectRecords(typeID) {
+  return getTypeEffectRecords(typeID).filter((effectRecord) => (
+    PASSIVE_MODIFIER_EFFECT_CATEGORIES.has(
+      toInt(effectRecord && effectRecord.effectCategoryID, 0),
+    ) &&
+    Array.isArray(effectRecord && effectRecord.modifierInfo) &&
+    effectRecord.modifierInfo.some(Boolean)
+  ));
+}
+
 function isPassiveModifierSource(item) {
   if (!item || !isFittedModuleItem(item)) {
     return false;
@@ -616,20 +738,10 @@ function isPassiveModifierSource(item) {
     return true;
   }
 
-  const hasExplicitActivation = getTypeEffectRecords(item.typeID).some((effectRecord) => {
-    const effectCategoryID = toInt(effectRecord && effectRecord.effectCategoryID, 0);
-    if (!ACTIVATABLE_EFFECT_CATEGORIES.has(effectCategoryID)) {
-      return false;
-    }
-    const normalizedName = String(effectRecord && effectRecord.name || "").toLowerCase();
-    return !PASSIVE_SLOT_EFFECTS.has(normalizedName);
-  });
-
-  if (hasExplicitActivation) {
-    return false;
-  }
-
-  return isModuleOnline(item) || item.moduleState === undefined || item.moduleState === null;
+  return (
+    isEffectivelyOnlineModule(item) &&
+    getPassiveModifierEffectRecords(item.typeID).length > 0
+  );
 }
 
 function buildEffectiveItemAttributeMap(itemOrTypeID, otherItem = null) {
@@ -647,7 +759,7 @@ function applyOtherItemModifiersToAttributes(attributes, otherItem) {
     return attributes;
   }
 
-  const otherAttributes = getTypeAttributeMap(otherItem.typeID);
+  const otherAttributes = getNormalizedTypeAttributeMap(otherItem.typeID);
   for (const effectRecord of getTypeEffectRecords(otherItem.typeID)) {
     for (const modifierInfo of effectRecord.modifierInfo || []) {
       if (
@@ -914,7 +1026,14 @@ function buildSkillEffectiveAttributes(skill) {
       0,
     ),
   );
-  const attributes = normalizeNumericAttributeMap(getTypeDogmaAttributes(skillTypeID));
+  const cacheKey = `${skillTypeID}:${level}`;
+  const cache = ensureSkillEffectiveAttributeCache();
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cloneAttributeMap(cached);
+  }
+
+  const attributes = cloneAttributeMap(getNormalizedTypeAttributeMap(skillTypeID));
   attributes[ATTRIBUTE_SKILL_LEVEL] = level;
 
   for (const effect of getTypeDogmaEffects(skillTypeID)) {
@@ -945,7 +1064,9 @@ function buildSkillEffectiveAttributes(skill) {
     }
   }
 
-  return attributes;
+  const frozen = Object.freeze(attributes);
+  cache.set(cacheKey, frozen);
+  return cloneAttributeMap(frozen);
 }
 
 function applySkillDrivenShipAttributeModifiers(attributes, skillMap) {
@@ -978,6 +1099,118 @@ function applySkillDrivenShipAttributeModifiers(attributes, skillMap) {
   }
 }
 
+function getSkillExplicitShipAttributeModifierSet(skillTypeID) {
+  const numericSkillTypeID = toInt(skillTypeID, 0);
+  if (numericSkillTypeID <= 0) {
+    return new Set();
+  }
+
+  const cache = ensureSkillExplicitShipAttributeModifierCache();
+  const cached = cache.get(numericSkillTypeID);
+  if (cached) {
+    return cached;
+  }
+
+  const explicitAttributeIDs = new Set();
+  for (const effectID of getTypeDogmaEffects(numericSkillTypeID)) {
+    const effect = getEffectTypeRecord(effectID);
+    if (!effect || !Array.isArray(effect.modifierInfo)) {
+      continue;
+    }
+
+    for (const modifierInfo of effect.modifierInfo) {
+      if (
+        modifierInfo &&
+        modifierInfo.domain === "shipID" &&
+        modifierInfo.func === "ItemModifier"
+      ) {
+        const modifiedAttributeID = toInt(modifierInfo.modifiedAttributeID, 0);
+        if (modifiedAttributeID > 0) {
+          explicitAttributeIDs.add(modifiedAttributeID);
+        }
+      }
+    }
+  }
+
+  cache.set(numericSkillTypeID, explicitAttributeIDs);
+  return explicitAttributeIDs;
+}
+
+function skillHasExplicitShipAttributeModifier(skillTypeID, targetAttributeID) {
+  const numericSkillTypeID = toInt(skillTypeID, 0);
+  const numericTargetAttributeID = toInt(targetAttributeID, 0);
+  if (numericSkillTypeID <= 0 || numericTargetAttributeID <= 0) {
+    return false;
+  }
+
+  return getSkillExplicitShipAttributeModifierSet(numericSkillTypeID).has(
+    numericTargetAttributeID,
+  );
+}
+
+function skillSupportsFallbackShipAttributeModifier(skillTypeID) {
+  const numericSkillTypeID = toInt(skillTypeID, 0);
+  if (numericSkillTypeID <= 0) {
+    return false;
+  }
+
+  const cache = ensureSkillFallbackShipEligibilityCache();
+  if (cache.has(numericSkillTypeID)) {
+    return cache.get(numericSkillTypeID) === true;
+  }
+
+  let supportsFallback = true;
+  for (const effectID of getTypeDogmaEffects(numericSkillTypeID)) {
+    const effect = getEffectTypeRecord(effectID);
+    if (!effect || !Array.isArray(effect.modifierInfo)) {
+      continue;
+    }
+
+    for (const modifierInfo of effect.modifierInfo) {
+      if (
+        !modifierInfo ||
+        (modifierInfo.domain === "itemID" &&
+          modifierInfo.func === "ItemModifier") ||
+        (modifierInfo.domain === "shipID" &&
+          modifierInfo.func === "ItemModifier")
+      ) {
+        continue;
+      }
+
+      supportsFallback = false;
+      break;
+    }
+
+    if (!supportsFallback) {
+      break;
+    }
+  }
+
+  cache.set(numericSkillTypeID, supportsFallback);
+  return supportsFallback;
+}
+
+function applySkillFallbackPercentModifier(
+  attributes,
+  skillTypeID,
+  level,
+  targetAttributeID,
+  ...sourceAttributeNames
+) {
+  if (
+    skillHasExplicitShipAttributeModifier(skillTypeID, targetAttributeID) ||
+    !skillSupportsFallbackShipAttributeModifier(skillTypeID)
+  ) {
+    return;
+  }
+
+  applyPercentModifier(
+    attributes,
+    targetAttributeID,
+    toFiniteNumber(getTypeAttributeValue(skillTypeID, ...sourceAttributeNames), 0) * level,
+  );
+}
+
 function applyShipTypeSelfModifiers(attributes, shipTypeID) {
   for (const effectID of getTypeDogmaEffects(shipTypeID)) {
     const effect = getEffectTypeRecord(effectID);
@@ -1004,23 +1237,296 @@ function applyShipTypeSelfModifiers(attributes, shipTypeID) {
   }
 }
 
-function collectPassiveShipAttributeModifiers(fittedItems = []) {
+function collectShipLocationModifierSourceAttributes(shipItem, skillMap = new Map()) {
+  const shipTypeID = toInt(shipItem && shipItem.typeID, 0);
+  const attributes = normalizeNumericAttributeMap(getTypeDogmaAttributes(shipTypeID));
+  if (shipTypeID <= 0) {
+    return attributes;
+  }
+
+  for (const skillRecord of skillMap.values()) {
+    const effectiveSkillAttributes = buildSkillEffectiveAttributes(skillRecord);
+    for (const effectRecord of getTypeEffectRecords(skillRecord.typeID)) {
+      for (const modifierInfo of effectRecord.modifierInfo || []) {
+        if (
+          !modifierInfo ||
+          modifierInfo.func !== "ItemModifier" ||
+          modifierInfo.domain !== "shipID"
+        ) {
+          continue;
+        }
+
+        applyDogmaModifier(
+          attributes,
+          modifierInfo.modifiedAttributeID,
+          modifierInfo.operation,
+          effectiveSkillAttributes[toInt(modifierInfo.modifyingAttributeID, 0)],
+        );
+      }
+    }
+  }
+
+  return attributes;
+}
+
+function buildPassiveModuleAttributeMap(shipItem, moduleItem, skillMap = new Map()) {
+  const attributes = buildEffectiveItemAttributeMap(moduleItem);
+  if (!moduleItem) {
+    return attributes;
+  }
+
+  const modifierEntries = [];
+  const resolvedSkillMap = skillMap instanceof Map ? skillMap : new Map();
+  for (const skillRecord of resolvedSkillMap.values()) {
+    appendLocationModifierEntries(
+      modifierEntries,
+      buildSkillEffectiveAttributes(skillRecord),
+      getTypeEffectRecords(skillRecord.typeID),
+      "skill",
+      moduleItem,
+    );
+  }
+
+  const shipTypeID = toInt(shipItem && shipItem.typeID, 0);
+  if (shipTypeID > 0) {
+    appendLocationModifierEntries(
+      modifierEntries,
+      collectShipLocationModifierSourceAttributes(shipItem, resolvedSkillMap),
+      getTypeEffectRecords(shipTypeID),
+      "ship",
+      moduleItem,
+    );
+  }
+
+  if (modifierEntries.length > 0) {
+    applyModifierGroups(attributes, modifierEntries);
+  }
+  return attributes;
+}
+
+function buildEffectiveFittedModuleAttributeMap(
+  shipItem,
+  moduleItem,
+  skillMap = new Map(),
+  fittedItems = [],
+) {
+  const attributes = buildPassiveModuleAttributeMap(shipItem, moduleItem, skillMap);
+  if (!moduleItem) {
+    return attributes;
+  }
+
+  const modifierEntries = [];
+  for (const sourceItem of Array.isArray(fittedItems) ? fittedItems : []) {
+    if (
+      !itemAppliesPassiveStats(sourceItem) ||
+      toInt(sourceItem && sourceItem.itemID, 0) === toInt(moduleItem.itemID, 0)
+    ) {
+      continue;
+    }
+
+    const passiveSourceEffects = getPassiveModifierEffectRecords(sourceItem.typeID);
+    if (passiveSourceEffects.length <= 0) {
+      continue;
+    }
+
+    appendLocationModifierEntries(
+      modifierEntries,
+      buildPassiveModuleAttributeMap(shipItem, sourceItem, skillMap),
+      passiveSourceEffects,
+      "fittedModule",
+      moduleItem,
+    );
+  }
+
+  if (modifierEntries.length > 0) {
+    applyModifierGroups(attributes, modifierEntries);
+  }
+
+  return attributes;
+}
+
+function getEffectiveModuleResourceLoad(
+  shipItem,
+  moduleItem,
+  skillMap = new Map(),
+  fittedItems = [],
+) {
+  const attributes = buildEffectiveFittedModuleAttributeMap(
+    shipItem,
+    moduleItem,
+    skillMap,
+    fittedItems,
+  );
+
+  return {
+    cpuLoad: round6(
+      toFiniteNumber(
+        attributes[ATTRIBUTE_MODULE_CPU_NEED],
+        getTypeAttributeValue(moduleItem && moduleItem.typeID, "cpuLoad", "cpu"),
+      ),
+    ),
+    powerLoad: round6(
+      toFiniteNumber(
+        attributes[ATTRIBUTE_MODULE_POWER_NEED],
+        getTypeAttributeValue(moduleItem && moduleItem.typeID, "powerLoad", "power"),
+      ),
+    ),
+  };
+}
+
+function collectPassiveShipAttributeModifiers(fittedItems = [], options = {}) {
   const modifiers = [];
+  const shipItem = options.shipItem || null;
+  const skillMap = options.skillMap instanceof Map
+    ? options.skillMap
+    : new Map();
 
   for (const item of Array.isArray(fittedItems) ? fittedItems : []) {
     if (!itemAppliesPassiveStats(item)) {
       continue;
     }
 
+    const passiveSourceEffects = getPassiveModifierEffectRecords(item.typeID);
+    if (passiveSourceEffects.length <= 0) {
+      continue;
+    }
+
     appendDirectModifierEntries(
       modifiers,
-      getTypeAttributeMap(item.typeID),
-      getTypeEffectRecords(item.typeID),
+      buildPassiveModuleAttributeMap(shipItem, item, skillMap),
+      passiveSourceEffects,
       "fittedModule",
     );
   }
 
   return modifiers;
+}
+
+function getSkillLevel(skillMap, skillTypeID) {
+  const skill = skillMap instanceof Map ? skillMap.get(toInt(skillTypeID, 0)) : null;
+  if (!skill) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    toInt(
+      skill.effectiveSkillLevel ??
+        skill.trainedSkillLevel ??
+        skill.skillLevel,
+      0,
+    ),
+  );
+}
+
+function resolveAssumedActivePropulsionEffectState(moduleItem, skillMap = new Map()) {
+  if (!moduleItem || !isEffectivelyOnlineModule(moduleItem)) {
+    return null;
+  }
+
+  let effectName = "";
+  if (typeHasEffectName(moduleItem.typeID, PROPULSION_EFFECT_AFTERBURNER)) {
+    effectName = PROPULSION_EFFECT_AFTERBURNER;
+  } else if (typeHasEffectName(moduleItem.typeID, PROPULSION_EFFECT_MICROWARPDRIVE)) {
+    effectName = PROPULSION_EFFECT_MICROWARPDRIVE;
+  } else {
+    return null;
+  }
+
+  const accelerationControlLevel = getSkillLevel(
+    skillMap,
+    PROPULSION_SKILL_ACCELERATION_CONTROL,
+  );
+  const speedFactorBase = toFiniteNumber(
+    getTypeAttributeValue(moduleItem.typeID, "speedFactor"),
+    toFiniteNumber(getTypeAttributeValue(moduleItem.typeID, ATTRIBUTE_SPEED_FACTOR), 0),
+  );
+  const speedFactor =
+    speedFactorBase * (1 + ((5 * accelerationControlLevel) / 100));
+  const speedBoostFactor = toFiniteNumber(
+    getTypeAttributeValue(moduleItem.typeID, "speedBoostFactor"),
+    0,
+  );
+  if (!(speedBoostFactor > 0)) {
+    return null;
+  }
+
+  return {
+    effectName,
+    speedFactor: round6(speedFactor),
+    speedBoostFactor: round6(speedBoostFactor),
+    massAddition: round6(
+      toFiniteNumber(getTypeAttributeValue(moduleItem.typeID, "massAddition"), 0),
+    ),
+    signatureRadiusBonus: round6(
+      toFiniteNumber(getTypeAttributeValue(moduleItem.typeID, "signatureRadiusBonus"), 0),
+    ),
+  };
+}
+
+function applyAssumedActivePropulsionEffect(attributes, effectState) {
+  if (!attributes || !effectState) {
+    return;
+  }
+
+  const passiveMass = toFiniteNumber(attributes[ATTRIBUTE_MASS], NaN);
+  const passiveMaxVelocity = toFiniteNumber(attributes[ATTRIBUTE_MAX_VELOCITY], NaN);
+  if (!Number.isFinite(passiveMass) || !Number.isFinite(passiveMaxVelocity)) {
+    return;
+  }
+
+  const massAfterAddition =
+    passiveMass + toFiniteNumber(effectState.massAddition, 0);
+  const speedMultiplier =
+    1 +
+    (0.01 *
+      toFiniteNumber(effectState.speedFactor, 0) *
+      toFiniteNumber(effectState.speedBoostFactor, 0) /
+      Math.max(massAfterAddition, 1));
+
+  attributes[ATTRIBUTE_MASS] = round6(massAfterAddition);
+  attributes[ATTRIBUTE_MAX_VELOCITY] = round6(
+    passiveMaxVelocity * Math.max(speedMultiplier, 0),
+  );
+
+  if (effectState.effectName === PROPULSION_EFFECT_MICROWARPDRIVE) {
+    const passiveSignatureRadius = toFiniteNumber(
+      attributes[ATTRIBUTE_SIGNATURE_RADIUS],
+      NaN,
+    );
+    if (Number.isFinite(passiveSignatureRadius)) {
+      attributes[ATTRIBUTE_SIGNATURE_RADIUS] = round6(
+        passiveSignatureRadius *
+          (1 + (toFiniteNumber(effectState.signatureRadiusBonus, 0) / 100)),
+      );
+    }
+  }
+}
+
+function applyAssumedActiveShipModuleEffects(
+  attributes,
+  fittedItems = [],
+  skillMap = new Map(),
+) {
+  const candidateModules = (Array.isArray(fittedItems) ? fittedItems : [])
+    .filter((item) => resolveAssumedActivePropulsionEffectState(item, skillMap))
+    .sort((left, right) => {
+      const flagDiff = toInt(left && left.flagID, 0) - toInt(right && right.flagID, 0);
+      if (flagDiff !== 0) {
+        return flagDiff;
+      }
+      return toInt(left && left.itemID, 0) - toInt(right && right.itemID, 0);
+    });
+
+  const propulsionModule = candidateModules[0] || null;
+  if (!propulsionModule) {
+    return;
+  }
+
+  applyAssumedActivePropulsionEffect(
+    attributes,
+    resolveAssumedActivePropulsionEffectState(propulsionModule, skillMap),
+  );
 }
 
 function getStackedMultiplierFactor(entries = []) {
@@ -1228,6 +1734,9 @@ function synchronizeShipResourceStateSummary(resourceState) {
   resourceState.upgradeCapacity = round6(
     toFiniteNumber(attributes[ATTRIBUTE_UPGRADE_CAPACITY], 0),
   );
+  resourceState[FUEL_BAY_RESOURCE_KEY] = round6(
+    toFiniteNumber(attributes[FUEL_BAY_ATTRIBUTE_ID], 0),
+  );
   for (const miningHold of MINING_HOLD_ATTRIBUTE_IDS) {
     resourceState[miningHold.resourceKey] = round6(
       toFiniteNumber(attributes[miningHold.attributeID], 0),
@@ -1254,56 +1763,54 @@ function applySkillFallbackAttributeBonuses(attributes, skillMap) {
       continue;
     }
 
-    applyPercentModifier(
+    applySkillFallbackPercentModifier(
       attributes,
+      skillTypeID,
+      level,
       ATTRIBUTE_CPU_OUTPUT,
-      toFiniteNumber(
-        getTypeAttributeValue(skillTypeID, "cpuOutputBonus", "cpuOutputBonus2"),
-        0,
-      ) * level,
+      "cpuOutputBonus",
+      "cpuOutputBonus2",
     );
-    applyPercentModifier(
+    applySkillFallbackPercentModifier(
       attributes,
+      skillTypeID,
+      level,
       ATTRIBUTE_POWER_OUTPUT,
-      toFiniteNumber(
-        getTypeAttributeValue(skillTypeID, "powerOutputBonus", "powerEngineeringOutputBonus"),
-        0,
-      ) * level,
+      "powerOutputBonus",
+      "powerEngineeringOutputBonus",
     );
-    applyPercentModifier(
+    applySkillFallbackPercentModifier(
       attributes,
+      skillTypeID,
+      level,
       ATTRIBUTE_MAX_VELOCITY,
-      toFiniteNumber(
-        getTypeAttributeValue(skillTypeID, "maxVelocityBonus", "velocityBonus"),
-        0,
-      ) * level,
+      "maxVelocityBonus",
+      "velocityBonus",
     );
-    applyPercentModifier(
+    // Leave agility on the explicit dogma lane only. Generic fallback on the
+    // raw `agilityBonus` attribute over-applies Advanced Spaceship Command and
+    // Capital Ships to subcapital hulls, which is how normal fitting drifted
+    // below ghost fitting on the same fit.
+    applySkillFallbackPercentModifier(
       attributes,
-      ATTRIBUTE_AGILITY,
-      toFiniteNumber(getTypeAttributeValue(skillTypeID, "agilityBonus"), 0) * level,
-    );
-    applyPercentModifier(
-      attributes,
+      skillTypeID,
+      level,
       ATTRIBUTE_MAX_TARGET_RANGE,
-      toFiniteNumber(
-        getTypeAttributeValue(skillTypeID, "maxTargetRangeBonus", "rangeSkillBonus"),
-        0,
-      ) * level,
+      "maxTargetRangeBonus",
     );
-    applyPercentModifier(
+    applySkillFallbackPercentModifier(
       attributes,
+      skillTypeID,
+      level,
       ATTRIBUTE_SCAN_RESOLUTION,
-      toFiniteNumber(
-        getTypeAttributeValue(skillTypeID, "scanResolutionBonus", "scanspeedBonus"),
-        0,
-      ) * level,
+      "scanResolutionBonus",
     );
-    applyPercentModifier(
+    applySkillFallbackPercentModifier(
       attributes,
+      skillTypeID,
+      level,
       ATTRIBUTE_CLOAKING_TARGETING_DELAY,
-      toFiniteNumber(getTypeAttributeValue(skillTypeID, "cloakingTargetingDelayBonus"), 0) *
-        level,
+      "cloakingTargetingDelayBonus",
     );
   }
 }
@@ -1400,7 +1907,10 @@ function buildShipResourceState(charID, shipItem, options = {}) {
   const passiveAttributeModifierEntries =
     Array.isArray(options.passiveAttributeModifierEntries)
       ? options.passiveAttributeModifierEntries
-      : collectPassiveShipAttributeModifiers(fittedItems);
+      : collectPassiveShipAttributeModifiers(fittedItems, {
+          shipItem,
+          skillMap,
+        });
   const additionalAttributeModifierEntries = Array.isArray(
     options.additionalAttributeModifierEntries,
   )
@@ -1416,6 +1926,13 @@ function buildShipResourceState(charID, shipItem, options = {}) {
       ...additionalAttributeModifierEntries,
     ],
   );
+  if (options.assumeActiveShipModules === true) {
+    applyAssumedActiveShipModuleEffects(
+      derivedAttributes,
+      fittedItems,
+      skillMap,
+    );
+  }
   const turretHardpoints = toInt(
     getShipBaseAttributeValue(shipTypeID, "turretSlotsLeft"),
     0,
@@ -1434,22 +1951,15 @@ function buildShipResourceState(charID, shipItem, options = {}) {
       continue;
     }
 
-    // CCP parity: fitted modules consume CPU/power when online.  Modules
-    // without an explicit moduleState record are treated as online (they were
-    // fitted before the auto-online migration and should default to active).
-    const effectivelyOnline =
-      isModuleOnline(item) ||
-      item.moduleState === undefined ||
-      item.moduleState === null;
-    if (effectivelyOnline) {
-      cpuLoad += toFiniteNumber(
-        getTypeAttributeValue(item.typeID, "cpuLoad", "cpu"),
-        0,
+    if (isEffectivelyOnlineModule(item)) {
+      const effectiveResourceLoad = getEffectiveModuleResourceLoad(
+        shipItem,
+        item,
+        skillMap,
+        fittedItems,
       );
-      powerLoad += toFiniteNumber(
-        getTypeAttributeValue(item.typeID, "powerLoad", "power"),
-        0,
-      );
+      cpuLoad += effectiveResourceLoad.cpuLoad;
+      powerLoad += effectiveResourceLoad.powerLoad;
     }
 
     if (!itemAppliesPassiveStats(item)) {
@@ -1723,14 +2233,9 @@ function buildSlimModuleTuples(charID, shipID) {
 
 function buildModuleStatusSnapshot(item) {
   const moduleState = getItemModuleState(item);
-  // CCP parity: fitted modules without an explicit moduleState record default
-  // to online so the client shows them as active in the fitting window.
-  const effectivelyOnline =
-    moduleState.online ||
-    (item && (item.moduleState === undefined || item.moduleState === null));
   return {
     itemID: toInt(item && item.itemID, 0),
-    online: effectivelyOnline,
+    online: isEffectivelyOnlineModule(item),
     damage: moduleState.damage,
     charge: moduleState.charge,
     skillPoints: moduleState.skillPoints,
@@ -1844,6 +2349,7 @@ module.exports = {
   normalizeModuleState,
   getItemModuleState,
   isModuleOnline,
+  isEffectivelyOnlineModule,
   isShipFittingFlag,
   isChargeItem,
   isFittedChargeItem,
@@ -1856,6 +2362,7 @@ module.exports = {
   getShipBaseAttributeValue,
   getTypeDogmaEffects,
   getTypeEffectRecords,
+  getPassiveModifierEffectRecords,
   getTypeAttributeMap,
   cloneAttributeMap,
   typeHasEffectName,
@@ -1868,6 +2375,7 @@ module.exports = {
   getLoadedChargeItems,
   getFittedModuleByFlag,
   getLoadedChargeByFlag,
+  hasLoadedScanProbeLauncherCharge,
   buildSlimModuleTuples,
   buildModuleStatusSnapshot,
   buildCharacterTargetingState,
@@ -1880,6 +2388,10 @@ module.exports = {
   appendDirectModifierEntries,
   appendLocationModifierEntries,
   buildEffectiveItemAttributeMap,
+  buildSkillEffectiveAttributes,
+  applySkillDrivenShipAttributeModifiers,
+  applySkillFallbackAttributeBonuses,
+  getEffectiveModuleResourceLoad,
   applyOtherItemModifiersToAttributes,
   applyModifierGroups,
   synchronizeShipResourceStateSummary,

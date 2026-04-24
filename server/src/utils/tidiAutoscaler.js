@@ -252,6 +252,7 @@ function logTidiHold(metrics, factor, reason, transitionState = null) {
 }
 
 let autoscalerEnabled = false;
+let runtimeEnabledOverride = null;
 let currentFactor = 1.0;
 let pendingRelaxFactor = null;
 let pendingRelaxWindows = 0;
@@ -262,6 +263,16 @@ let scheduledFactor = null;
 let scheduledChangeHandle = null;
 let skipNextSample = false;
 let transitionLock = null;
+
+function isConfigEnabled() {
+  return config.tidiAutoscaler !== false;
+}
+
+function isEffectivelyEnabled() {
+  return runtimeEnabledOverride === null
+    ? isConfigEnabled()
+    : runtimeEnabledOverride === true;
+}
 
 function resetRelaxationState() {
   pendingRelaxFactor = null;
@@ -595,7 +606,7 @@ function observeRuntimeTickSampleInternal(sample, options = {}) {
 }
 
 function observeRuntimeTickSample(sample, options = {}) {
-  if (config.tidiAutoscaler === false || autoscalerEnabled !== true) {
+  if (!isEffectivelyEnabled() || autoscalerEnabled !== true) {
     return {
       changed: false,
       factor: currentFactor,
@@ -603,6 +614,37 @@ function observeRuntimeTickSample(sample, options = {}) {
     };
   }
   return observeRuntimeTickSampleInternal(sample, options);
+}
+
+function setRuntimeEnabled(value) {
+  if (value === null || value === undefined) {
+    runtimeEnabledOverride = null;
+  } else {
+    runtimeEnabledOverride = Boolean(value);
+  }
+  const target = isEffectivelyEnabled();
+  if (target && !autoscalerEnabled) {
+    start();
+  } else if (!target && autoscalerEnabled) {
+    stop();
+  }
+  appendTimeDilationLog(
+    `RUNTIME_ENABLED_OVERRIDE override=${runtimeEnabledOverride === null ? "null" : runtimeEnabledOverride} effective=${target} config=${isConfigEnabled()}`,
+  );
+  return {
+    runtimeOverride: runtimeEnabledOverride,
+    configEnabled: isConfigEnabled(),
+    effectivelyEnabled: target,
+  };
+}
+
+function getEnabledState() {
+  return {
+    runtimeOverride: runtimeEnabledOverride,
+    configEnabled: isConfigEnabled(),
+    effectivelyEnabled: isEffectivelyEnabled(),
+    autoscalerRunning: autoscalerEnabled,
+  };
 }
 
 function start() {
@@ -653,7 +695,7 @@ function logStartupStatus() {
 
 function init() {
   logStartupStatus();
-  if (config.tidiAutoscaler !== false) {
+  if (isEffectivelyEnabled()) {
     start();
   }
 }
@@ -671,6 +713,10 @@ module.exports = {
   getManualOverride,
   hasManualOverride,
   listManualOverrides,
+  setRuntimeEnabled,
+  getEnabledState,
+  isEffectivelyEnabled,
+  getTransitionLockState,
   _testing: {
     createControlWindow,
     finalizeControlWindow,

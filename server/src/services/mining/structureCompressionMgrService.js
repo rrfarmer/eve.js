@@ -12,8 +12,10 @@ const {
   decompressGasInStructure,
   getGasDecompressionCharacterEfficiency,
   getStructureGasDecompressionEfficiency,
-  resolveReprocessingContext,
 } = require("./miningIndustry");
+const {
+  resolveReprocessingContext,
+} = require(path.join(__dirname, "../reprocessing"));
 
 function syncInventoryChangesToSession(session, changes = []) {
   for (const change of Array.isArray(changes) ? changes : []) {

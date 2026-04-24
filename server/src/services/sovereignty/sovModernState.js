@@ -5,9 +5,6 @@ const sessionRegistry = require(path.join(
   "../chat/sessionRegistry",
 ));
 const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
-const {
   findItemById,
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const {
@@ -34,6 +31,16 @@ const HOUR_MS = 60 * 60 * 1000;
 
 let cache = null;
 
+function getCharacterRecord(characterID) {
+  const characterState = require(path.join(
+    __dirname,
+    "../character/characterState",
+  ));
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
+
 function normalizeInteger(value, fallback = 0) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
@@ -54,8 +61,25 @@ function normalizePositiveArray(value) {
   return [...new Set(
     value
       .map((entry) => normalizePositiveInteger(entry, null))
-      .filter(Boolean),
+    .filter(Boolean),
   )].sort((left, right) => left - right);
+}
+
+function resolveSessionInteger(session, names = []) {
+  if (!session) {
+    return null;
+  }
+  for (const name of names) {
+    if (
+      Object.prototype.hasOwnProperty.call(session, name) &&
+      session[name] !== undefined &&
+      session[name] !== null &&
+      session[name] !== ""
+    ) {
+      return Math.max(0, normalizeInteger(session[name], 0));
+    }
+  }
+  return null;
 }
 
 function normalizeBoolean(value, fallback = false) {
@@ -852,29 +876,32 @@ function getActiveCharacterIdentity(characterID) {
   const liveSession = numericCharacterID
     ? findLiveSessionByCharacterID(numericCharacterID)
     : null;
+  const liveCorporationID = resolveSessionInteger(liveSession, [
+    "corporationID",
+    "corpid",
+  ]);
+  const liveAllianceID = resolveSessionInteger(liveSession, [
+    "allianceID",
+    "allianceid",
+  ]);
+  const liveSolarSystemID = resolveSessionInteger(liveSession, [
+    "solarsystemid2",
+    "solarsystemid",
+  ]);
   return {
     characterID: numericCharacterID || 0,
     corporationID:
-      normalizePositiveInteger(
-        liveSession && (liveSession.corporationID || liveSession.corpid),
-        null,
-      ) ||
-      normalizePositiveInteger(record && record.corporationID, 0) ||
-      0,
+      liveCorporationID !== null
+        ? liveCorporationID
+        : normalizePositiveInteger(record && record.corporationID, 0) || 0,
     allianceID:
-      normalizePositiveInteger(
-        liveSession && (liveSession.allianceID || liveSession.allianceid),
-        null,
-      ) ||
-      normalizePositiveInteger(record && record.allianceID, 0) ||
-      0,
+      liveAllianceID !== null
+        ? liveAllianceID
+        : normalizePositiveInteger(record && record.allianceID, 0) || 0,
     solarSystemID:
-      normalizePositiveInteger(
-        liveSession && (liveSession.solarsystemid2 || liveSession.solarsystemid),
-        null,
-      ) ||
-      normalizePositiveInteger(record && record.solarSystemID, 0) ||
-      0,
+      liveSolarSystemID !== null
+        ? liveSolarSystemID
+        : normalizePositiveInteger(record && record.solarSystemID, 0) || 0,
   };
 }
 

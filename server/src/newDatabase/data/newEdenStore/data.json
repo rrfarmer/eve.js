@@ -2,7 +2,7 @@
   "meta": {
     "version": 2,
     "description": "Cache-backed New Eden Store authority for classic store RPC, fast checkout, and local payment parity.",
-    "updatedAt": "2026-04-01T15:13:09.874Z",
+    "updatedAt": "2026-04-09T16:56:00.592Z",
     "seedProfile": "official-observed-2026-03-26"
   },
   "config": {

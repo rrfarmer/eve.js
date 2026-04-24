@@ -3,6 +3,9 @@ const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
 const {
+  throwWrappedUserError,
+} = require(path.join(__dirname, "../../common/machoErrors"));
+const {
   buildBoundObjectResponse,
   buildKeyVal,
   buildList,
@@ -17,6 +20,12 @@ const {
   getStationManagementServiceCostModifiers,
   getRentableItems,
 } = require(path.join(__dirname, "../_shared/stationStaticData"));
+const {
+  getCharacterRecord,
+} = require(path.join(__dirname, "../character/characterState"));
+const {
+  getCharacterEffectiveStanding,
+} = require(path.join(__dirname, "../character/standingRuntime"));
 const {
   getCorporationOffices,
   getOfficesAtStation,
@@ -118,11 +127,12 @@ class CorpStationMgrService extends BaseService {
     ]);
   }
 
-  Handle_GetStationServiceAccessRule(args) {
+  Handle_GetStationServiceAccessRule(args, session) {
     const serviceID =
       args && args.length > 1 ? args[1] : args && args.length > 0 ? args[0] : 0;
     log.debug(`[CorpStationMgr] GetStationServiceAccessRule(${serviceID})`);
-    const rule = getStationServiceAccessRule(serviceID);
+    const station = getStationRecord(session);
+    const rule = getStationServiceAccessRule(serviceID, station && station.ownerID);
     return buildKeyVal([
       ["serviceID", rule.serviceID],
       ["minimumStanding", rule.minimumStanding],
@@ -168,9 +178,54 @@ class CorpStationMgrService extends BaseService {
     );
   }
 
-  Handle_DoStandingCheckForStationService(args) {
+  Handle_DoStandingCheckForStationService(args, session) {
     const serviceID = args && args.length > 0 ? args[0] : 0;
     log.debug(`[CorpStationMgr] DoStandingCheckForStationService(${serviceID})`);
+    const stationID = resolveStationID(args, session);
+    const station = getStationRecord(session, stationID);
+    const ownerID = station && station.ownerID ? station.ownerID : null;
+    const rule = getStationServiceAccessRule(serviceID, ownerID);
+    if (!rule || !ownerID) {
+      return null;
+    }
+
+    const minimumStanding = Number(rule.minimumStanding) || 0;
+    const minimumCharSecurity = Number(rule.minimumCharSecurity) || 0;
+    const maximumCharSecurity = Number(rule.maximumCharSecurity) || 0;
+    const characterID = normalizePositiveInteger(
+      (args && args.length > 1 ? args[1] : null) ||
+        (session && (session.characterID || session.charid)),
+      0,
+    );
+    const resolvedCharacterID = characterID || 0;
+
+    if (resolvedCharacterID) {
+      const effectiveStanding = getCharacterEffectiveStanding(
+        resolvedCharacterID,
+        ownerID,
+      ).standing;
+      if (minimumStanding !== 0 && effectiveStanding < minimumStanding) {
+        throwWrappedUserError("CustomNotify", {
+          notify: "Your standings are too low to access this service.",
+        });
+      }
+
+      const character = getCharacterRecord(resolvedCharacterID);
+      const securityStatus = Number(
+        character && (character.securityStatus ?? character.securityRating ?? 0),
+      );
+      if (minimumCharSecurity !== 0 && securityStatus < minimumCharSecurity) {
+        throwWrappedUserError("CustomNotify", {
+          notify: "Your security status is too low to access this service.",
+        });
+      }
+      if (maximumCharSecurity !== 0 && securityStatus > maximumCharSecurity) {
+        throwWrappedUserError("CustomNotify", {
+          notify: "Your security status is too high to access this service.",
+        });
+      }
+    }
+
     return null;
   }
 

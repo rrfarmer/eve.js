@@ -2,6 +2,10 @@ const destiny = require("../../destiny");
 const {
   resolveGotoCommandSyncState,
 } = require("../movementDeliveryPolicy");
+const {
+  snapshotDestinyAuthorityState,
+  updateDestinyAuthorityState,
+} = require("../authority/destinySessionState");
 
 function createMovementSubwarpCommands(deps = {}) {
   const {
@@ -37,6 +41,7 @@ function createMovementSubwarpCommands(deps = {}) {
       }
 
       const now = runtime.getCurrentSimTimeMs();
+      const authorityState = snapshotDestinyAuthorityState(session);
       const commandDirection = normalizeVector(direction, entity.direction);
       const currentRawDispatchStamp = runtime.getCurrentDestinyStamp(now);
       const liveOwnerSessionStamp = runtime.getCurrentSessionDestinyStamp(
@@ -44,16 +49,19 @@ function createMovementSubwarpCommands(deps = {}) {
         now,
       );
       const pendingOwnerMovementStamp = toInt(
+        authorityState && authorityState.lastOwnerCommandStamp,
         session && session._space && session._space.lastPilotCommandMovementStamp,
         0,
       ) >>> 0;
       const pendingOwnerMovementAnchorStamp = toInt(
+        authorityState && authorityState.lastOwnerCommandAnchorStamp,
         session &&
           session._space &&
           session._space.lastPilotCommandMovementAnchorStamp,
         0,
       ) >>> 0;
       const pendingOwnerMovementRawDispatchStamp = toInt(
+        authorityState && authorityState.lastOwnerCommandRawDispatchStamp,
         session &&
           session._space &&
           session._space.lastPilotCommandMovementRawDispatchStamp,
@@ -202,6 +210,15 @@ function createMovementSubwarpCommands(deps = {}) {
           session._space.lastPilotCommandMovementAnchorStamp = liveOwnerSessionStamp;
           session._space.lastPilotCommandMovementRawDispatchStamp =
             currentRawDispatchStamp;
+          updateDestinyAuthorityState(session, {
+            lastOwnerCommandAnchorStamp: liveOwnerSessionStamp,
+            lastOwnerCommandRawDispatchStamp: currentRawDispatchStamp,
+            lastOwnerCommandHeadingHash: JSON.stringify({
+              x: toFiniteNumber(commandDirection.x, 0),
+              y: toFiniteNumber(commandDirection.y, 0),
+              z: toFiniteNumber(commandDirection.z, 0),
+            }),
+          });
         }
         logMovementDebug(
           suppressOwnerGotoEchoSameRawPendingFutureSteer

@@ -4,6 +4,8 @@ const {
   getFittedModuleItems,
   getLoadedChargeByFlag,
   getAttributeIDByNames,
+  getEffectTypeRecord,
+  getTypeDogmaEffects,
   getTypeAttributeMap,
   typeHasEffectName,
 } = require(path.join(__dirname, "../../services/fitting/liveFittingState"));
@@ -16,8 +18,31 @@ const {
   resolveWeaponFamily,
   buildWeaponModuleSnapshot,
 } = require(path.join(__dirname, "../combat/weaponDogma"));
+const {
+  getLocationModifierSourcesForSystem,
+} = require(path.join(
+  __dirname,
+  "../../services/exploration/wormholes/wormholeEnvironmentRuntime",
+));
+const {
+  buildLiveModuleAttributeMap,
+} = require(path.join(__dirname, "../modules/liveModuleAttributes"));
+const assistanceModuleRuntime = require(path.join(
+  __dirname,
+  "../modules/assistanceModuleRuntime",
+));
+const hostileModuleRuntime = require(path.join(
+  __dirname,
+  "../modules/hostileModuleRuntime",
+));
+const jammerModuleRuntime = require(path.join(
+  __dirname,
+  "../modules/jammerModuleRuntime",
+));
 const nativeNpcStore = require(path.join(__dirname, "./nativeNpcStore"));
 const {
+  buildNpcEffectiveModuleItem,
+  getNpcCapabilityTypeID,
   resolveNpcPropulsionEffectName: resolveNpcCapabilityPropulsionEffectName,
   NPC_ENABLE_FITTED_PROPULSION_MODULES,
 } = require(path.join(__dirname, "./npcCapabilityResolver"));
@@ -50,6 +75,15 @@ const ATTRIBUTE_MISSILE_ENTITY_AOE_VELOCITY_MULTIPLIER =
 const ATTRIBUTE_MISSILE_ENTITY_AOE_CLOUD_SIZE_MULTIPLIER =
   getAttributeIDByNames("missileEntityAoeCloudSizeMultiplier") || 648;
 const DEFAULT_MISSILE_DAMAGE_REDUCTION_SENSITIVITY = 5.5;
+const ATTRIBUTE_MAX_RANGE = getAttributeIDByNames("maxRange") || 54;
+const ATTRIBUTE_FALLOFF_EFFECTIVENESS =
+  getAttributeIDByNames("falloffEffectiveness") || 2044;
+const NPC_SELF_EFFECT_DEFINITIONS_BY_NAME = Object.freeze({
+  npcbehaviorsiege: Object.freeze({
+    family: "siege",
+    activateWhen: "combat",
+  }),
+});
 
 function toPositiveInt(value, fallback = 0) {
   const numeric = Math.trunc(Number(value) || 0);
@@ -157,8 +191,62 @@ function getNpcLoadedChargeForModule(entity, moduleItem) {
   return getLoadedChargeByFlag(characterID, shipID, flagID);
 }
 
+function buildNpcSyntheticHullModuleID(entityID, slotIndex = 0) {
+  const normalizedEntityID = toPositiveInt(entityID, 0);
+  const normalizedSlotIndex = Math.max(0, toPositiveInt(slotIndex, 0));
+  return normalizedEntityID > 0
+    ? (normalizedEntityID * 10000) + normalizedSlotIndex
+    : 0;
+}
+
+function buildNpcSyntheticHullEffectModuleItem(entity, effectRecord, slotIndex = 0, options = {}) {
+  const entityID = getNpcShipID(entity);
+  const typeID = toPositiveInt(entity && entity.typeID, 0);
+  if (!entityID || !typeID || !effectRecord) {
+    return null;
+  }
+
+  const slotToken = Math.max(
+    1,
+    toPositiveInt(options.slotBase, 0) + toPositiveInt(effectRecord && effectRecord.effectID, slotIndex),
+  );
+
+  return {
+    itemID: buildNpcSyntheticHullModuleID(entityID, slotToken),
+    typeID,
+    groupID: toPositiveInt(entity && entity.groupID, 0),
+    categoryID: toPositiveInt(entity && entity.categoryID, 0),
+    flagID: 0,
+    locationID: entityID,
+    ownerID: toPositiveInt(
+      entity && (
+        entity.pilotCharacterID ??
+        entity.characterID ??
+        entity.ownerID ??
+        entity.corporationID
+      ),
+      0,
+    ),
+    singleton: 1,
+    quantity: 1,
+    stacksize: 1,
+    itemName: String(entity && entity.itemName || entity && entity.slimName || "NPC Hull"),
+    npcSyntheticHullModule: true,
+    npcSyntheticHullWeapon: options.syntheticWeapon === true,
+    npcSyntheticHullSuperweapon: options.syntheticSuperweapon === true,
+    npcEffectName: String(effectRecord && effectRecord.name || "").trim(),
+    npcWeaponFamily: String(options.weaponFamily || "").trim() || null,
+    moduleState: {
+      online: true,
+      isOnline: true,
+      active: false,
+      isActive: false,
+    },
+  };
+}
+
 function getNpcWeaponModules(entity) {
-  return getNpcFittedModuleItems(entity)
+  const fittedWeaponModules = getNpcFittedModuleItems(entity)
     .filter((moduleItem) => {
       const chargeItem = getNpcLoadedChargeForModule(entity, moduleItem);
       const family = resolveWeaponFamily(moduleItem, chargeItem);
@@ -168,6 +256,436 @@ function getNpcWeaponModules(entity) {
       );
     })
     .sort((left, right) => toPositiveInt(left.flagID, 0) - toPositiveInt(right.flagID, 0));
+
+  const hullWeaponModules = isNativeNpcEntity(entity)
+    ? getTypeEffectRecords(toPositiveInt(entity && entity.typeID, 0))
+      .filter((effectRecord) => String(effectRecord && effectRecord.name || "").trim().toLowerCase() === "targetattack")
+      .map((effectRecord, index) => {
+        const guid = String(effectRecord && effectRecord.guid || "").trim().toLowerCase();
+        let weaponFamily = "";
+        if (guid.includes("triglavianbeam")) {
+          weaponFamily = "precursorTurret";
+        } else if (guid.includes("laser")) {
+          weaponFamily = "laserTurret";
+        } else if (guid.includes("hybrid") || guid.includes("rail") || guid.includes("blaster")) {
+          weaponFamily = "hybridTurret";
+        } else if (guid.includes("projectile") || guid.includes("artillery") || guid.includes("autocannon")) {
+          weaponFamily = "projectileTurret";
+        }
+        if (!weaponFamily) {
+          return null;
+        }
+        return buildNpcSyntheticHullEffectModuleItem(entity, effectRecord, index, {
+          syntheticWeapon: true,
+          weaponFamily,
+          slotBase: 100,
+        });
+      })
+      .filter(Boolean)
+    : [];
+
+  return [
+    ...fittedWeaponModules,
+    ...hullWeaponModules,
+  ].sort((left, right) => toPositiveInt(left.flagID, 0) - toPositiveInt(right.flagID, 0));
+}
+
+function getTypeEffectRecords(typeID) {
+  return [...(getTypeDogmaEffects(typeID) || new Set())]
+    .map((effectID) => getEffectTypeRecord(effectID))
+    .filter(Boolean);
+}
+
+function resolveNpcModuleEffectRecord(moduleItem, resolver = null) {
+  const effectiveModuleItem = buildNpcEffectiveModuleItem(moduleItem);
+  if (!effectiveModuleItem || !effectiveModuleItem.typeID) {
+    return null;
+  }
+
+  if (
+    moduleItem &&
+    Object.prototype.hasOwnProperty.call(moduleItem, "_npcResolvedEffectRecord") &&
+    moduleItem._npcResolvedEffectRecord
+  ) {
+    return moduleItem._npcResolvedEffectRecord;
+  }
+
+  const explicitEffectName = String(moduleItem && moduleItem.npcEffectName || "").trim().toLowerCase();
+  let resolvedEffectRecord = null;
+  for (const effectRecord of getTypeEffectRecords(toPositiveInt(effectiveModuleItem.typeID, 0))) {
+    if (
+      explicitEffectName &&
+      String(effectRecord && effectRecord.name || "").trim().toLowerCase() !== explicitEffectName
+    ) {
+      continue;
+    }
+    if (typeof resolver === "function" && !resolver(effectRecord)) {
+      continue;
+    }
+    resolvedEffectRecord = effectRecord;
+    break;
+  }
+
+  if (moduleItem && typeof moduleItem === "object") {
+    moduleItem._npcResolvedEffectRecord = resolvedEffectRecord || null;
+  }
+  return resolvedEffectRecord;
+}
+
+function resolveNpcAssistanceModuleDefinition(moduleItem) {
+  const effectRecord = resolveNpcModuleEffectRecord(
+    moduleItem,
+    (candidateEffectRecord) => Boolean(
+      assistanceModuleRuntime.resolveAssistanceDefinition(candidateEffectRecord),
+    ),
+  );
+  if (!effectRecord) {
+    return null;
+  }
+
+  const resolvedDefinition = assistanceModuleRuntime.resolveAssistanceDefinition(effectRecord);
+  if (moduleItem && typeof moduleItem === "object") {
+    moduleItem._npcAssistanceDefinition = resolvedDefinition || null;
+  }
+  return resolvedDefinition;
+}
+
+function resolveNpcSelfEffectDefinition(effectRecord) {
+  const normalizedEffectName = String(effectRecord && effectRecord.name || "")
+    .trim()
+    .toLowerCase();
+  return NPC_SELF_EFFECT_DEFINITIONS_BY_NAME[normalizedEffectName] || null;
+}
+
+function resolveNpcSelfModuleDefinition(moduleItem) {
+  const effectRecord = resolveNpcModuleEffectRecord(
+    moduleItem,
+    (candidateEffectRecord) => Boolean(
+      resolveNpcSelfEffectDefinition(candidateEffectRecord),
+    ),
+  );
+  if (!effectRecord) {
+    return null;
+  }
+
+  const resolvedDefinition = resolveNpcSelfEffectDefinition(effectRecord);
+  if (moduleItem && typeof moduleItem === "object") {
+    moduleItem._npcSelfDefinition = resolvedDefinition || null;
+  }
+  return resolvedDefinition;
+}
+
+function resolveNpcHostileModuleDefinition(moduleItem) {
+  const effectiveModuleItem = buildNpcEffectiveModuleItem(moduleItem);
+  if (!effectiveModuleItem || !effectiveModuleItem.typeID) {
+    return null;
+  }
+
+  const cacheKey = toPositiveInt(
+    getNpcCapabilityTypeID(effectiveModuleItem, effectiveModuleItem.typeID),
+    0,
+  );
+  if (!cacheKey) {
+    return null;
+  }
+
+  if (
+    moduleItem &&
+    Object.prototype.hasOwnProperty.call(moduleItem, "_npcHostileDefinition") &&
+    moduleItem._npcHostileDefinition
+  ) {
+    return moduleItem._npcHostileDefinition;
+  }
+
+  const effectRecord = resolveNpcModuleEffectRecord(
+    {
+      ...moduleItem,
+      typeID: cacheKey,
+    },
+    (candidateEffectRecord) => Boolean(
+      hostileModuleRuntime.resolveHostileDefinition(candidateEffectRecord) ||
+      jammerModuleRuntime.resolveJammerDefinition(candidateEffectRecord),
+    ),
+  );
+  let resolvedDefinition = null;
+  if (effectRecord) {
+    resolvedDefinition = hostileModuleRuntime.resolveHostileDefinition(effectRecord);
+    if (!resolvedDefinition) {
+      resolvedDefinition = jammerModuleRuntime.resolveJammerDefinition(effectRecord);
+    }
+  }
+
+  if (moduleItem && typeof moduleItem === "object") {
+    moduleItem._npcHostileDefinition = resolvedDefinition || null;
+  }
+  return resolvedDefinition;
+}
+
+function getNpcSelfModules(entity) {
+  const fittedItems =
+    isNativeNpcEntity(entity) && Array.isArray(entity && entity.fittedItems)
+      ? entity.fittedItems
+      : getNpcFittedModuleItems(entity);
+
+  const fittedSelfModules = fittedItems
+    .map((moduleItem) => ({
+      moduleItem,
+      effectName: String(moduleItem && moduleItem.npcEffectName || "").trim() || null,
+      definition: resolveNpcSelfModuleDefinition(moduleItem),
+    }))
+    .filter((entry) => Boolean(entry.definition))
+    .sort((left, right) => (
+      toPositiveInt(left.moduleItem && left.moduleItem.flagID, 0) -
+      toPositiveInt(right.moduleItem && right.moduleItem.flagID, 0)
+    ));
+
+  const hullSelfModules = isNativeNpcEntity(entity)
+    ? getTypeEffectRecords(toPositiveInt(entity && entity.typeID, 0))
+      .map((effectRecord, index) => {
+        const definition = resolveNpcSelfEffectDefinition(effectRecord);
+        if (!definition) {
+          return null;
+        }
+        return {
+          moduleItem: buildNpcSyntheticHullEffectModuleItem(entity, effectRecord, index, {
+            slotBase: 1100,
+          }),
+          effectName: String(effectRecord && effectRecord.name || "").trim(),
+          definition,
+        };
+      })
+      .filter(Boolean)
+    : [];
+
+  return [
+    ...fittedSelfModules,
+    ...hullSelfModules,
+  ].sort((left, right) => (
+    toPositiveInt(left.moduleItem && left.moduleItem.flagID, 0) -
+    toPositiveInt(right.moduleItem && right.moduleItem.flagID, 0)
+  ));
+}
+
+function buildNpcAssistanceModuleAttributeMap(entity, moduleItem) {
+  const shipID = getNpcShipID(entity);
+  const shipTypeID = toPositiveInt(entity && entity.typeID, 0);
+  if (!shipID || !shipTypeID || !moduleItem) {
+    return null;
+  }
+
+  return buildLiveModuleAttributeMap(
+    {
+      itemID: shipID,
+      typeID: shipTypeID,
+    },
+    buildNpcEffectiveModuleItem(moduleItem),
+    null,
+    null,
+    getNpcFittedModuleItems(entity),
+    [],
+    {
+      additionalLocationModifierSources: getLocationModifierSourcesForSystem(
+        entity && entity.systemID,
+      ),
+    },
+  );
+}
+
+function estimateNpcAssistanceEffectiveRange(entity, moduleItem) {
+  if (
+    moduleItem &&
+    Number(moduleItem._npcAssistanceEffectiveRangeMeters) > 0
+  ) {
+    return Number(moduleItem._npcAssistanceEffectiveRangeMeters);
+  }
+
+  const attributeMap = buildNpcAssistanceModuleAttributeMap(entity, moduleItem);
+  const effectRecord = resolveNpcModuleEffectRecord(
+    moduleItem,
+    (candidateEffectRecord) => Boolean(
+      assistanceModuleRuntime.resolveAssistanceDefinition(candidateEffectRecord),
+    ),
+  );
+  const rangeAttributeID = toPositiveInt(
+    effectRecord && effectRecord.rangeAttributeID,
+    ATTRIBUTE_MAX_RANGE,
+  );
+  const falloffAttributeID = toPositiveInt(
+    effectRecord && effectRecord.falloffAttributeID,
+    ATTRIBUTE_FALLOFF_EFFECTIVENESS,
+  );
+  const effectiveRange = Math.max(
+    0,
+    round6(
+      toFiniteNumber(attributeMap && attributeMap[rangeAttributeID], 0) +
+      toFiniteNumber(attributeMap && attributeMap[falloffAttributeID], 0),
+    ),
+  );
+
+  if (moduleItem && typeof moduleItem === "object") {
+    moduleItem._npcAssistanceEffectiveRangeMeters = effectiveRange;
+  }
+  return effectiveRange;
+}
+
+function buildNpcHostileModuleAttributeMap(entity, moduleItem) {
+  const shipID = getNpcShipID(entity);
+  const shipTypeID = toPositiveInt(entity && entity.typeID, 0);
+  if (!shipID || !shipTypeID || !moduleItem) {
+    return null;
+  }
+
+  return buildLiveModuleAttributeMap(
+    {
+      itemID: shipID,
+      typeID: shipTypeID,
+    },
+    buildNpcEffectiveModuleItem(moduleItem),
+    null,
+    null,
+    getNpcFittedModuleItems(entity),
+    [],
+    {
+      additionalLocationModifierSources: getLocationModifierSourcesForSystem(
+        entity && entity.systemID,
+      ),
+    },
+  );
+}
+
+function estimateNpcHostileEffectiveRange(entity, moduleItem) {
+  if (
+    moduleItem &&
+    Number(moduleItem._npcHostileEffectiveRangeMeters) > 0
+  ) {
+    return Number(moduleItem._npcHostileEffectiveRangeMeters);
+  }
+
+  const attributeMap = buildNpcHostileModuleAttributeMap(entity, moduleItem);
+  const effectiveRange = Math.max(
+    0,
+    round6(
+      toFiniteNumber(attributeMap && attributeMap[ATTRIBUTE_MAX_RANGE], 0) +
+      toFiniteNumber(attributeMap && attributeMap[ATTRIBUTE_FALLOFF_EFFECTIVENESS], 0),
+    ),
+  );
+
+  if (moduleItem && typeof moduleItem === "object") {
+    moduleItem._npcHostileEffectiveRangeMeters = effectiveRange;
+  }
+  return effectiveRange;
+}
+
+function getNpcHostileModules(entity) {
+  const fittedItems =
+    isNativeNpcEntity(entity) && Array.isArray(entity && entity.fittedItems)
+      ? entity.fittedItems
+      : getNpcFittedModuleItems(entity);
+
+  const fittedHostileModules = fittedItems
+    .map((moduleItem) => ({
+      moduleItem,
+      effectName: String(moduleItem && moduleItem.npcEffectName || "").trim() || null,
+      definition: resolveNpcHostileModuleDefinition(moduleItem),
+    }))
+    .filter((entry) => Boolean(entry.definition))
+    .sort((left, right) => (
+      toPositiveInt(left.moduleItem && left.moduleItem.flagID, 0) -
+      toPositiveInt(right.moduleItem && right.moduleItem.flagID, 0)
+    ));
+
+  const hullHostileModules = isNativeNpcEntity(entity)
+    ? getTypeEffectRecords(toPositiveInt(entity && entity.typeID, 0))
+      .map((effectRecord, index) => {
+        const definition = hostileModuleRuntime.resolveHostileDefinition(effectRecord);
+        if (!definition) {
+          return null;
+        }
+        return {
+          moduleItem: buildNpcSyntheticHullEffectModuleItem(entity, effectRecord, index, {
+            slotBase: 500,
+          }),
+          effectName: String(effectRecord && effectRecord.name || "").trim(),
+          definition,
+        };
+      })
+      .filter(Boolean)
+    : [];
+
+  return [
+    ...fittedHostileModules,
+    ...hullHostileModules,
+  ].sort((left, right) => (
+    toPositiveInt(left.moduleItem && left.moduleItem.flagID, 0) -
+    toPositiveInt(right.moduleItem && right.moduleItem.flagID, 0)
+  ));
+}
+
+function getNpcAssistanceModules(entity) {
+  const fittedItems =
+    isNativeNpcEntity(entity) && Array.isArray(entity && entity.fittedItems)
+      ? entity.fittedItems
+      : getNpcFittedModuleItems(entity);
+
+  const fittedAssistanceModules = fittedItems
+    .map((moduleItem) => ({
+      moduleItem,
+      effectName: String(moduleItem && moduleItem.npcEffectName || "").trim() || null,
+      definition: resolveNpcAssistanceModuleDefinition(moduleItem),
+    }))
+    .filter((entry) => Boolean(entry.definition))
+    .sort((left, right) => (
+      toPositiveInt(left.moduleItem && left.moduleItem.flagID, 0) -
+      toPositiveInt(right.moduleItem && right.moduleItem.flagID, 0)
+    ));
+
+  const hullAssistanceModules = isNativeNpcEntity(entity)
+    ? getTypeEffectRecords(toPositiveInt(entity && entity.typeID, 0))
+      .map((effectRecord, index) => {
+        const definition = assistanceModuleRuntime.resolveAssistanceDefinition(effectRecord);
+        if (!definition) {
+          return null;
+        }
+        return {
+          moduleItem: buildNpcSyntheticHullEffectModuleItem(entity, effectRecord, index, {
+            slotBase: 700,
+          }),
+          effectName: String(effectRecord && effectRecord.name || "").trim(),
+          definition,
+        };
+      })
+      .filter(Boolean)
+    : [];
+
+  return [
+    ...fittedAssistanceModules,
+    ...hullAssistanceModules,
+  ].sort((left, right) => (
+    toPositiveInt(left.moduleItem && left.moduleItem.flagID, 0) -
+    toPositiveInt(right.moduleItem && right.moduleItem.flagID, 0)
+  ));
+}
+
+function getNpcSuperweaponModules(entity) {
+  return isNativeNpcEntity(entity)
+    ? getTypeEffectRecords(toPositiveInt(entity && entity.typeID, 0))
+      .filter((effectRecord) => {
+        const normalizedName = String(effectRecord && effectRecord.name || "")
+          .trim()
+          .toLowerCase();
+        return (
+          normalizedName === "entitysuperweapon" ||
+          normalizedName === "entitysuperweaponlanceallraces"
+        );
+      })
+      .map((effectRecord, index) => (
+        buildNpcSyntheticHullEffectModuleItem(entity, effectRecord, index, {
+          syntheticSuperweapon: true,
+          slotBase: 900,
+        })
+      ))
+      .filter(Boolean)
+    : [];
 }
 
 function buildNpcWeaponModuleSnapshot(entity, moduleItem) {
@@ -191,6 +709,9 @@ function buildNpcWeaponModuleSnapshot(entity, moduleItem) {
     chargeItem: getNpcLoadedChargeForModule(entity, moduleItem),
     fittedItems: getNpcFittedModuleItems(entity),
     activeModuleContexts: [],
+    additionalLocationModifierSources: getLocationModifierSourcesForSystem(
+      entity && entity.systemID,
+    ),
   });
 }
 
@@ -352,8 +873,14 @@ module.exports = {
   getNpcFittedModuleItems,
   getNpcLoadedChargeForModule,
   getNpcWeaponModules,
+  getNpcHostileModules,
+  getNpcAssistanceModules,
+  getNpcSelfModules,
+  getNpcSuperweaponModules,
   buildNpcWeaponModuleSnapshot,
   estimateNpcWeaponEffectiveRange,
+  estimateNpcHostileEffectiveRange,
+  estimateNpcAssistanceEffectiveRange,
   getNpcEntityMissileWeaponSource,
   resolveNpcPropulsionEffectName,
   getNpcPropulsionModules,

@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "version": 1,
+    "description": "DB-backed authoritative weapon-bank state keyed by ship itemID.",
+    "updatedAt": "2026-04-12T18:16:16.487Z"
+  },
+  "ships": {
+    "140000137": {
+      "banksByMasterID": {},
+      "changedByCharacterID": null,
+      "updatedAtMs": 1775940832084
+    },
+    "2990001422": {
+      "banksByMasterID": {},
+      "changedByCharacterID": null,
+      "updatedAtMs": 1775942853175
+    },
+    "2990001494": {
+      "banksByMasterID": {
+        "2990001522": [
+          2990001521,
+          2990001523,
+          2990001524,
+          2990001525,
+          2990001526,
+          2990001496
+        ]
+      },
+      "changedByCharacterID": 140000003,
+      "updatedAtMs": 1775942881737
+    },
+    "2990001536": {
+      "banksByMasterID": {},
+      "changedByCharacterID": null,
+      "updatedAtMs": 1775941655349
+    },
+    "2990001538": {
+      "banksByMasterID": {
+        "2990001539": [
+          2990001541
+        ]
+      },
+      "changedByCharacterID": 998710300,
+      "updatedAtMs": 1775940553417
+    },
+    "2990002328": {
+      "banksByMasterID": {},
+      "changedByCharacterID": null,
+      "updatedAtMs": 1776011140455
+    },
+    "2990002353": {
+      "banksByMasterID": {
+        "2990002388": [
+          2990002389,
+          2990002390,
+          2990002391,
+          2990002392,
+          2990002355
+        ]
+      },
+      "changedByCharacterID": 140000003,
+      "updatedAtMs": 1776011273856
+    },
+    "2990002407": {
+      "banksByMasterID": {
+        "2990003472": [
+          2990003473,
+          2990003474,
+          2990003475,
+          2990003476,
+          2990003477,
+          2990003478,
+          2990003479
+        ]
+      },
+      "changedByCharacterID": 140000003,
+      "updatedAtMs": 1776013796420
+    }
+  }
+}

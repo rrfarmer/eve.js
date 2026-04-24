@@ -2509,12 +2509,28 @@ test("missile launcher activation spawns a follow-ball missile and applies damag
   assert.equal(target.conditionState.shieldCharge, 1, "expected no early missile damage");
   assert.equal(getMissileEntities(scene).length, 1, "expected missile to still be in flight");
 
-  advanceScene(scene, 2_000);
-  assert.ok(
-    target.conditionState.shieldCharge < 1,
-    "expected missile damage to land after travel",
+  let landed = false;
+  for (let index = 0; index < 16; index += 1) {
+    advanceScene(scene, 250);
+    if (target.conditionState.shieldCharge < 1) {
+      landed = true;
+      break;
+    }
+  }
+  assert.equal(
+    landed,
+    true,
+    "expected missile damage to land after travel and the client release floor",
   );
-  assert.equal(getMissileEntities(scene).length, 0, "expected missile to be removed after impact");
+  let removed = false;
+  for (let index = 0; index < 16; index += 1) {
+    if (getMissileEntities(scene).length === 0) {
+      removed = true;
+      break;
+    }
+    advanceScene(scene, 250);
+  }
+  assert.equal(removed, true, "expected missile to be removed after the delayed impact release");
 });
 
 test("missile destiny presentation keeps the authored charge radius", () => {

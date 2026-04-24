@@ -1,6 +1,6 @@
 {
   "test": {
-    "passwordhash": "e62bd2570e99a1dc63ecab114926b07f9e0a8573",
+    "passwordhash": "3c28f123ea4002af55e8962f16eeec798d7981d8",
     "id": 1,
     "role": "431255270151428096",
     "chatRole": "431255270151428096",
@@ -11,7 +11,7 @@
     }
   },
   "test2": {
-    "passwordhash": "7adcc6ff762268403a8678945b8dd1aeb0f8c718",
+    "passwordhash": "34f22f6e036ae414200f97322f7f4ec24acdb54f",
     "id": 2,
     "role": "431255270151428096",
     "chatRole": "431255270151428096",
@@ -23,32 +23,14 @@
   },
   "test3": {
     "passwordhash": "8737b7756bc649c9fc8ce887d745600fbb830a6a",
-    "id": 3,
-    "role": "431255270151428096",
-    "chatRole": "90071993086640128",
-    "banned": false,
-    "multiCharacterTrainingSlots": {
-      "2": "157469184000000000",
-      "3": "157469184000000000"
-    }
-  },
-  "test2test": {
-    "passwordhash": "477214555164219c1a3a80bce7663eaadf70aa67",
-    "id": 4,
+    "id": 8,
     "role": "431255270151428096",
     "chatRole": "90071993086640128",
     "banned": false
   },
-  "john": {
-    "passwordhash": "998cefe3278d8a90f765a73188998d3d560a3d20",
-    "id": 5,
-    "role": "431255270151428096",
-    "chatRole": "90071993086640128",
-    "banned": false
-  },
-  "asd": {
-    "passwordhash": "e4a8526827b10a16e73b265d10cc263f657b522b",
-    "id": 6,
+  "test4": {
+    "passwordhash": "b140bc9e7e56ce32d2c5f2d1dd0ebeb54a171bc5",
+    "id": 10,
     "role": "431255270151428096",
     "chatRole": "90071993086640128",
     "banned": false

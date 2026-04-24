@@ -5,6 +5,8 @@ const path = require("path");
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
+const transitions = require(path.join(repoRoot, "server/src/space/transitions"));
+const worldData = require(path.join(repoRoot, "server/src/space/worldData"));
 const {
   applyCharacterToSession,
   getCharacterRecord,
@@ -403,4 +405,51 @@ test("deferred manual propulsion stop still resolves the owning session when ent
       "expected deferred manual propulsion stop to emit an inactive OnGodmaShipEffect packet through the owning session",
     );
   });
+});
+
+test("dock transition stops active propulsion effects before the space session detaches", () => {
+  const { session, shipEntity, moduleItem } = attachCharacterToScene();
+
+  const activationResult = spaceRuntime.activatePropulsionModule(
+    session,
+    moduleItem,
+    MWD_EFFECT_NAME,
+    { repeat: 1000 },
+  );
+  assert.equal(activationResult.success, true);
+  assert.ok(
+    shipEntity.activeModuleEffects instanceof Map &&
+      shipEntity.activeModuleEffects.has(Number(moduleItem.itemID) || 0),
+    "expected propulsion effect to be active before docking",
+  );
+
+  const characterRecord = getCharacterRecord(session.characterID);
+  const dockStationID = Number(
+    (characterRecord && (
+      characterRecord.homeStationID ||
+      characterRecord.cloneStationID ||
+      characterRecord.stationID ||
+      characterRecord.stationid
+    )) ||
+    60003760,
+  ) || 60003760;
+  assert.ok(
+    worldData.getStationByID(dockStationID),
+    `expected a valid dock target station ${dockStationID}`,
+  );
+
+  session._notifications.length = 0;
+  const dockResult = transitions.dockSession(session, dockStationID);
+  assert.equal(dockResult.success, true, "expected dock transition to succeed");
+
+  const stopEffectNotification = getShipEffectNotifications(session).find(
+    (entry) =>
+      Array.isArray(entry && entry.payload) &&
+      Number(entry.payload[0]) === Number(moduleItem.itemID) &&
+      Number(entry.payload[3]) === 0,
+  );
+  assert.ok(
+    stopEffectNotification,
+    "expected dock transition to emit an inactive OnGodmaShipEffect for the active propulsion module",
+  );
 });

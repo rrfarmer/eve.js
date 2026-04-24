@@ -1,16 +1,11 @@
 const path = require("path");
 
 const {
-  createKillmailRecord,
-  resolveKillmailWarID,
-} = require(path.join(__dirname, "../../services/killmail/killmailState"));
-const {
   buildKillmailItemTreeForLocation,
 } = require(path.join(__dirname, "../../services/killmail/killmailItemPayload"));
 const {
   resolveItemByTypeID,
 } = require(path.join(__dirname, "../../services/inventory/itemTypeRegistry"));
-
 const FILETIME_EPOCH_OFFSET = 116444736000000000n;
 const FILETIME_TICKS_PER_MS = 10000n;
 const LEDGER_TTL_MS = 30 * 60 * 1000;
@@ -19,6 +14,34 @@ const ledgersByVictim = new Map();
 
 function getCharacterStateService() {
   return require(path.join(__dirname, "../../services/character/characterState"));
+}
+
+function getKillmailStateService() {
+  return require(path.join(__dirname, "../../services/killmail/killmailState"));
+}
+
+function createKillmailRecord(recordInput) {
+  const killmailState = getKillmailStateService();
+  return killmailState && typeof killmailState.createKillmailRecord === "function"
+    ? killmailState.createKillmailRecord(recordInput)
+    : { success: false, errorMsg: "KILLMAIL_STATE_UNAVAILABLE" };
+}
+
+function resolveKillmailWarID(recordInput) {
+  const killmailState = getKillmailStateService();
+  return killmailState && typeof killmailState.resolveKillmailWarID === "function"
+    ? killmailState.resolveKillmailWarID(recordInput)
+    : null;
+}
+
+function adjustCharacterBalance(characterID, amount, options = {}) {
+  const walletState = require(path.join(
+    __dirname,
+    "../../services/account/walletState",
+  ));
+  return walletState && typeof walletState.adjustCharacterBalance === "function"
+    ? walletState.adjustCharacterBalance(characterID, amount, options)
+    : { success: false, errorMsg: "WALLET_STATE_UNAVAILABLE" };
 }
 
 function resolveCharacterRecord(characterID) {
@@ -294,6 +317,27 @@ function resolveLootLocationIDs(targetEntity, destroyResult = {}) {
   return [];
 }
 
+function resolveBountyPayout(targetEntity, finalAttacker = {}) {
+  const finalCharacterID = toPositiveInt(finalAttacker && finalAttacker.characterID, null);
+  const bounty = Math.max(0, toFiniteNumber(targetEntity && targetEntity.bounty, 0));
+  if (finalCharacterID === null || bounty <= 0) {
+    return null;
+  }
+  if (
+    toPositiveInt(targetEntity && (targetEntity.pilotCharacterID ?? targetEntity.characterID), null) !== null
+  ) {
+    return null;
+  }
+
+  const payoutResult = adjustCharacterBalance(finalCharacterID, bounty, {
+    description: `NPC bounty payout for ${String(targetEntity && targetEntity.itemName || targetEntity && targetEntity.slimName || "destroyed NPC")}`,
+    ownerID1: finalCharacterID,
+    ownerID2: toPositiveInt(targetEntity && targetEntity.ownerID, finalCharacterID),
+    referenceID: toPositiveInt(targetEntity && targetEntity.itemID, finalCharacterID),
+  });
+  return payoutResult && payoutResult.success === true ? bounty : null;
+}
+
 function recordKillmailFromDestruction(targetEntity, destroyResult, options = {}) {
   if (!targetEntity || !destroyResult || destroyResult.success !== true) {
     return null;
@@ -314,6 +358,7 @@ function recordKillmailFromDestruction(targetEntity, destroyResult, options = {}
   const victimIdentity = resolveVictimIdentity(targetEntity);
   const lootLocationIDs = resolveLootLocationIDs(targetEntity, destroyResult);
   const items = resolveKillmailItems(destroyResult, lootLocationIDs);
+  const bountyClaimed = resolveBountyPayout(targetEntity, finalAttacker);
   const killRecordInput = {
     killTime: formatKillmailFiletime(whenMs),
     solarSystemID: toPositiveInt(targetEntity.systemID, toPositiveInt(ledger.solarSystemID, null)),
@@ -333,7 +378,7 @@ function recordKillmailFromDestruction(targetEntity, destroyResult, options = {}
         0,
         toFiniteNumber((resolveItemByTypeID(victimIdentity.victimShipTypeID) || {}).basePrice, 0),
       ) + sumItemLossValue(items),
-    bountyClaimed: null,
+    bountyClaimed,
     loyaltyPoints: null,
     killRightSupplied: null,
     attackers: Object.entries(ledger.attackers)

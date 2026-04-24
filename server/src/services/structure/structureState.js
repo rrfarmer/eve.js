@@ -86,6 +86,7 @@ const REQUIRED_NON_CATEGORY_STRUCTURE_TYPE_IDS = Object.freeze([
 let typeCache = null;
 let structureCache = null;
 let solarCache = null;
+const structureChangeListeners = new Set();
 
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
@@ -520,6 +521,7 @@ function ensureStructureCache() {
 }
 
 function persistStructures(rows, metaOverrides = {}) {
+  const previousRows = ensureStructureCache().rows.map((entry) => cloneValue(entry));
   const normalizedRows = rows.map((entry) => normalizeStructureRecord(entry));
   const nextStructureID = Math.max(
     NEXT_STRUCTURE_ID_START,
@@ -548,7 +550,74 @@ function persistStructures(rows, metaOverrides = {}) {
     rows: cachedRows,
     byStructureID: new Map(cachedRows.map((entry) => [entry.structureID, entry])),
   };
+  notifyStructureChangeListeners(previousRows, cachedRows);
   return writeResult;
+}
+
+function buildStructureChangeSystemIDs(previousRows = [], nextRows = []) {
+  const previousByID = new Map(
+    (Array.isArray(previousRows) ? previousRows : [])
+      .map((entry) => [toPositiveInt(entry && entry.structureID, 0), entry])
+      .filter(([structureID]) => structureID > 0),
+  );
+  const nextByID = new Map(
+    (Array.isArray(nextRows) ? nextRows : [])
+      .map((entry) => [toPositiveInt(entry && entry.structureID, 0), entry])
+      .filter(([structureID]) => structureID > 0),
+  );
+  const changedSystemIDs = new Set();
+  const structureIDs = new Set([
+    ...previousByID.keys(),
+    ...nextByID.keys(),
+  ]);
+  for (const structureID of structureIDs) {
+    const previous = previousByID.get(structureID) || null;
+    const next = nextByID.get(structureID) || null;
+    if (JSON.stringify(previous) === JSON.stringify(next)) {
+      continue;
+    }
+    const previousSystemID = toPositiveInt(previous && previous.solarSystemID, 0);
+    const nextSystemID = toPositiveInt(next && next.solarSystemID, 0);
+    if (previousSystemID > 0) {
+      changedSystemIDs.add(previousSystemID);
+    }
+    if (nextSystemID > 0) {
+      changedSystemIDs.add(nextSystemID);
+    }
+  }
+  return [...changedSystemIDs];
+}
+
+function notifyStructureChangeListeners(previousRows = [], nextRows = []) {
+  if (structureChangeListeners.size <= 0) {
+    return;
+  }
+  const systemIDs = buildStructureChangeSystemIDs(previousRows, nextRows);
+  if (systemIDs.length <= 0) {
+    return;
+  }
+  const payload = {
+    systemIDs,
+    previousRows: previousRows.map((entry) => cloneValue(entry)),
+    nextRows: nextRows.map((entry) => cloneValue(entry)),
+  };
+  for (const listener of structureChangeListeners) {
+    try {
+      listener(payload);
+    } catch (error) {
+      log.warn(`[StructureState] Structure change listener failed: ${error.message}`);
+    }
+  }
+}
+
+function registerStructureChangeListener(listener) {
+  if (typeof listener !== "function") {
+    return () => {};
+  }
+  structureChangeListeners.add(listener);
+  return () => {
+    structureChangeListeners.delete(listener);
+  };
 }
 
 function getStructureByID(structureID, options = {}) {
@@ -1851,10 +1920,11 @@ Object.assign(module.exports, {
   applyRuntimeStructureDamage,
   tickStructures,
   getStructureServices,
-  buildStructureDirectoryInfo,
-  buildStructureLocationRecord,
-  buildStructureMapEntry,
-  listAssetSafetyWraps,
+    buildStructureDirectoryInfo,
+    buildStructureLocationRecord,
+    buildStructureMapEntry,
+    registerStructureChangeListener,
+    listAssetSafetyWraps,
   toFileTimeLongFromMs,
   _testing: {
     normalizeStructureTypeRecord,

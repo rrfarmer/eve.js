@@ -9,9 +9,6 @@ const {
   "../../_secondary/express/gatewayServices/gatewayServiceHelpers",
 ));
 const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
-const {
   CORP_ROLE_DIRECTOR,
   CORP_ROLE_PROJECT_MANAGER,
   getCorporationMember,
@@ -37,6 +34,16 @@ const GOAL_PAYMENT_PERIOD = Object.freeze({
 
 let cachedRoot = null;
 let cachedIndexes = null;
+
+function getCharacterRecord(characterID) {
+  const characterState = require(path.join(
+    __dirname,
+    "../character/characterState",
+  ));
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
 
 function cloneValue(value) {
   if (value === undefined || value === null) {

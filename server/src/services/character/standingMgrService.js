@@ -1,6 +1,10 @@
 const BaseService = require("../baseService");
 const log = require("../../utils/logger");
-const { getCharacterRecord } = require("./characterState");
+const {
+  buildFiletimeLong,
+  buildKeyVal,
+} = require("../_shared/serviceHelpers");
+const standingRuntime = require("./standingRuntime");
 
 // Standings use real Rowsets so the client can call both .Index() and .Filter().
 // Only valid owner IDs may be present here: cfg.eveowners.Get(None) crashes the
@@ -51,6 +55,27 @@ function buildFromStandingRowset(rows = [], targetID) {
 
   const rowMap = new Map();
   for (const entry of rows) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const simplifiedFromID = normalizeStandingID(entry.fromID);
+    const simplifiedStanding = Number(entry.standing);
+    if (
+      simplifiedFromID &&
+      entry.toID == null &&
+      Number.isFinite(simplifiedStanding)
+    ) {
+      rowMap.set(String(simplifiedFromID), {
+        type: "list",
+        items: [
+          simplifiedFromID,
+          simplifiedStanding,
+        ],
+      });
+      continue;
+    }
+
     const normalizedEntry = normalizeStandingEntry(entry);
     if (!normalizedEntry || normalizedEntry.toID !== normalizedTargetID) {
       continue;
@@ -103,34 +128,40 @@ function normalizeStandingEntry(entry) {
   };
 }
 
-function filterStandingsForTarget(rows = [], targetID) {
-  const normalizedTargetID = normalizeStandingID(targetID);
-  if (!normalizedTargetID) {
-    return [];
-  }
-
-  return rows
-    .map((entry) => normalizeStandingEntry(entry))
-    .filter(
-      (entry) =>
-        entry !== null && entry.toID === normalizedTargetID,
-    );
+function buildKeyValList(items = []) {
+  return {
+    type: "list",
+    items,
+  };
 }
 
-function filterNpcStandings(rows = []) {
-  return rows
-    .map((entry) => normalizeStandingEntry(entry))
-    .filter(Boolean);
+function buildStandingTransactionList(transactions = []) {
+  return buildKeyValList(
+    transactions.map((transaction) =>
+      buildKeyVal([
+        ["eventTypeID", Number(transaction && transaction.eventTypeID) || 0],
+        ["eventDateTime", buildFiletimeLong(transaction && transaction.eventDateTime)],
+        ["modification", Number(transaction && transaction.modification) || 0],
+        ["fromID", Number(transaction && transaction.fromID) || 0],
+        ["toID", Number(transaction && transaction.toID) || 0],
+        ["msg", String((transaction && transaction.msg) || "")],
+        ["int_1", transaction && transaction.int_1 != null ? Number(transaction.int_1) || 0 : null],
+        ["int_2", transaction && transaction.int_2 != null ? Number(transaction.int_2) || 0 : null],
+        ["int_3", transaction && transaction.int_3 != null ? Number(transaction.int_3) || 0 : null],
+      ]),
+    ),
+  );
 }
 
-function getStandingData(session, key) {
-  const charId = session ? session.characterID : 0;
-  const charData = getCharacterRecord(charId) || {};
-  const source =
-    charData.standingData && typeof charData.standingData === "object"
-      ? charData.standingData
-      : {};
-  return Array.isArray(source[key]) ? source[key] : [];
+function buildStandingCompositionList(rows = []) {
+  return buildKeyValList(
+    rows.map((row) =>
+      buildKeyVal([
+        ["ownerID", Number(row && row.ownerID) || 0],
+        ["standing", Number(row && row.standing) || 0],
+      ]),
+    ),
+  );
 }
 
 class StandingMgrService extends BaseService {
@@ -140,15 +171,13 @@ class StandingMgrService extends BaseService {
 
   Handle_GetNPCNPCStandings(args, session) {
     log.debug("[StandingMgr] GetNPCNPCStandings called");
-    return buildRelationshipStandingsRowset(
-      filterNpcStandings(getStandingData(session, "npc")),
-    );
+    return buildRelationshipStandingsRowset(standingRuntime.listNpcStandings());
   }
 
   Handle_GetCharStandings(args, session) {
     log.debug("[StandingMgr] GetCharStandings called");
     return buildFromStandingRowset(
-      getStandingData(session, "char"),
+      standingRuntime.listCharacterStandings(session && (session.characterID || session.charid)),
       session && (session.characterID || session.charid),
     );
   }
@@ -156,8 +185,26 @@ class StandingMgrService extends BaseService {
   Handle_GetCorpStandings(args, session) {
     log.debug("[StandingMgr] GetCorpStandings called");
     return buildFromStandingRowset(
-      getStandingData(session, "corp"),
+      standingRuntime.listCorporationStandings(session && (session.corporationID || session.corpid)),
       session && (session.corporationID || session.corpid),
+    );
+  }
+
+  Handle_GetStandingTransactions(args) {
+    const fromID = args && args.length > 0 ? args[0] : 0;
+    const toID = args && args.length > 1 ? args[1] : 0;
+    log.debug(`[StandingMgr] GetStandingTransactions(${fromID}, ${toID})`);
+    return buildStandingTransactionList(
+      standingRuntime.getStandingTransactions(fromID, toID),
+    );
+  }
+
+  Handle_GetStandingCompositions(args) {
+    const fromID = args && args.length > 0 ? args[0] : 0;
+    const toID = args && args.length > 1 ? args[1] : 0;
+    log.debug(`[StandingMgr] GetStandingCompositions(${fromID}, ${toID})`);
+    return buildStandingCompositionList(
+      standingRuntime.getStandingCompositions(fromID, toID),
     );
   }
 }

@@ -38,6 +38,9 @@ const {
   buildChargeSublocationData,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
 const {
+  buildWeaponBankStateDict,
+} = require(path.join(__dirname, "../moduleGrouping/moduleGroupingRuntime"));
+const {
   launchDronesForSession,
   scoopDrone,
 } = require(path.join(__dirname, "../drone/droneRuntime"));
@@ -312,7 +315,7 @@ class ShipService extends BaseService {
         ],
       },
       this._buildChargeStateDict(charID, shipID),
-      { type: "dict", entries: [] },
+      buildWeaponBankStateDict(shipID, { characterID: charID }),
       { type: "dict", entries: [] },
     ];
   }
@@ -494,13 +497,18 @@ class ShipService extends BaseService {
       return null;
     }
 
-    // Bump the active ship dirt timestamp on each boarding/activation so the
-    // hangar scene knows this hull needs a one-time visual rematerialization.
-    // Handle_GetDirtTimestamp consumes that signal on first read.
-    this._setDirtTimestamp(numericShipID);
+    this._markDockedActiveShipVisualDirty(numericShipID);
 
     const activeShip = activationResult.activeShip || getActiveShipRecord(session.characterID);
     return this._buildActivationResponse(activeShip, session);
+  }
+
+  _markDockedActiveShipVisualDirty(shipID) {
+    // The station/structure hangar scene only rematerializes the newly active
+    // hull when it sees a one-shot dirt timestamp for that ship. Keep the
+    // signal centralized here so boarding and ejecting into a capsule both use
+    // the same refresh contract.
+    this._setDirtTimestamp(shipID);
   }
 
   _leaveShip(session, shipID, sourceLabel) {
@@ -514,6 +522,39 @@ class ShipService extends BaseService {
     if (!capsuleResult.success || !capsuleResult.data) {
       log.warn(`[Ship] ${sourceLabel} failed to ensure capsule`);
       return null;
+    }
+
+    const capsuleWasCreated = Boolean(
+      capsuleResult.created === true ||
+      (
+        capsuleResult.data &&
+        Array.isArray(capsuleResult.data.changes) &&
+        capsuleResult.data.changes.some((change) => change && change.created === true)
+      ) ||
+      (
+        Array.isArray(capsuleResult.changes) &&
+        capsuleResult.changes.some((change) => change && change.created === true)
+      ),
+    );
+
+    if (capsuleWasCreated) {
+      // Treat a lazily created docked capsule like any other boardable hangar
+      // ship: seed the inventory row before the shipid swap so the hangar view
+      // can resolve the new active hull during ProcessActiveShipChanged.
+      syncInventoryItemForSession(
+        session,
+        capsuleResult.data,
+        {
+          locationID: 0,
+          flagID: 0,
+          quantity: 0,
+          singleton: 0,
+          stacksize: 0,
+        },
+        {
+          emitCfgLocation: true,
+        },
+      );
     }
 
     const activationResult = activateShipForSession(
@@ -530,6 +571,8 @@ class ShipService extends BaseService {
       );
       return null;
     }
+
+    this._markDockedActiveShipVisualDirty(capsuleResult.data.itemID);
 
     return capsuleResult.data.itemID;
   }

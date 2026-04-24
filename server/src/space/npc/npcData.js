@@ -4,6 +4,15 @@ const database = require(path.join(__dirname, "../../newDatabase"));
 const {
   buildConfiguredConcordStartupRules,
 } = require("./npcDefaultConcordRules");
+const {
+  getCapitalNpcGeneratedRows,
+} = require(path.join(__dirname, "./capitals/capitalNpcCatalog"));
+const {
+  getTrigDrifterGeneratedRows,
+} = require(path.join(__dirname, "./trigDrifter/trigDrifterNpcCatalog"));
+const {
+  augmentNpcLoadoutWithHostileUtilities,
+} = require(path.join(__dirname, "./npcHostileUtilityCatalog"));
 
 const NPC_TABLE = Object.freeze({
   PROFILES: "npcProfiles",
@@ -39,6 +48,58 @@ const ID_FIELD = Object.freeze({
 });
 
 const TABLE_INDEX_CACHE = Object.create(null);
+const STANDARD_SPAWN_POOL_SPECS = Object.freeze({
+  blood_standard: {
+    basePoolID: "blood",
+    poolID: "blood_standard",
+    name: "Blood Raider Standard Hostiles",
+    aliases: ["blood standard", "blood anomaly", "blood raider standard"],
+    allowedProfilePrefixes: [
+      "parity_blood_raider_pulse_",
+      "parity_blood_raider_beam_",
+    ],
+  },
+  sanshas_standard: {
+    basePoolID: "sanshas",
+    poolID: "sanshas_standard",
+    name: "Sansha Standard Hostiles",
+    aliases: ["sansha standard", "sanshas anomaly", "sansha anomaly"],
+    allowedProfilePrefixes: [
+      "parity_sansha_pulse_",
+      "parity_sansha_beam_",
+    ],
+  },
+  serpentis_standard: {
+    basePoolID: "serpentis",
+    poolID: "serpentis_standard",
+    name: "Serpentis Standard Hostiles",
+    aliases: ["serpentis standard", "serpentis anomaly"],
+    allowedProfilePrefixes: [
+      "parity_serpentis_blaster_",
+      "parity_serpentis_rail_",
+    ],
+  },
+  angels_standard: {
+    basePoolID: "angels",
+    poolID: "angels_standard",
+    name: "Angel Standard Hostiles",
+    aliases: ["angel standard", "angels anomaly", "angel anomaly"],
+    allowedProfilePrefixes: [
+      "parity_angel_autocannon_",
+      "parity_angel_artillery_",
+    ],
+  },
+  guristas_standard: {
+    basePoolID: "guristas",
+    poolID: "guristas_standard",
+    name: "Guristas Standard Hostiles",
+    aliases: ["guristas standard", "guristas anomaly"],
+    allowedProfilePrefixes: [
+      "parity_guristas_missile_",
+      "parity_guristas_rail_",
+    ],
+  },
+});
 
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
@@ -49,6 +110,41 @@ function normalizeQuery(value) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ");
+}
+
+function buildDerivedSpawnPoolRows(rows) {
+  if (!Array.isArray(rows) || rows.length <= 0) {
+    return [];
+  }
+
+  const basePoolsByID = new Map(rows.map((row) => [String(row && row.spawnPoolID || "").trim(), row]));
+  const derivedRows = [];
+  for (const spec of Object.values(STANDARD_SPAWN_POOL_SPECS)) {
+    const basePool = basePoolsByID.get(spec.basePoolID) || null;
+    if (!basePool) {
+      continue;
+    }
+    const allowedPrefixes = Array.isArray(spec.allowedProfilePrefixes) ? spec.allowedProfilePrefixes : [];
+    const entries = Array.isArray(basePool.entries)
+      ? basePool.entries.filter((entry) => {
+        const profileID = String(entry && entry.profileID || "").trim();
+        return allowedPrefixes.some((prefix) => profileID.startsWith(prefix));
+      })
+      : [];
+    if (entries.length <= 0) {
+      continue;
+    }
+    derivedRows.push({
+      ...cloneValue(basePool),
+      spawnPoolID: spec.poolID,
+      name: spec.name,
+      description: `${spec.name} without faction or officer inserts.`,
+      aliases: spec.aliases,
+      entries: cloneValue(entries),
+      derived: true,
+    });
+  }
+  return derivedRows;
 }
 
 function getSearchableTokens(row, idFieldName) {
@@ -69,12 +165,22 @@ function readNpcRows(tableName) {
 
 function getRawNpcRows(tableName) {
   const result = database.read(tableName, "/");
-  if (!result.success || !result.data || typeof result.data !== "object") {
-    return [];
-  }
-
-  const rows = result.data[ROW_KEY[tableName]];
-  return Array.isArray(rows) ? rows : [];
+  const authoredRows =
+    result.success && result.data && typeof result.data === "object"
+      ? result.data[ROW_KEY[tableName]]
+      : [];
+  const generatedRows = getCapitalNpcGeneratedRows(tableName);
+  const trigDrifterGeneratedRows = getTrigDrifterGeneratedRows(tableName);
+  const normalizedAuthoredRows = Array.isArray(authoredRows) ? authoredRows : [];
+  const derivedRows = tableName === NPC_TABLE.SPAWN_POOLS
+    ? buildDerivedSpawnPoolRows(normalizedAuthoredRows)
+    : [];
+  return [
+    ...normalizedAuthoredRows,
+    ...derivedRows,
+    ...(Array.isArray(generatedRows) ? generatedRows : []),
+    ...(Array.isArray(trigDrifterGeneratedRows) ? trigDrifterGeneratedRows : []),
+  ];
 }
 
 function getNpcTableIndex(tableName) {
@@ -329,18 +435,30 @@ function buildNpcDefinition(profileID) {
   }
 
   const profile = cloneValue(profileRow);
-  const loadout = cloneValue(loadoutRow);
+  const baseLoadout = cloneValue(loadoutRow);
   const behaviorProfile = cloneValue(behaviorProfileRow);
   const lootTable = lootTableRow ? cloneValue(lootTableRow) : null;
   if (!profile) {
     return null;
   }
 
+  const hostileUtilityAugmentResult = augmentNpcLoadoutWithHostileUtilities(
+    {
+      profile,
+      loadout: baseLoadout,
+      behaviorProfile,
+      lootTable,
+    },
+    baseLoadout,
+  );
+  const loadout = hostileUtilityAugmentResult.loadout;
+
   return {
     profile,
     loadout,
     behaviorProfile,
     lootTable,
+    hostileUtilityTemplateIDs: hostileUtilityAugmentResult.appliedTemplateIDs,
   };
 }
 

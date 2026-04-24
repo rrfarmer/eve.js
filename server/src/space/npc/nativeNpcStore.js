@@ -45,8 +45,20 @@ const transientCounters = {
   [TABLE.WRECK_ITEMS]: null,
 };
 
+const controllerCache = {
+  all: null,
+  bySystem: new Map(),
+  byEntityID: new Map(),
+};
+
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function invalidateControllerCache() {
+  controllerCache.all = null;
+  controllerCache.bySystem.clear();
+  controllerCache.byEntityID.clear();
 }
 
 function toPositiveInt(value, fallback = 0) {
@@ -273,20 +285,42 @@ function removeNativeCargo(cargoID) {
 }
 
 function listNativeControllers() {
-  return Object.values(readCollection(TABLE.CONTROLLERS, "controllers"))
+  if (Array.isArray(controllerCache.all)) {
+    return controllerCache.all;
+  }
+
+  const allControllers = Object.values(readCollection(TABLE.CONTROLLERS, "controllers"))
     .sort((left, right) => Number(left.entityID || 0) - Number(right.entityID || 0));
+  controllerCache.all = allControllers;
+  controllerCache.byEntityID = new Map(
+    allControllers.map((controller) => [String(toPositiveInt(controller && controller.entityID, 0)), controller]),
+  );
+  return allControllers;
 }
 
 function listNativeControllersForSystem(systemID) {
   const normalizedSystemID = toPositiveInt(systemID, 0);
-  return listNativeControllers().filter(
+  if (!normalizedSystemID) {
+    return [];
+  }
+  if (controllerCache.bySystem.has(normalizedSystemID)) {
+    return controllerCache.bySystem.get(normalizedSystemID);
+  }
+
+  const systemControllers = listNativeControllers().filter(
     (controller) => toPositiveInt(controller && controller.systemID, 0) === normalizedSystemID,
   );
+  controllerCache.bySystem.set(normalizedSystemID, systemControllers);
+  return systemControllers;
 }
 
 function getNativeController(entityID) {
-  const collection = readCollection(TABLE.CONTROLLERS, "controllers");
-  return collection[String(entityID)] || null;
+  const normalizedEntityID = String(toPositiveInt(entityID, 0));
+  if (!normalizedEntityID || normalizedEntityID === "0") {
+    return null;
+  }
+  listNativeControllers();
+  return controllerCache.byEntityID.get(normalizedEntityID) || null;
 }
 
 function upsertNativeController(controllerRecord, options = {}) {
@@ -297,17 +331,25 @@ function upsertNativeController(controllerRecord, options = {}) {
       errorMsg: "NPC_NATIVE_CONTROLLER_ID_REQUIRED",
     };
   }
-  return writeCollectionRow(
+  const writeResult = writeCollectionRow(
     TABLE.CONTROLLERS,
     "controllers",
     entityID,
     controllerRecord,
     options,
   );
+  if (writeResult && writeResult.success) {
+    invalidateControllerCache();
+  }
+  return writeResult;
 }
 
 function removeNativeController(entityID) {
-  return removeCollectionRow(TABLE.CONTROLLERS, "controllers", entityID);
+  const removeResult = removeCollectionRow(TABLE.CONTROLLERS, "controllers", entityID);
+  if (removeResult && removeResult.success) {
+    invalidateControllerCache();
+  }
+  return removeResult;
 }
 
 function removeNativeEntityCascade(entityID) {
@@ -465,7 +507,7 @@ function buildNativeCargoItems(entityID) {
     itemName: String(cargoRecord && cargoRecord.itemName || ""),
     quantity: toPositiveInt(cargoRecord && cargoRecord.quantity, 0),
     singleton: cargoRecord && cargoRecord.singleton === true,
-    flagID: 5,
+    flagID: toPositiveInt(cargoRecord && cargoRecord.flagID, 5),
     stacksize: cargoRecord && cargoRecord.singleton === true
       ? 1
       : toPositiveInt(cargoRecord && cargoRecord.quantity, 0),
@@ -478,6 +520,11 @@ function buildNativeWreckInventoryItem(wreckID) {
   if (!wreckRecord) {
     return null;
   }
+
+  const position = cloneValue(wreckRecord.position || { x: 0, y: 0, z: 0 });
+  const velocity = cloneValue(wreckRecord.velocity || { x: 0, y: 0, z: 0 });
+  const direction = cloneValue(wreckRecord.direction || { x: 1, y: 0, z: 0 });
+  const targetPoint = cloneValue(wreckRecord.targetPoint || position);
 
   return {
     itemID: toPositiveInt(wreckRecord.wreckID, 0),
@@ -493,7 +540,24 @@ function buildNativeWreckInventoryItem(wreckID) {
     itemName: String(wreckRecord.itemName || "Wreck"),
     customInfo: "",
     radius: Number(wreckRecord.radius || 0),
+    spaceRadius: Number(wreckRecord.radius || 0),
     capacity: Number(wreckRecord.capacity || 0),
+    spaceState: {
+      position,
+      velocity,
+      direction,
+      targetPoint,
+      mode: String(wreckRecord.mode || "STOP"),
+      speedFraction: Number(wreckRecord.speedFraction || 0),
+    },
+    conditionState: cloneValue(wreckRecord.conditionState || null),
+    createdAtMs: Number(wreckRecord.createdAtMs || 0) || null,
+    expiresAtMs: Number(wreckRecord.expiresAtMs || 0) || null,
+    launcherID: toPositiveInt(wreckRecord.launcherID, 0) || null,
+    dunRotation: Array.isArray(wreckRecord.dunRotation)
+      ? cloneValue(wreckRecord.dunRotation)
+      : null,
+    transient: wreckRecord.transient === true,
   };
 }
 

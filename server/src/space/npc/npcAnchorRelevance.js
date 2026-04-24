@@ -169,6 +169,9 @@ function materializeRelevantAmbientControllers(scene, relevantClusterKeys, optio
     if (!result.success) {
       return result;
     }
+    if (result.data && result.data.prunedInvalidStoredController === true) {
+      continue;
+    }
     materialized.push({
       entityID,
       startupRuleID: String(controllerRecord.startupRuleID || "").trim() || null,
@@ -202,6 +205,9 @@ function materializeRelevantCombatControllers(scene, relevantClusterKeys, option
     });
     if (!result.success) {
       return result;
+    }
+    if (result.data && result.data.prunedInvalidStoredController === true) {
+      continue;
     }
     materialized.push({
       entityID,

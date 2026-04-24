@@ -20,6 +20,9 @@ const {
 const {
   NPC_COMBAT_DORMANCY_RECENT_AGGRESSION_GRACE_MS,
 } = require(path.join(repoRoot, "server/src/space/npc/npcCombatDormancy"));
+const {
+  syncRelevantStartupControllersForScene,
+} = require(path.join(repoRoot, "server/src/space/npc/npcAnchorRelevance"));
 
 const AMBIENT_SYSTEM_ID = 30000142;
 const AMBIENT_STARTUP_RULE_ID = "jita_concord_gate_checkpoint_startup";
@@ -605,5 +608,58 @@ test("stopping a preparing warp collapses the pre-warmed passive CONCORD destina
     liveSummaries.some((summary) => Number(summary.anchorID) === Number(gateB.itemID)),
     false,
     "pre-warmed passive CONCORD destination cluster should collapse once the preparing warp is cancelled",
+  );
+});
+
+test("anchor relevance prunes invalid transient startup controllers instead of failing every tick", () => {
+  config.npcAuthoredStartupEnabled = true;
+  config.npcDefaultConcordStartupEnabled = false;
+  config.npcDefaultConcordStationScreensEnabled = false;
+  assert.equal(setStartupRuleEnabledOverride(AMBIENT_STARTUP_RULE_ID, true).success, true);
+
+  const scene = runtime.ensureScene(AMBIENT_SYSTEM_ID);
+  assert(scene, "expected ambient startup test scene");
+
+  const storedControllers = nativeNpcStore.listNativeControllersForSystem(AMBIENT_SYSTEM_ID)
+    .filter((controller) => String(controller && controller.startupRuleID || "").trim() === AMBIENT_STARTUP_RULE_ID);
+  assert(storedControllers.length > 0, "expected cold startup controllers in the transient native store");
+
+  const brokenController = storedControllers[0];
+  const writeResult = nativeNpcStore.upsertNativeController(
+    {
+      ...brokenController,
+      profileID: "missing_profile_for_anchor_relevance_test",
+    },
+    {
+      transient: true,
+    },
+  );
+  assert.equal(writeResult.success, true, "expected transient controller corruption write to succeed");
+
+  const anchorEntity = scene.getEntityByID(Number(brokenController.anchorID) || 0);
+  assert(anchorEntity, "expected startup controller anchor to resolve in the scene");
+
+  const clusterKey = scene.getPublicGridClusterKeyForEntity(anchorEntity);
+  assert(clusterKey, "expected startup controller anchor to resolve to a public-grid cluster");
+
+  const syncResult = syncRelevantStartupControllersForScene(scene, {
+    includeSceneSessions: false,
+    relevantClusterKeys: [clusterKey],
+    catchUpBehavior: false,
+  });
+  assert.equal(
+    syncResult.success,
+    true,
+    "expected anchor relevance sync to prune invalid transient startup controllers instead of failing",
+  );
+  assert.equal(
+    nativeNpcStore.getNativeController(brokenController.entityID),
+    null,
+    "expected broken transient startup controller row to be removed from the native store",
+  );
+  assert.equal(
+    nativeNpcStore.getNativeEntity(brokenController.entityID),
+    null,
+    "expected broken transient startup entity row to be removed from the native store",
   );
 });

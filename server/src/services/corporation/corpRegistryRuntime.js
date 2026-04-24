@@ -32,6 +32,7 @@ const {
 const {
   CORP_ROLE_DIRECTOR,
   CORPORATION_WALLET_KEY_START,
+  DEFAULT_STRUCTURE_REINFORCE_HOUR,
   FULL_ADMIN_ROLE_MASK,
   ensureCharacterMemberState,
   ensureRuntimeInitialized,
@@ -54,6 +55,9 @@ const {
   setCorporationAlliance,
   syncMemberStateToCharacterRecord,
 } = require(path.join(__dirname, "./corporationRuntimeState"));
+const {
+  NO_REINFORCEMENT_WEEKDAY,
+} = require(path.join(__dirname, "../structure/structureConstants"));
 const {
   createWarRecord,
 } = require(path.join(__dirname, "./warRuntimeState"));
@@ -83,6 +87,9 @@ const {
   buildKillmailPayload,
   listKillmailsForCorporation,
 } = require(path.join(__dirname, "../killmail/killmailState"));
+const {
+  sendCorporationWelcomeMailToCharacter,
+} = require(path.join(__dirname, "../mail/mailState"));
 const {
   buildAggressionSettingsPayload,
   readAggressionSettings,
@@ -345,6 +352,23 @@ function moveCharacterToCorporation(characterID, fromCorporationID, toCorporatio
     targetCorporation.corporationID,
     previousToCorporation,
   );
+
+  if (Number(fromCorporationID) !== Number(targetCorporation.corporationID)) {
+    const targetRuntime = getCorporationRuntime(targetCorporation.corporationID) || {};
+    const welcomeMailResult = sendCorporationWelcomeMailToCharacter(
+      characterID,
+      targetCorporation.corporationID,
+      {
+        corporationRecord: targetCorporation,
+        body: targetRuntime.welcomeMail,
+      },
+    );
+    if (!welcomeMailResult.success) {
+      log.warn(
+        `[CorpRegistry] Failed to send corporation welcome mail for char=${characterID} corp=${targetCorporation.corporationID}: ${welcomeMailResult.errorMsg}`,
+      );
+    }
+  }
 
   return {
     success: true,
@@ -1852,7 +1876,16 @@ class CorpRegistryRuntimeService extends BaseService {
 
   Handle_GetStructureReinforceDefault(args, session) {
     const runtime = getCorporationRuntime(resolveCorporationID(session)) || {};
-    return runtime.structureReinforceDefault || 0;
+    // CCP client deployment and corp settings code both unpack this RPC as
+    // `(reinforceWeekday, reinforceHour)`, even though the UI only uses the
+    // hour picker for the current Upwell flow.
+    return [
+      NO_REINFORCEMENT_WEEKDAY,
+      normalizeInteger(
+        runtime.structureReinforceDefault,
+        DEFAULT_STRUCTURE_REINFORCE_HOUR,
+      ),
+    ];
   }
 
   Handle_SetStructureReinforceDefault(args, session) {

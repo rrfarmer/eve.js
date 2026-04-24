@@ -5,6 +5,7 @@ const {
   getTypeAttributeMap,
   getTypeAttributeValue,
   applyOtherItemModifiersToAttributes,
+  applyModifierGroups,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
 const {
   buildSkillEffectiveAttributes,
@@ -114,6 +115,8 @@ function buildMiningModuleSnapshot({
   fittedItems = null,
   skillMap = null,
   activeModuleContexts = null,
+  additionalModifierEntries = null,
+  additionalLocationModifierSources = null,
 } = {}) {
   if (!shipItem || !moduleItem || !isMiningEffectRecord(effectRecord, moduleItem)) {
     return null;
@@ -124,6 +127,11 @@ function buildMiningModuleSnapshot({
   const resolvedSkillMap = skillMap instanceof Map ? skillMap : new Map();
   const resolvedActiveModuleContexts = Array.isArray(activeModuleContexts)
     ? activeModuleContexts
+    : [];
+  const resolvedAdditionalLocationModifierSources = Array.isArray(
+    additionalLocationModifierSources,
+  )
+    ? additionalLocationModifierSources
     : [];
   const shipModifierAttributes = collectShipModifierAttributes(
     shipItem,
@@ -138,9 +146,13 @@ function buildMiningModuleSnapshot({
     resolvedActiveModuleContexts,
     {
       excludeItemID: toInt(moduleItem && moduleItem.itemID, 0),
+      additionalLocationModifierSources: resolvedAdditionalLocationModifierSources,
     },
   );
   applyOtherItemModifiersToAttributes(moduleAttributes, chargeItem);
+  if (Array.isArray(additionalModifierEntries) && additionalModifierEntries.length > 0) {
+    applyModifierGroups(moduleAttributes, additionalModifierEntries);
+  }
 
   const chargeAttributes =
     chargeItem && typeof chargeItem === "object"
@@ -151,6 +163,9 @@ function buildMiningModuleSnapshot({
         shipModifierAttributes,
         resolvedFittedItems,
         resolvedActiveModuleContexts,
+        {
+          additionalLocationModifierSources: resolvedAdditionalLocationModifierSources,
+        },
       )
       : {};
   if (chargeItem) {

@@ -20,6 +20,12 @@ const {
   buildLocationModifiedAttributeMap,
   collectShipModifierAttributes,
 } = require(path.join(__dirname, "../../space/combat/weaponDogma"));
+const {
+  getLocationModifierSourcesForSystem,
+} = require(path.join(
+  __dirname,
+  "../exploration/wormholes/wormholeEnvironmentRuntime",
+));
 
 const ATTRIBUTE_SPEED = getAttributeIDByNames("speed") || 51;
 const ATTRIBUTE_DURATION = getAttributeIDByNames("duration") || 73;
@@ -28,6 +34,15 @@ const ATTRIBUTE_FALLOFF = getAttributeIDByNames("falloff") || 158;
 const ATTRIBUTE_TRACKING_SPEED = getAttributeIDByNames("trackingSpeed") || 160;
 const ATTRIBUTE_OPTIMAL_SIG_RADIUS = getAttributeIDByNames("optimalSigRadius") || 620;
 const ATTRIBUTE_SIGNATURE_RADIUS = getAttributeIDByNames("signatureRadius") || 552;
+const ATTRIBUTE_ECM_JAM_DURATION = getAttributeIDByNames("ecmJamDuration") || 2822;
+const ATTRIBUTE_SCAN_GRAVIMETRIC_STRENGTH_BONUS =
+  getAttributeIDByNames("scanGravimetricStrengthBonus") || 238;
+const ATTRIBUTE_SCAN_LADAR_STRENGTH_BONUS =
+  getAttributeIDByNames("scanLadarStrengthBonus") || 239;
+const ATTRIBUTE_SCAN_MAGNETOMETRIC_STRENGTH_BONUS =
+  getAttributeIDByNames("scanMagnetometricStrengthBonus") || 240;
+const ATTRIBUTE_SCAN_RADAR_STRENGTH_BONUS =
+  getAttributeIDByNames("scanRadarStrengthBonus") || 241;
 const ATTRIBUTE_DAMAGE_MULTIPLIER = getAttributeIDByNames("damageMultiplier") || 64;
 const ATTRIBUTE_EM_DAMAGE = getAttributeIDByNames("emDamage") || 114;
 const ATTRIBUTE_EXPLOSIVE_DAMAGE = getAttributeIDByNames("explosiveDamage") || 116;
@@ -41,6 +56,7 @@ const ATTRIBUTE_ORBIT_RANGE = getAttributeIDByNames("orbitRange") || 4161;
 const ATTRIBUTE_MINING_AMOUNT = getAttributeIDByNames("miningAmount") || 77;
 
 const COMBAT_EFFECT_NAMES = new Set(["targetattack"]);
+const ECM_EFFECT_NAMES = new Set(["entityecmfalloff"]);
 const MINING_EFFECT_NAMES = new Set(["mining", "miningclouds"]);
 
 function toInt(value, fallback = 0) {
@@ -79,6 +95,7 @@ function buildControllerDogmaFingerprint(controllerEntity, fittedItems = []) {
   const shipID = toInt(controllerEntity && controllerEntity.itemID, 0);
   const shipMutationVersion =
     shipID > 0 ? toInt(getItemMutationVersion(shipID), 0) : 0;
+  const systemID = toInt(controllerEntity && controllerEntity.systemID, 0);
   const fittedMutationFingerprint = fittedItems
     .map((item) => `${toInt(item && item.itemID, 0)}:${toInt(getItemMutationVersion(item && item.itemID), 0)}`)
     .join("|");
@@ -94,7 +111,7 @@ function buildControllerDogmaFingerprint(controllerEntity, fittedItems = []) {
         .sort()
         .join("|")
       : "";
-  return `${shipMutationVersion}#${fittedMutationFingerprint}#${activeEffectFingerprint}`;
+  return `${shipMutationVersion}#${systemID}#${fittedMutationFingerprint}#${activeEffectFingerprint}`;
 }
 
 function buildActiveModuleContexts(controllerEntity, fittedItems = [], characterID = 0) {
@@ -182,6 +199,9 @@ function getControllerDogmaContext(controllerEntity) {
     controllerOwnerID,
   );
   const shipModifierAttributes = collectShipModifierAttributes(shipItem, skillMap);
+  const additionalLocationModifierSources = getLocationModifierSourcesForSystem(
+    controllerEntity && controllerEntity.systemID,
+  );
   const nextCache = {
     fingerprint,
     shipItem,
@@ -189,6 +209,7 @@ function getControllerDogmaContext(controllerEntity) {
     fittedItems,
     activeModuleContexts,
     shipModifierAttributes,
+    additionalLocationModifierSources,
     combatByTypeID: new Map(),
     miningByTypeID: new Map(),
   };
@@ -232,6 +253,9 @@ function buildDroneOperationalAttributes(droneEntity, controllerEntity) {
     context.shipModifierAttributes,
     context.fittedItems,
     context.activeModuleContexts,
+    {
+      additionalLocationModifierSources: context.additionalLocationModifierSources,
+    },
   );
   if (!attributes || Object.keys(attributes).length === 0) {
     return null;
@@ -251,7 +275,10 @@ function resolveDroneCombatSnapshot(droneEntity, controllerEntity) {
   }
 
   const effectRecord = resolveDroneEffectRecord(typeID, COMBAT_EFFECT_NAMES);
-  if (!effectRecord) {
+  const jammerEffectRecord = effectRecord
+    ? null
+    : resolveDroneEffectRecord(typeID, ECM_EFFECT_NAMES);
+  if (!effectRecord && !jammerEffectRecord) {
     context.combatByTypeID.set(typeID, null);
     return null;
   }
@@ -274,9 +301,87 @@ function resolveDroneCombatSnapshot(droneEntity, controllerEntity) {
     kinetic: round6(baseDamage.kinetic * damageMultiplier),
     explosive: round6(baseDamage.explosive * damageMultiplier),
   };
-  if (sumDamageVector(rawShotDamage) <= 0) {
+  if (!jammerEffectRecord && sumDamageVector(rawShotDamage) <= 0) {
     context.combatByTypeID.set(typeID, null);
     return null;
+  }
+
+  if (jammerEffectRecord) {
+    const durationMs = Math.max(
+      1,
+      round6(toFiniteNumber(attributes[jammerEffectRecord.durationAttributeID], 20_000)),
+    );
+    const optimalRange = Math.max(
+      0,
+      round6(toFiniteNumber(attributes[jammerEffectRecord.rangeAttributeID], 0)),
+    );
+    const falloff = Math.max(
+      0,
+      round6(
+        toFiniteNumber(
+          attributes[jammerEffectRecord.falloffAttributeID],
+          0,
+        ),
+      ),
+    );
+    const orbitDistanceMeters = Math.max(
+      500,
+      round6(
+        toFiniteNumber(
+          attributes[ATTRIBUTE_ENTITY_FLY_RANGE],
+          toFiniteNumber(attributes[ATTRIBUTE_ORBIT_RANGE], 500),
+        ),
+      ),
+    );
+    const attackRangeMeters = Math.max(
+      optimalRange,
+      round6(optimalRange + falloff),
+    );
+    const chaseRangeMeters = Math.max(
+      attackRangeMeters,
+      round6(
+        Math.max(
+          attackRangeMeters,
+          toFiniteNumber(attributes[ATTRIBUTE_ENTITY_ATTACK_RANGE], 0),
+        ),
+      ),
+    );
+    const snapshot = {
+      effectID: toInt(jammerEffectRecord.effectID, 0),
+      effectName: String(jammerEffectRecord.name || ""),
+      effectGUID: String(jammerEffectRecord.guid || ""),
+      effectKind: "jammer",
+      durationMs,
+      jamDurationMs: Math.max(
+        1,
+        round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_JAM_DURATION], 5_000)),
+      ),
+      optimalRange,
+      falloff,
+      orbitDistanceMeters,
+      attackRangeMeters,
+      chaseRangeMeters,
+      jammerStrengthBySensorType: Object.freeze({
+        gravimetric: Math.max(
+          0,
+          round6(toFiniteNumber(attributes[ATTRIBUTE_SCAN_GRAVIMETRIC_STRENGTH_BONUS], 0)),
+        ),
+        ladar: Math.max(
+          0,
+          round6(toFiniteNumber(attributes[ATTRIBUTE_SCAN_LADAR_STRENGTH_BONUS], 0)),
+        ),
+        magnetometric: Math.max(
+          0,
+          round6(toFiniteNumber(attributes[ATTRIBUTE_SCAN_MAGNETOMETRIC_STRENGTH_BONUS], 0)),
+        ),
+        radar: Math.max(
+          0,
+          round6(toFiniteNumber(attributes[ATTRIBUTE_SCAN_RADAR_STRENGTH_BONUS], 0)),
+        ),
+      }),
+    };
+    context.combatByTypeID.set(typeID, snapshot);
+    return snapshot;
   }
 
   const durationMs = Math.max(

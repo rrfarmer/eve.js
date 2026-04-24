@@ -69,7 +69,7 @@ function attachSession(scene, entity, clientID, characterID = 0) {
 }
 
 function advanceScene(scene, deltaMs) {
-  const baseWallclock = Number(scene.lastWallclockTickAt) || scene.getCurrentWallclockMs();
+  const baseWallclock = scene.getCurrentWallclockMs();
   scene.tick(baseWallclock + Math.max(0, Number(deltaMs) || 0));
 }
 
@@ -292,6 +292,40 @@ test("out-of-range locks are dropped on the next scene tick", () => {
       payload: ["otherlost", attacker.itemID],
     },
   ]);
+});
+
+test("validateAllTargetLocks skips idle entities with no active or pending locks", () => {
+  const scene = spaceRuntime.ensureScene(30000142);
+  const attacker = buildShipEntity(scene, 970001, 0, {
+    characterID: 140000011,
+  });
+  const target = buildShipEntity(scene, 970002, 10_000, {
+    characterID: 140000015,
+  });
+  const idleA = buildShipEntity(scene, 970003, 20_000, {
+    characterID: 140000021,
+  });
+  const idleB = buildShipEntity(scene, 970004, 30_000, {
+    characterID: 140000022,
+  });
+  const attackerSession = attachSession(scene, attacker, 1, 140000011);
+  attachSession(scene, target, 2, 140000015);
+  attachSession(scene, idleA, 3, 140000021);
+  attachSession(scene, idleB, 4, 140000022);
+
+  const addResult = scene.addTarget(attackerSession.session, target.itemID);
+  advanceScene(scene, addResult.data.lockDurationMs + 100);
+
+  const targetingStatsCalls = [];
+  const originalGetEntityTargetingStats = scene.getEntityTargetingStats;
+  scene.getEntityTargetingStats = function patchedGetEntityTargetingStats(entity) {
+    targetingStatsCalls.push(Number(entity && entity.itemID) || 0);
+    return originalGetEntityTargetingStats.call(this, entity);
+  };
+
+  scene.validateAllTargetLocks(scene.getCurrentSimTimeMs());
+
+  assert.deepEqual([...new Set(targetingStatsCalls)], [attacker.itemID]);
 });
 
 test("target cap rejects new lock attempts once active or pending locks fill the ship limit", () => {

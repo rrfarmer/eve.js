@@ -34,6 +34,7 @@ const {
   buildChargeTupleItemID,
   getLoadedChargeItems,
   isModuleOnline,
+  hasLoadedScanProbeLauncherCharge,
 } = require(path.join(
   repoRoot,
   "server/src/services/fitting/liveFittingState",
@@ -42,7 +43,16 @@ const { ITEM_FLAGS } = require(path.join(
   repoRoot,
   "server/src/services/inventory/itemStore",
 ));
+const {
+  buildShipModuleParityManifest,
+} = require(path.join(
+  repoRoot,
+  "server/src/space/modules/moduleClientParityAuthority",
+));
 const ATTRIBUTE_QUANTITY = 805;
+const ATTRIBUTE_SPEED = 51;
+const ATTRIBUTE_DURATION = 73;
+const EFFECT_ONLINE = 16;
 
 function buildLoginStyleSession(candidate) {
   const notifications = [];
@@ -86,6 +96,7 @@ function findSpaceLoginCandidate() {
     .sort((left, right) => left - right);
 
   let fallbackCandidate = null;
+  let probeFallbackCandidate = null;
   for (const characterID of characterIDs) {
     const characterRecord = getCharacterRecord(characterID);
     const ship = getActiveShipRecord(characterID);
@@ -114,11 +125,21 @@ function findSpaceLoginCandidate() {
       loadedCharges: getLoadedChargeItems(characterID, ship.itemID),
     };
     if (candidate.loadedCharges.length > 0) {
-      return candidate;
+      if (!hasLoadedScanProbeLauncherCharge(characterID, ship.itemID)) {
+        return candidate;
+      }
+      if (!probeFallbackCandidate) {
+        probeFallbackCandidate = candidate;
+      }
+      continue;
     }
     if (!fallbackCandidate) {
       fallbackCandidate = candidate;
     }
+  }
+
+  if (probeFallbackCandidate) {
+    return probeFallbackCandidate;
   }
 
   if (fallbackCandidate) {
@@ -217,6 +238,36 @@ function extractModuleAttributeChanges(notifications) {
         ? payload.items
         : [];
     });
+}
+
+function buildLateReplayModuleIDSet(candidate, profileID = "login") {
+  const manifest = buildShipModuleParityManifest(
+    candidate.characterID,
+    candidate.ship.itemID,
+    { attachProfileID: profileID },
+  );
+  const itemIDs = Array.isArray(manifest.lateFittedModuleReplayItemIDs)
+    ? manifest.lateFittedModuleReplayItemIDs
+    : [];
+  return new Set(
+    itemIDs.map((itemID) => Number(itemID) || 0).filter((itemID) => itemID > 0),
+  );
+}
+
+function extractOnGodmaShipEffects(notifications) {
+  return (Array.isArray(notifications) ? notifications : [])
+    .filter((notification) => notification && notification.name === "OnGodmaShipEffect")
+    .map((notification) => Array.isArray(notification.payload) ? notification.payload : [])
+    .filter((payload) => payload.length >= 5);
+}
+
+function countActiveOnlineEffectsByModuleID(notifications, moduleID) {
+  const numericModuleID = Number(moduleID) || 0;
+  return extractOnGodmaShipEffects(notifications)
+    .filter((payload) => Number(payload[0]) === numericModuleID)
+    .filter((payload) => Number(payload[1]) === EFFECT_ONLINE)
+    .filter((payload) => Number(payload[4]) === 1)
+    .length;
 }
 
 function countOnGodmaPrimeItemsByTupleKey(
@@ -465,9 +516,11 @@ test.afterEach(() => {
   spaceRuntime._testing.clearScenes();
 });
 
-test("space login restore stays on the stock MakeShipActive bootstrap without synthetic module or charge repair replays", async () => {
+test("space login restore stays on the stock GetAllInfo + MakeShipActive + ship inventory path", async () => {
   const candidate = findSpaceLoginCandidate();
+  const lateReplayModuleIDs = buildLateReplayModuleIDSet(candidate, "login");
   const session = buildLoginStyleSession(candidate);
+  const expectLateFittingReplay = lateReplayModuleIDs.size > 0;
   const dogma = new DogmaService();
 
   const applyResult = applyCharacterToSession(session, candidate.characterID, {
@@ -499,19 +552,19 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
   assert.equal(restored, true);
   assert.ok(session._space, "expected restoreSpaceSession to attach the space session");
   assert.equal(
-    session._pendingCommandShipFittingReplay,
-    null,
-    "expected login-in-space restore to stay on the real ship inventory load path instead of queuing a synthetic fitted-module replay",
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected login-in-space restore to arm the delayed charge-only HUD replay",
   );
-  assert.equal(session._space.loginShipInventoryPrimed, true);
+  assert.equal(session._space.loginShipInventoryPrimed, false);
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   assert.equal(session._deferredDockedShipSessionChange, null);
   assert.equal(session._deferredDockedFittingReplay, null);
   assert.deepEqual(
     extractOnItemChangeItemIDs(session.notifications),
     [],
-    "expected restoreSpaceSession to avoid replaying loaded charge inventory rows in space",
+    "expected restoreSpaceSession to avoid replaying fitted modules or loaded charge rows in space",
   );
   assert.equal(
     session.notifications.some(
@@ -541,16 +594,16 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
 
   assert.equal(
     initialShipInfoEntries.length,
-    1 + candidate.fittedModules.length + candidate.loadedCharges.length,
-    "expected login dogma bootstrap shipInfo to keep the stock ship-plus-fitted-modules-and-loaded-charges path",
+    1 + candidate.fittedModules.length,
+    "expected login dogma bootstrap shipInfo to keep the in-space HUD on the ship-plus-fitted-modules path only",
   );
   for (const loadedCharge of candidate.loadedCharges) {
     assert.equal(
       initialShipInfoEntries.some(
         (entry) => Number(Array.isArray(entry) ? entry[0] : 0) === Number(loadedCharge.itemID),
       ),
-      true,
-      `expected login dogma bootstrap shipInfo to include loaded charge ${loadedCharge.itemID}`,
+      false,
+      `expected login dogma bootstrap shipInfo to keep loaded charge ${loadedCharge.itemID} off the direct-login HUD bootstrap path`,
     );
   }
   assert.equal(
@@ -591,17 +644,15 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
   await waitForNotifications(
     () => session._space && session._space.beyonceBound === true,
   );
-  const replayedItemIDs = extractOnItemChangeItemIDs(session.notifications);
-  const replayedRawItemIDs = extractOnItemChangeRawItemIDs(session.notifications);
   assert.deepEqual(
-    replayedItemIDs,
+    extractOnItemChangeItemIDs(session.notifications),
     [],
-    "expected login bind to defer the fitted-module replay until after ship inventory prime",
+    "expected login bind to avoid synthetic fitted-module replay churn",
   );
   assert.deepEqual(
-    replayedRawItemIDs,
+    extractOnItemChangeRawItemIDs(session.notifications),
     [],
-    "expected login bind to avoid immediate OnItemChange fitting replays before ship inventory prime",
+    "expected login bind to avoid immediate OnItemChange replay churn before ship inventory list",
   );
   assert.equal(
     session.notifications.some(
@@ -611,12 +662,12 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
     "expected login bind to avoid redundant online-effect replay notifications",
   );
   assert.equal(
-    session._pendingCommandShipFittingReplay,
-    null,
-    "expected login bind to keep synthetic fitted-module replay disabled and let the upcoming ship List load the rack",
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected login bind to keep the delayed charge-only HUD replay armed",
   );
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
 
   const invBroker = new InvBrokerService();
   bindShipInventory(invBroker, session, candidate.ship.itemID);
@@ -626,28 +677,22 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
     .map((item) => Number(item.itemID) || 0)
     .filter((itemID) => itemID > 0)
     .sort((left, right) => left - right);
-  assert.equal(
-    session._space.loginShipInventoryPrimed,
-    true,
-    "expected login to stay primed for the stock ship inventory load path",
-  );
+  assert.equal(session._space.loginShipInventoryPrimed, true);
   assert.deepEqual(
     fittedModuleIDs.filter((itemID) => initialShipListItemIDs.includes(itemID)),
     fittedModuleIDs,
     "expected the first login ship inventory list to contain every fitted module so CCP MakeShipActive can load them directly",
   );
-  for (const fittedModule of candidate.fittedModules) {
-    assert.equal(
-      countRawOnItemChangesByItemID(session.notifications, fittedModule.itemID),
-      0,
-      `expected the first login ship inventory list to avoid synthetic fitted-module replay for module ${fittedModule.itemID}`,
-    );
-  }
   for (const loadedCharge of candidate.loadedCharges) {
+    assert.equal(
+      initialShipListItemIDs.includes(Number(loadedCharge.itemID) || 0),
+      true,
+      `expected the first login ship inventory list to include loaded charge ${loadedCharge.itemID}`,
+    );
     assert.equal(
       countRawOnItemChangesByItemID(session.notifications, loadedCharge.itemID),
       0,
-      `expected the first login ship inventory list to defer real loaded charge replay until the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+      `expected the first login ship inventory list to avoid replaying real loaded charge row ${loadedCharge.itemID}`,
     );
     assert.equal(
       countChargeQuantityChangesByTupleKey(
@@ -657,7 +702,7 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
         loadedCharge.typeID,
       ),
       0,
-      `expected the first login ship inventory list to avoid synthetic tuple quantity replay before the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+      `expected the first login ship inventory list to avoid synthetic tuple quantity replay for slot ${loadedCharge.flagID}`,
     );
     assert.equal(
       countRawOnItemChangesByTupleKey(
@@ -667,7 +712,7 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
         loadedCharge.typeID,
       ),
       0,
-      `expected the first login ship inventory list to avoid tuple-backed charge slot transitions before the HUD rack bootstrap for slot ${loadedCharge.flagID}`,
+      `expected the first login ship inventory list to avoid tuple-backed charge slot transitions for slot ${loadedCharge.flagID}`,
     );
     assert.equal(
       countOnGodmaPrimeItemsByTupleKey(
@@ -680,55 +725,41 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
       `expected the first login ship inventory list to avoid tuple godma-prime repair for slot ${loadedCharge.flagID}`,
     );
   }
-  assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
-  assert.equal(
-    session._pendingCommandShipFittingReplay,
-    null,
-    "expected the first login ship inventory list to keep synthetic fitted-module replay disabled",
-  );
-  assert.equal(
-    session._space.loginFittingHudFinalizePending,
-    false,
-    "expected login inventory prime to avoid arming a late fitted-module finalize replay when the rack loaded from the real ship inventory list",
-  );
-  assert.equal(
-    session._space.loginFittingFinalizeReplay,
-    null,
-    "expected login inventory prime to avoid preserving synthetic fitted-module replay state",
-  );
-
-  invBroker.Handle_GetAvailableTurretSlots([], session);
-  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
-  await new Promise((resolve) => setTimeout(resolve, 900));
   for (const fittedModule of candidate.fittedModules) {
     assert.equal(
       countRawOnItemChangesByItemID(session.notifications, fittedModule.itemID),
       0,
-      `expected login HUD bootstrap to avoid synthetic fitted-module replay for login module ${fittedModule.itemID}`,
+      `expected the first login ship inventory list to avoid synthetic fitted-module replay for module ${fittedModule.itemID}`,
     );
   }
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  assert.equal(
+    Boolean(session._pendingCommandShipFittingReplay),
+    true,
+    "expected the delayed charge-only HUD replay to remain armed until the HUD bootstrap",
+  );
+  const lateReplayFlags = new Set(
+    candidate.fittedModules
+      .filter((moduleItem) =>
+        lateReplayModuleIDs.has(Number(moduleItem.itemID) || 0),
+      )
+      .map((moduleItem) => Number(moduleItem.flagID) || 0)
+      .filter((flagID) => flagID > 0),
+  );
+  const initialLoadedChargeReplayCounts = new Map(
+    candidate.loadedCharges.map((loadedCharge) => [
+      Number(loadedCharge.itemID) || 0,
+      countRawOnItemChangesByItemID(
+        session.notifications,
+        loadedCharge.itemID,
+      ),
+    ]),
+  );
+  invBroker.Handle_GetAvailableTurretSlots([], session);
+  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
+  await new Promise((resolve) => setTimeout(resolve, 450));
   for (const loadedCharge of candidate.loadedCharges) {
-    assert.equal(
-      countRawOnItemChangesByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-      0,
-      `expected login HUD bootstrap to avoid tuple-backed charge repair for login charge slot ${loadedCharge.flagID}`,
-    );
-    assert.equal(
-      countChargeQuantityChangesByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-      0,
-      `expected login charge slot ${loadedCharge.flagID} to avoid tuple quantity replay after MakeShipActive already instantiated the charge dogma item`,
-    );
     assert.equal(
       countOnGodmaPrimeItemsByTupleKey(
         session.notifications,
@@ -737,67 +768,87 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
         loadedCharge.typeID,
       ),
       0,
-      `expected login charge slot ${loadedCharge.flagID} to avoid duplicate tuple godma-prime after MakeShipActive`,
+      `expected login HUD bootstrap to avoid tuple godma-prime for slot ${loadedCharge.flagID}`,
     );
+    assert.equal(
+      countRawOnItemChangesByTupleKey(
+        session.notifications,
+        candidate.ship.itemID,
+        loadedCharge.flagID,
+        loadedCharge.typeID,
+      ),
+      0,
+      `expected login HUD bootstrap to avoid replaying tuple-backed charge slot ${loadedCharge.flagID}`,
+    );
+    if (lateReplayFlags.has(Number(loadedCharge.flagID) || 0)) {
+      assert.equal(
+        countRawOnItemChangesByItemID(session.notifications, loadedCharge.itemID) >=
+          (Number(
+            initialLoadedChargeReplayCounts.get(
+              Number(loadedCharge.itemID) || 0,
+            ),
+          ) || 0) + 1,
+        true,
+        `expected login HUD finalize to restate the real loaded charge row ${loadedCharge.itemID} for late hardpoint slot ${loadedCharge.flagID}`,
+      );
+    }
   }
   assert.equal(session._space.loginChargeDogmaReplayPending, false);
-  assert.equal(session._space.loginChargeDogmaReplayFlushed, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   assert.equal(session._pendingCommandShipFittingReplay, null);
-  await new Promise((resolve) => setTimeout(resolve, 150));
-  const stabilizedTupleReplayCounts = new Map(
-    candidate.loadedCharges.map((loadedCharge) => [
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
-      countRawOnItemChangesByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-    ]),
+  assert.equal(session._space.loginFittingReplayHudBootstrapSeen, true);
+  const onlineReplayModuleIDs = new Set(
+    extractOnGodmaShipEffects(session.notifications)
+      .filter((payload) => (
+        Number(payload[1]) === EFFECT_ONLINE &&
+        Number(payload[4]) === 1
+      ))
+      .map((payload) => Number(payload[0]) || 0)
+      .filter((itemID) => itemID > 0),
   );
-  const stabilizedTupleQuantityCounts = new Map(
-    candidate.loadedCharges.map((loadedCharge) => [
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
-      countChargeQuantityChangesByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-    ]),
-  );
-  const stabilizedTuplePrimeCounts = new Map(
-    candidate.loadedCharges.map((loadedCharge) => [
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`,
-      countOnGodmaPrimeItemsByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-    ]),
-  );
-  await new Promise((resolve) => setTimeout(resolve, 1400));
-  invBroker.Handle_GetAvailableTurretSlots([], session);
-  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
-  invBroker.Handle_GetAvailableTurretSlots([], session);
-  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
-  await new Promise((resolve) => setTimeout(resolve, 900));
-  invBroker.Handle_List([ITEM_FLAGS.DRONE_BAY], session, {});
-  for (const fittedModule of candidate.fittedModules) {
+  for (const onlineModule of candidate.onlineModules) {
     assert.equal(
-      countRawOnItemChangesByItemID(session.notifications, fittedModule.itemID),
+      onlineReplayModuleIDs.has(Number(onlineModule.itemID) || 0),
+      true,
+      `expected login HUD hydration to replay online effect for module ${onlineModule.itemID}`,
+    );
+  }
+  for (const lateReplayModuleID of lateReplayModuleIDs) {
+    assert.equal(
+      extractOnGodmaShipEffects(session.notifications).some((payload) => (
+        Number(payload[0]) === Number(lateReplayModuleID) &&
+        Number(payload[1]) === EFFECT_ONLINE &&
+        Number(payload[4]) === 0
+      )),
+      true,
+      `expected login HUD hydration to bounce online state for hardpoint module ${lateReplayModuleID} before re-onlining it`,
+    );
+  }
+  assert.equal(
+    session._space.loginChargeHudFinalizePending,
+    false,
+    "expected login HUD bootstrap to avoid arming a later tuple-charge refresh",
+  );
+  invBroker.Handle_GetAvailableTurretSlots([], session);
+  invBroker.afterCallResponse("GetAvailableTurretSlots", session);
+  await new Promise((resolve) => setTimeout(resolve, 650));
+  for (const fittedModule of candidate.fittedModules) {
+    const numericModuleID = Number(fittedModule.itemID) || 0;
+    const replayCount = countRawOnItemChangesByItemID(
+      session.notifications,
+      numericModuleID,
+    );
+    assert.equal(
+      replayCount,
       0,
-      `expected later HUD polls to avoid synthetic fitted-module replay churn for login module ${fittedModule.itemID}`,
+      `expected login HUD finalize to avoid synthetic OnItemChange churn for fitted module ${fittedModule.itemID}`,
     );
   }
   for (const loadedCharge of candidate.loadedCharges) {
-    const tupleKey =
-      `${candidate.ship.itemID}:${loadedCharge.flagID}:${loadedCharge.typeID}`;
     assert.equal(
-      countRawOnItemChangesByItemID(session.notifications, loadedCharge.itemID),
-      0,
-      `expected login HUD hydration to avoid replaying real loaded-charge inventory row ${loadedCharge.itemID}`,
+      countRawOnItemChangesByItemID(session.notifications, loadedCharge.itemID) >= 1,
+      true,
+      `expected login HUD hydration to replay real loaded-charge inventory row ${loadedCharge.itemID}`,
     );
     assert.equal(
       countRawOnItemChangesByTupleKey(
@@ -806,8 +857,8 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-      stabilizedTupleReplayCounts.get(tupleKey),
-      `expected later HUD polls to avoid synthetic tuple row refresh for login charge slot ${loadedCharge.flagID}`,
+      0,
+      `expected later HUD finalize to avoid restating login charge slot ${loadedCharge.flagID}`,
     );
     assert.equal(
       countChargeQuantityChangesByTupleKey(
@@ -816,8 +867,8 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-      stabilizedTupleQuantityCounts.get(tupleKey),
-      `expected later HUD polls to avoid tuple quantity churn for login charge slot ${loadedCharge.flagID}`,
+      0,
+      `expected later HUD polls to avoid extra tuple-quantity churn for login charge slot ${loadedCharge.flagID}`,
     );
     assert.equal(
       countOnGodmaPrimeItemsByTupleKey(
@@ -826,20 +877,34 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
         loadedCharge.flagID,
         loadedCharge.typeID,
       ),
-      stabilizedTuplePrimeCounts.get(tupleKey),
+      0,
       `expected later HUD polls to avoid tuple prime churn for login slot ${loadedCharge.flagID}`,
     );
   }
   assert.equal(session._space.loginChargeDogmaReplayHudBootstrapSeen, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
   assert.equal(session._space.loginChargeHudFinalizePending, false);
   assert.equal(session._space.loginFittingHudFinalizePending, false);
   assert.equal(session._space.loginFittingFinalizeReplay, null);
 
-  assert.deepEqual(
-    [...new Set(extractOnItemChangeItemIDs(session.notifications))],
-    [],
-    "expected login HUD hydration to keep fitted modules on the real ship inventory list path while loaded charges stay tuple-backed",
+  const replayedItemIDs = [...new Set(extractOnItemChangeItemIDs(session.notifications))].sort(
+    (left, right) => left - right,
   );
+  for (const fittedModule of candidate.fittedModules) {
+    const numericModuleID = Number(fittedModule.itemID) || 0;
+    assert.equal(
+      replayedItemIDs.includes(numericModuleID),
+      false,
+      `expected login HUD hydration to avoid synthetic fitted-module replay for ${fittedModule.itemID}`,
+    );
+  }
+  for (const loadedCharge of candidate.loadedCharges) {
+    assert.equal(
+      replayedItemIDs.includes(Number(loadedCharge.itemID) || 0),
+      true,
+      `expected login HUD hydration to replay real loaded charge row ${loadedCharge.itemID}`,
+    );
+  }
   const firstDestinyUpdateIndex = session.notifications.findIndex(
     (notification) => notification.name === "DoDestinyUpdate",
   );
@@ -851,8 +916,9 @@ test("space login restore stays on the stock MakeShipActive bootstrap without sy
   );
 });
 
-test("space login ignores early HUD turret-slot bootstrap when no synthetic charge replay is pending", async () => {
+test("space login can see an early HUD turret-slot bootstrap and still flush only the delayed charge-row replay", async () => {
   const candidate = findSpaceLoginCandidate();
+  const lateReplayModuleIDs = buildLateReplayModuleIDSet(candidate, "login");
   const session = buildLoginStyleSession(candidate);
 
   const applyResult = applyCharacterToSession(session, candidate.characterID, {
@@ -883,39 +949,41 @@ test("space login ignores early HUD turret-slot bootstrap when no synthetic char
   invBroker.Handle_GetAvailableTurretSlots([], session);
   invBroker.afterCallResponse("GetAvailableTurretSlots", session);
   assert.equal(
-    session._space.loginChargeDogmaReplayHudBootstrapSeen,
-    false,
-    "expected the direct login path to ignore HUD turret-slot bootstrap when no synthetic login charge replay is pending",
+    session._space.loginFittingReplayHudBootstrapSeen,
+    true,
+    "expected the direct login path to remember the early HUD bootstrap for the later charge-only replay",
   );
 
-  invBroker.Handle_List([ITEM_FLAGS.CARGO_HOLD], session, {});
-  await new Promise((resolve) => setTimeout(resolve, 600));
-
-  for (const loadedCharge of candidate.loadedCharges) {
-    assert.equal(
-      countRawOnItemChangesByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-      0,
-      `expected login to avoid tuple repair churn for charge slot ${loadedCharge.flagID} after an early HUD turret-slot poll`,
-    );
-    assert.equal(
-      countChargeQuantityChangesByTupleKey(
-        session.notifications,
-        candidate.ship.itemID,
-        loadedCharge.flagID,
-        loadedCharge.typeID,
-      ),
-      0,
-      `expected login to avoid tuple quantity churn for charge slot ${loadedCharge.flagID} after an early HUD turret-slot poll`,
-    );
-  }
+  invBroker.Handle_List([null], session, {});
+  await new Promise((resolve) => setTimeout(resolve, 450));
   assert.equal(
-    session._pendingCommandShipFittingReplay,
-    null,
-    "expected the direct login path to keep synthetic fitted-module replay disabled after an early HUD turret-slot poll",
+    session.notifications.some((notification) => notification.name === "OnGodmaPrimeItem"),
+    false,
+    "expected login inventory prime to avoid tuple godma-prime after an early HUD turret-slot poll",
   );
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
+  const replayedFittedModuleIDs = new Set(
+    extractOnItemChangeRawItemIDs(session.notifications)
+      .map((itemID) => Number(itemID) || 0)
+      .filter((itemID) =>
+        candidate.fittedModules.some(
+          (module) => Number(module.itemID) === Number(itemID),
+        ),
+      ),
+  );
+  assert.equal(
+    replayedFittedModuleIDs.size,
+    0,
+    "expected early HUD bootstrap to avoid synthetic fitted-module OnItemChange replay",
+  );
+  assert.equal(
+    extractOnItemChangeRawItemIDs(session.notifications).some(
+      (itemID) => candidate.loadedCharges.some((charge) => Number(charge.itemID) === Number(itemID)),
+    ),
+    true,
+    "expected login inventory prime to flush the delayed real loaded-charge replay after the early HUD turret-slot poll",
+  );
+  assert.equal(session._space.loginChargeDogmaReplayPending, false);
+  assert.equal(session._space.loginChargeDogmaReplayFlushed, true);
 });

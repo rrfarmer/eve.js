@@ -52,13 +52,21 @@ function getDefaultImagePath(extension) {
   return DEFAULT_PNG_PATH;
 }
 
+function getContentTypeForFilePath(filePath, fallbackExtension = "") {
+  const fileExtension =
+    path.extname(String(filePath || "")).replace(/^\./, "") || fallbackExtension;
+  return getExtensionContentType(fileExtension);
+}
+
 function resolveCharacterImagePath(characterID, size, extension) {
-  return (
-    findCharacterPortraitPath(characterID, size) ||
-    (String(extension || "").toLowerCase() === "png"
-      ? DEFAULT_PNG_PATH
-      : DEFAULT_CHARACTER_PORTRAIT_PATH)
-  );
+  const localPath = findCharacterPortraitPath(characterID, size);
+  if (localPath) {
+    return localPath;
+  }
+
+  return String(extension || "").toLowerCase() === "png"
+    ? DEFAULT_PNG_PATH
+    : DEFAULT_CHARACTER_PORTRAIT_PATH;
 }
 
 function resolveCorporationLogoPath(corporationID, size) {
@@ -96,9 +104,10 @@ function resolveLegacyImagePath(pathname) {
   const extension = String(match[4] || "png").toLowerCase();
 
   if (kind === "character") {
+    const filePath = resolveCharacterImagePath(entityID, size, extension);
     return {
-      filePath: resolveCharacterImagePath(entityID, size, extension),
-      contentType: getExtensionContentType(extension),
+      filePath,
+      contentType: getContentTypeForFilePath(filePath, extension),
     };
   }
 
@@ -141,9 +150,10 @@ function resolveRestImagePath(url) {
   const extension = String(url.searchParams.get("ext") || "png").toLowerCase();
 
   if (resourceKind === "characters" && requestedAsset === "portrait") {
+    const filePath = resolveCharacterImagePath(entityID, size, extension);
     return {
-      filePath: resolveCharacterImagePath(entityID, size, extension),
-      contentType: getExtensionContentType(extension),
+      filePath,
+      contentType: getContentTypeForFilePath(filePath, extension),
     };
   }
 

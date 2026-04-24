@@ -13,6 +13,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const { isDeepStrictEqual } = require("util");
 const pc = require("picocolors");
 
 const log = require("../utils/logger");
@@ -31,6 +32,10 @@ const RECOVERABLE_EMPTY_TABLES = new Set([
   "npcRuntimeControllers",
   "npcWrecks",
   "npcWreckItems",
+  "wormholeRuntimeState",
+  "probeRuntimeState",
+  "dungeonRuntimeState",
+  "missionRuntimeState",
 ]);
 // ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +79,13 @@ function backupFilePath(table) {
 
 function tempFilePath(filePath) {
   return `${filePath}.tmp-${process.pid}`;
+}
+
+function isSameValue(left, right) {
+  if (left === right) {
+    return true;
+  }
+  return isDeepStrictEqual(left, right);
 }
 
 function getSegments(pathKey) {
@@ -354,6 +366,59 @@ function flushTable(table) {
   }
 }
 
+function flushTableSync(table, options = {}) {
+  if (!ensureCached(table)) {
+    log.warn(`[DATABASE] database table: '${table}' not found!`);
+    return { success: false, errorMsg: "TABLE_NOT_FOUND" };
+  }
+
+  if (flushTimers[table]) {
+    clearTimeout(flushTimers[table]);
+    delete flushTimers[table];
+  }
+
+  if (!dirty.has(table)) {
+    return { success: true, errorMsg: null, flushed: false };
+  }
+
+  try {
+    safeWriteFileSync(
+      dataFilePath(table),
+      JSON.stringify(buildFlushSnapshot(table), null, 2),
+    );
+    dirty.delete(table);
+    if (options.log === true) {
+      dbLog(`  ${pc.cyan(table)} ${pc.green("flushed")}`);
+    }
+    return { success: true, errorMsg: null, flushed: true };
+  } catch (err) {
+    dbErr(`sync flush FAILED for ${table}: ${err.message}`);
+    dirty.add(table);
+    return { success: false, errorMsg: "FLUSH_ERROR", flushed: false };
+  }
+}
+
+function flushTablesSync(tables = []) {
+  const uniqueTables = [...new Set(
+    (Array.isArray(tables) ? tables : [tables]).filter((table) => Boolean(table)),
+  )];
+  const results = [];
+  let success = true;
+
+  for (const table of uniqueTables) {
+    const result = flushTableSync(table);
+    results.push({ table, ...result });
+    if (!result.success) {
+      success = false;
+    }
+  }
+
+  return {
+    success,
+    results,
+  };
+}
+
 /**
  * Synchronously flush ALL dirty tables.  Called on shutdown so
  * nothing is lost when the process exits.
@@ -365,20 +430,9 @@ function flushAllSync() {
   dbLog(`shutdown flush — writing ${dirtyTables.length} dirty table(s)...`);
 
   for (const table of dirtyTables) {
-    if (flushTimers[table]) {
-      clearTimeout(flushTimers[table]);
-      delete flushTimers[table];
-    }
-
-    try {
-      safeWriteFileSync(
-        dataFilePath(table),
-        JSON.stringify(buildFlushSnapshot(table), null, 2),
-      );
-      dirty.delete(table);
-      dbLog(`  ${pc.cyan(table)} ${pc.green("flushed")}`);
-    } catch (err) {
-      dbErr(`shutdown flush FAILED for ${table}: ${err.message}`);
+    const result = flushTableSync(table, { log: true });
+    if (!result.success) {
+      dbErr(`shutdown flush FAILED for ${table}: ${result.errorMsg || "FLUSH_ERROR"}`);
     }
   }
 
@@ -482,11 +536,20 @@ function write(table, pth, data, options = {}) {
 
     if (segments.length === 0) {
       // Full table overwrite
-      cache[table] = data;
+      const sameReference = cache[table] === data;
+      const unchanged = sameReference ? false : isSameValue(cache[table], data);
       if (options.transient === true) {
         setTransientPath(table, "/", true);
       }
-      scheduleFlush(table);
+      if (unchanged && options.force !== true) {
+        return { success: true, errorMsg: null };
+      }
+      if (!sameReference) {
+        cache[table] = data;
+      }
+      if (!(options.transient === true && options.force !== true)) {
+        scheduleFlush(table);
+      }
       return { success: true, errorMsg: null };
     }
 
@@ -503,10 +566,14 @@ function write(table, pth, data, options = {}) {
       current = current[segment];
     }
 
-    current[segments[segments.length - 1]] = data;
     if (options.transient === true) {
       setTransientPath(table, pth, true);
     }
+    const finalKey = segments[segments.length - 1];
+    if (Object.prototype.hasOwnProperty.call(current, finalKey) && isSameValue(current[finalKey], data)) {
+      return { success: true, errorMsg: null };
+    }
+    current[finalKey] = data;
     scheduleFlush(table);
 
     return { success: true, errorMsg: null };
@@ -568,5 +635,7 @@ module.exports = {
   remove,
   setTransientPath,
   preloadAll,
+  flushTableSync,
+  flushTablesSync,
   flushAllSync,
 };

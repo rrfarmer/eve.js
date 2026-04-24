@@ -25,9 +25,6 @@ const {
   __dirname,
   "../../../services/structure/structurePaintworkState",
 ));
-const {
-  getCharacterRecord,
-} = require(path.join(__dirname, "../../../services/character/characterState"));
 const sessionRegistry = require(path.join(
   __dirname,
   "../../../services/chat/sessionRegistry",
@@ -52,6 +49,16 @@ const ERROR_STATUS_BY_CODE = Object.freeze({
   FORBIDDEN_REQUEST: 403,
   NOT_FOUND: 404,
 });
+
+function getCharacterRecord(characterID) {
+  const characterState = require(path.join(
+    __dirname,
+    "../../../services/character/characterState",
+  ));
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
 
 function buildStructurePaintworkProtoRoot() {
   const root = new protobuf.Root();

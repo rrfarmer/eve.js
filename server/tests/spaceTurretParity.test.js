@@ -575,6 +575,79 @@ test("projectile turrets consume stacked ammo, apply damage, and stop on empty a
   });
 });
 
+test("civilian rookie turrets fire without loaded ammo and use module damage", () => {
+  const scene = spaceRuntime.ensureScene(30000142);
+  const attacker = buildShipEntity(scene, 998700001, -1_500);
+  const moduleType = resolveItemByTypeID(3634); // Civilian Gatling Pulse Laser
+  assert.ok(moduleType, "expected Civilian Gatling Pulse Laser metadata");
+
+  const moduleItem = buildModuleItem(moduleType.typeID, 998700101, 27, attacker.itemID);
+  attacker.nativeNpc = true;
+  attacker.fittedItems = [moduleItem];
+  attacker.nativeCargoItems = [];
+  attacker.skillMap = new Map();
+
+  const attackerSession = attachSession(scene, attacker, 998701001);
+  const target = buildShipEntity(scene, 998700002, 1_500, {
+    passiveResourceState: {
+      ...DEFAULT_PASSIVE_STATE,
+      shieldCapacity: 300,
+      armorHP: 300,
+      structureHP: 300,
+    },
+  });
+  scene.spawnDynamicEntity(target, { broadcast: false });
+
+  const targetShieldBefore = Number(target.conditionState && target.conditionState.shieldCharge) || 0;
+  const lockResult = scene.finalizeTargetLock(attacker, target, {
+    nowMs: scene.getCurrentSimTimeMs(),
+  });
+  assert.equal(lockResult.success, true, "expected attacker to lock the target");
+
+  const activationResult = scene.activateGenericModule(
+    attackerSession.session,
+    moduleItem,
+    null,
+    {
+      targetID: target.itemID,
+      repeat: 1000,
+    },
+  );
+  assert.equal(
+    activationResult.success,
+    true,
+    "expected civilian rookie turrets to activate without loaded ammo",
+  );
+  assert.equal(
+    Number(
+      activationResult.data &&
+        activationResult.data.effectState &&
+        activationResult.data.effectState.chargeTypeID,
+    ) || 0,
+    0,
+    "expected civilian rookie turrets to stay chargeless on activation",
+  );
+  assert.ok(
+    Number(
+      activationResult.data &&
+        activationResult.data.effectState &&
+        activationResult.data.effectState.genericAttributeOverrides &&
+        (
+          Number(activationResult.data.effectState.genericAttributeOverrides[114]) +
+          Number(activationResult.data.effectState.genericAttributeOverrides[118]) +
+          Number(activationResult.data.effectState.genericAttributeOverrides[117]) +
+          Number(activationResult.data.effectState.genericAttributeOverrides[116])
+        ),
+    ) > 0,
+    "expected civilian rookie turrets to keep their direct module damage live without ammo",
+  );
+  assert.ok(
+    (Number(target.conditionState && target.conditionState.shieldCharge) || 0) <
+      Number(targetShieldBefore || 0),
+    "expected the first civilian rookie shot to apply damage immediately",
+  );
+});
+
 test("hybrid turret FX stay on the live scene stamp under TiDi like lasers do", () => {
   runTurretTimeDilationFxScenario({
     moduleTypeID: 3186, // Neutron Blaster Cannon II

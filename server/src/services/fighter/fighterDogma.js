@@ -18,6 +18,12 @@ const {
   collectShipModifierAttributes,
 } = require(path.join(__dirname, "../../space/combat/weaponDogma"));
 const {
+  getLocationModifierSourcesForSystem,
+} = require(path.join(
+  __dirname,
+  "../exploration/wormholes/wormholeEnvironmentRuntime",
+));
+const {
   getFighterAbilityMetaForSlot,
 } = require(path.join(__dirname, "./fighterAbilities"));
 
@@ -87,6 +93,20 @@ const ATTRIBUTE_EVASIVE_SPEED_BONUS =
   getAttributeIDByNames("fighterAbilityEvasiveManeuversSpeedBonus") || 2224;
 const ATTRIBUTE_EVASIVE_SIGNATURE_RADIUS_BONUS =
   getAttributeIDByNames("fighterAbilityEvasiveManeuversSignatureRadiusBonus") || 2225;
+const ATTRIBUTE_ECM_DURATION =
+  getAttributeIDByNames("fighterAbilityECMDuration") || 2220;
+const ATTRIBUTE_ECM_RANGE_OPTIMAL =
+  getAttributeIDByNames("fighterAbilityECMRangeOptimal") || 2221;
+const ATTRIBUTE_ECM_RANGE_FALLOFF =
+  getAttributeIDByNames("fighterAbilityECMRangeFalloff") || 2222;
+const ATTRIBUTE_ECM_STRENGTH_GRAVIMETRIC =
+  getAttributeIDByNames("fighterAbilityECMStrengthGravimetric") || 2241;
+const ATTRIBUTE_ECM_STRENGTH_LADAR =
+  getAttributeIDByNames("fighterAbilityECMStrengthLadar") || 2242;
+const ATTRIBUTE_ECM_STRENGTH_MAGNETOMETRIC =
+  getAttributeIDByNames("fighterAbilityECMStrengthMagnetometric") || 2243;
+const ATTRIBUTE_ECM_STRENGTH_RADAR =
+  getAttributeIDByNames("fighterAbilityECMStrengthRadar") || 2244;
 
 function toInt(value, fallback = 0) {
   const numeric = Number(value);
@@ -122,6 +142,7 @@ function buildControllerDogmaFingerprint(controllerEntity, fittedItems = []) {
   const shipID = toInt(controllerEntity && controllerEntity.itemID, 0);
   const shipMutationVersion =
     shipID > 0 ? toInt(getItemMutationVersion(shipID), 0) : 0;
+  const systemID = toInt(controllerEntity && controllerEntity.systemID, 0);
   const fittedMutationFingerprint = fittedItems
     .map((item) => (
       `${toInt(item && item.itemID, 0)}:` +
@@ -140,7 +161,7 @@ function buildControllerDogmaFingerprint(controllerEntity, fittedItems = []) {
         .sort()
         .join("|")
       : "";
-  return `${shipMutationVersion}#${fittedMutationFingerprint}#${activeEffectFingerprint}`;
+  return `${shipMutationVersion}#${systemID}#${fittedMutationFingerprint}#${activeEffectFingerprint}`;
 }
 
 function buildActiveModuleContexts(controllerEntity, fittedItems = [], characterID = 0) {
@@ -228,6 +249,9 @@ function getControllerDogmaContext(controllerEntity) {
     controllerOwnerID,
   );
   const shipModifierAttributes = collectShipModifierAttributes(shipItem, skillMap);
+  const additionalLocationModifierSources = getLocationModifierSourcesForSystem(
+    controllerEntity && controllerEntity.systemID,
+  );
   const nextCache = {
     fingerprint,
     shipItem,
@@ -235,6 +259,7 @@ function getControllerDogmaContext(controllerEntity) {
     fittedItems,
     activeModuleContexts,
     shipModifierAttributes,
+    additionalLocationModifierSources,
     abilitySnapshotsByKey: new Map(),
   };
   controllerEntity.fighterDogmaCache = nextCache;
@@ -266,6 +291,9 @@ function buildOperationalAttributes(fighterEntity, controllerEntity) {
     context.shipModifierAttributes,
     context.fittedItems,
     context.activeModuleContexts,
+    {
+      additionalLocationModifierSources: context.additionalLocationModifierSources,
+    },
   );
   if (!attributes || Object.keys(attributes).length === 0) {
     return null;
@@ -377,6 +405,15 @@ function resolveFighterAbilitySnapshot(fighterEntity, controllerEntity, slotID) 
         : normalizedEffectFamily === "fighterabilityevasivemaneuvers"
           ? round6(toFiniteNumber(attributes[ATTRIBUTE_EVASIVE_SIGNATURE_RADIUS_BONUS], 0))
           : 0;
+  const jammerStrengthBySensorType =
+    normalizedEffectFamily === "fighterabilityecm"
+      ? Object.freeze({
+        gravimetric: round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_STRENGTH_GRAVIMETRIC], 0)),
+        ladar: round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_STRENGTH_LADAR], 0)),
+        magnetometric: round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_STRENGTH_MAGNETOMETRIC], 0)),
+        radar: round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_STRENGTH_RADAR], 0)),
+      })
+      : null;
 
   let damageMultiplierAttributeID = null;
   let damageAttributeIDs = null;
@@ -508,6 +545,19 @@ function resolveFighterAbilitySnapshot(fighterEntity, controllerEntity, slotID) 
     healthPerMember,
     speedBonusPercent,
     signatureRadiusBonusPercent,
+    jammerStrengthBySensorType,
+    jammerDurationMs:
+      normalizedEffectFamily === "fighterabilityecm"
+        ? Math.max(1, round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_DURATION], durationMs)))
+        : 0,
+    jammerOptimalRangeMeters:
+      normalizedEffectFamily === "fighterabilityecm"
+        ? Math.max(0, round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_RANGE_OPTIMAL], rangeMeters)))
+        : 0,
+    jammerFalloffMeters:
+      normalizedEffectFamily === "fighterabilityecm"
+        ? Math.max(0, round6(toFiniteNumber(attributes[ATTRIBUTE_ECM_RANGE_FALLOFF], falloffMeters)))
+        : 0,
     explosionRadius,
     explosionVelocity,
     damageReductionFactor,

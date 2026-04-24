@@ -4,14 +4,6 @@ const sessionRegistry = require(path.join(
   __dirname,
   "../chat/sessionRegistry",
 ));
-const { publishPlexBalanceChangedNotice } = require(path.join(
-  __dirname,
-  "../../_secondary/express/publicGatewayLocal",
-));
-const {
-  getCharacterRecord,
-  updateCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
 const {
   PLEX_LOG_CATEGORY,
   getFileTimeNowString,
@@ -36,6 +28,7 @@ const JOURNAL_ENTRY_TYPE = {
   MARKET_ESCROW: 42,
   BROKERS_FEE: 46,
   TRANSACTION_TAX: 54,
+  SKILL_PURCHASE: 141,
   MARKET_PROVIDER_TAX: 149,
 };
 JOURNAL_ENTRY_TYPE.ADMIN_ADJUSTMENT = JOURNAL_ENTRY_TYPE.GM_CASH_TRANSFER;
@@ -52,6 +45,24 @@ const DEFAULT_WALLET = {
 const MAX_JOURNAL_ENTRIES = 100;
 const MAX_MARKET_TRANSACTION_ENTRIES = 2000;
 
+function getCharacterState() {
+  return require(path.join(__dirname, "../character/characterState"));
+}
+
+function publishPlexBalanceChangedNotice(characterID, balanceInCents, deltaInCents) {
+  const gateway = require(path.join(
+    __dirname,
+    "../../_secondary/express/publicGatewayLocal",
+  ));
+  return gateway && typeof gateway.publishPlexBalanceChangedNotice === "function"
+    ? gateway.publishPlexBalanceChangedNotice(
+        characterID,
+        balanceInCents,
+        deltaInCents,
+      )
+    : null;
+}
+
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -63,6 +74,13 @@ function normalizeMoney(value, fallback = 0) {
   }
 
   return Math.round(numeric * 100) / 100;
+}
+
+function buildNotEnoughMoneyUserErrorValues(requiredAmount, currentBalance) {
+  return {
+    balance: normalizeMoney(currentBalance, 0),
+    amount: normalizeMoney(requiredAmount, 0),
+  };
 }
 
 function normalizePlex(value, fallback = 0) {
@@ -91,7 +109,7 @@ function resolveLedgerReason(options = {}, fallback = "No details given") {
 }
 
 function getCharacterWallet(charId) {
-  const record = getCharacterRecord(charId);
+  const record = getCharacterState().getCharacterRecord(charId);
   if (!record) {
     return null;
   }
@@ -109,7 +127,7 @@ function getCharacterWallet(charId) {
 }
 
 function getCharacterWalletJournal(charId) {
-  const record = getCharacterRecord(charId);
+  const record = getCharacterState().getCharacterRecord(charId);
   if (!record || !Array.isArray(record.walletJournal)) {
     return [];
   }
@@ -179,7 +197,7 @@ function normalizeMarketTransactionEntry(entry = {}) {
 }
 
 function getCharacterMarketTransactions(charId) {
-  const record = getCharacterRecord(charId);
+  const record = getCharacterState().getCharacterRecord(charId);
   if (!record || !Array.isArray(record.marketTransactions)) {
     return [];
   }
@@ -191,7 +209,7 @@ function getCharacterMarketTransactions(charId) {
 
 function appendCharacterMarketTransaction(charId, entry) {
   const normalizedEntry = normalizeMarketTransactionEntry(entry);
-  const writeResult = updateCharacterRecord(charId, (record) => {
+  const writeResult = getCharacterState().updateCharacterRecord(charId, (record) => {
     appendLimitedRecordEntry(
       record,
       "marketTransactions",
@@ -355,7 +373,7 @@ function setCharacterBalance(charId, nextBalance, options = {}) {
     sortValue: 1,
   };
 
-  const writeResult = updateCharacterRecord(charId, (record) => {
+  const writeResult = getCharacterState().updateCharacterRecord(charId, (record) => {
     record.balance = normalizedBalance;
     record.balanceChange = delta;
     appendWalletJournalEntry(record, journalEntry);
@@ -474,7 +492,7 @@ function setCharacterPlexBalance(charId, nextBalance, options = {}) {
     nextBalance,
     currentWallet.plexBalance,
   );
-  const writeResult = updateCharacterRecord(charId, (record) => {
+  const writeResult = getCharacterState().updateCharacterRecord(charId, (record) => {
     record.plexBalance = normalizedBalance;
     return record;
   });
@@ -544,6 +562,7 @@ module.exports = {
   ACCOUNT_KEY_NAME,
   JOURNAL_ENTRY_TYPE,
   JOURNAL_CURRENCY,
+  buildNotEnoughMoneyUserErrorValues,
   getCharacterWallet,
   getCharacterWalletJournal,
   getCharacterWalletTransactions,

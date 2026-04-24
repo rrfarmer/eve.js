@@ -1,0 +1,109 @@
+{
+  "140000003": {
+    "activePlanID": null,
+    "plans": {
+      "dcfe4a46-8d9d-4ead-9cda-db1588adc327": {
+        "planID": "dcfe4a46-8d9d-4ead-9cda-db1588adc327",
+        "name": "test",
+        "description": "test",
+        "requirements": [
+          {
+            "typeID": 3436,
+            "level": 1
+          },
+          {
+            "typeID": 3436,
+            "level": 2
+          },
+          {
+            "typeID": 3436,
+            "level": 3
+          },
+          {
+            "typeID": 3436,
+            "level": 4
+          },
+          {
+            "typeID": 3436,
+            "level": 5
+          },
+          {
+            "typeID": 3442,
+            "level": 1
+          },
+          {
+            "typeID": 3442,
+            "level": 2
+          },
+          {
+            "typeID": 3442,
+            "level": 3
+          },
+          {
+            "typeID": 3442,
+            "level": 4
+          },
+          {
+            "typeID": 3442,
+            "level": 5
+          },
+          {
+            "typeID": 3348,
+            "level": 1
+          },
+          {
+            "typeID": 3348,
+            "level": 2
+          },
+          {
+            "typeID": 3348,
+            "level": 3
+          },
+          {
+            "typeID": 3348,
+            "level": 4
+          },
+          {
+            "typeID": 3348,
+            "level": 5
+          },
+          {
+            "typeID": 23069,
+            "level": 1
+          },
+          {
+            "typeID": 23069,
+            "level": 2
+          },
+          {
+            "typeID": 23069,
+            "level": 3
+          },
+          {
+            "typeID": 23069,
+            "level": 4
+          },
+          {
+            "typeID": 23069,
+            "level": 5
+          },
+          {
+            "typeID": 92398,
+            "level": 1
+          }
+        ],
+        "milestones": {
+          "9307d307-62ed-427a-8bf6-91863178d891": {
+            "milestoneID": "9307d307-62ed-427a-8bf6-91863178d891",
+            "planID": "dcfe4a46-8d9d-4ead-9cda-db1588adc327",
+            "description": "",
+            "skillTypeID": 92398,
+            "level": 1
+          }
+        },
+        "createdAt": 1775521565128,
+        "updatedAt": 1775521565134
+      }
+    }
+  }
+}

@@ -23,6 +23,9 @@ const {
   getTypeAttributeValue,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
 const {
+  isInSameFleet,
+} = require(path.join(__dirname, "../fleets/fleetHelpers"));
+const {
   getDockedLocationID,
   getDockedLocationKind,
 } = require(path.join(__dirname, "../structure/structureLocation"));
@@ -45,6 +48,7 @@ const {
   isCompressedType,
   isCompressibleType,
 } = require("./miningStaticData");
+const reprocessingRuntime = require(path.join(__dirname, "../reprocessing"));
 
 const TYPE_REPROCESSING = 3385;
 const TYPE_REPROCESSING_EFFICIENCY = 3389;
@@ -112,6 +116,32 @@ function getSkillBonusMultiplier(skillMap, skillTypeID) {
     0,
   );
   return 1 + ((level * percentagePerLevel) / 100);
+}
+
+function getInSpaceCompressionRangeMeters(skillMap = null) {
+  const baseRangeMeters = Math.max(
+    1,
+    toFiniteNumber(
+      config.miningInSpaceCompressionRangeMeters,
+      DEFAULT_IN_SPACE_COMPRESSION_RANGE_METERS,
+    ),
+  );
+  const rangeBonusPerLevel = Math.max(
+    0,
+    toFiniteNumber(
+      getTypeAttributeValue(62453, "fleetCompressionLogisticsRangeBonus"),
+      0,
+    ),
+  );
+  if (rangeBonusPerLevel <= 0) {
+    return Math.round(baseRangeMeters);
+  }
+
+  const skillLevel = getSkillLevel(skillMap, 62453);
+  return Math.max(
+    1,
+    Math.round(baseRangeMeters * (1 + ((rangeBonusPerLevel * skillLevel) / 100))),
+  );
 }
 
 function typeHasSpecialReprocessingSkillBonuses(typeID) {
@@ -623,7 +653,7 @@ function getStructureGasDecompressionEfficiency(context) {
 }
 
 function decompressGasInStructure(session, itemID) {
-  const contextResult = resolveReprocessingContext(session);
+  const contextResult = reprocessingRuntime.resolveReprocessingContext(session);
   if (!contextResult.success || !contextResult.data) {
     return contextResult;
   }
@@ -657,8 +687,8 @@ function decompressGasInStructure(session, itemID) {
   }
 
   const sourceQuantity = getInventoryQuantity(item);
-  const structureEfficiency = getStructureGasDecompressionEfficiency(contextResult.data);
-  const characterEfficiency = getGasDecompressionCharacterEfficiency(contextResult.data.skillMap);
+  const structureEfficiency = reprocessingRuntime.getStructureGasDecompressionEfficiency(contextResult.data);
+  const characterEfficiency = reprocessingRuntime.getGasDecompressionCharacterEfficiency(contextResult.data.skillMap);
   const totalEfficiency = Math.min(1, structureEfficiency + characterEfficiency);
   const outputQuantity = Math.max(0, Math.floor(sourceQuantity * totalEfficiency));
 
@@ -714,6 +744,7 @@ function decompressGasInStructure(session, itemID) {
 function resolveInSpaceCompressionContext(session, facilityBallID) {
   const systemID = toInt(session && session._space && session._space.systemID, 0);
   const shipID = toInt(session && session._space && session._space.shipID, 0);
+  const characterID = toInt(session && session.characterID, 0);
   if (systemID <= 0 || shipID <= 0) {
     return {
       success: false,
@@ -729,6 +760,39 @@ function resolveInSpaceCompressionContext(session, facilityBallID) {
     return {
       success: false,
       errorMsg: "FACILITY_NOT_FOUND",
+    };
+  }
+  const facilityTypelists =
+    typeof spaceRuntime.resolveCompressionFacilityTypelistsForEntity === "function"
+      ? spaceRuntime.resolveCompressionFacilityTypelistsForEntity(facilityEntity)
+      : Array.isArray(facilityEntity.compressionFacilityTypelists)
+        ? facilityEntity.compressionFacilityTypelists
+        : null;
+  if (!Array.isArray(facilityTypelists) || facilityTypelists.length <= 0) {
+    return {
+      success: false,
+      errorMsg: "FACILITY_NOT_ACTIVE",
+    };
+  }
+
+  const facilityCharacterID = toInt(
+    facilityEntity && (
+      facilityEntity.characterID ??
+      facilityEntity.pilotCharacterID
+    ),
+    0,
+  );
+  if (
+    toInt(facilityEntity.itemID, 0) !== shipID &&
+    (
+      characterID <= 0 ||
+      facilityCharacterID <= 0 ||
+      !isInSameFleet(characterID, facilityCharacterID)
+    )
+  ) {
+    return {
+      success: false,
+      errorMsg: "FACILITY_NOT_ACTIVE",
     };
   }
 
@@ -747,10 +811,7 @@ function resolveInSpaceCompressionContext(session, facilityBallID) {
   );
   const maxRangeMeters = Math.max(
     1,
-    toFiniteNumber(
-      config.miningInSpaceCompressionRangeMeters,
-      DEFAULT_IN_SPACE_COMPRESSION_RANGE_METERS,
-    ),
+    ...facilityTypelists.map((entry) => Math.max(0, toFiniteNumber(entry && entry[1], 0))),
   );
   if (surfaceDistance > maxRangeMeters) {
     return {
@@ -765,6 +826,7 @@ function resolveInSpaceCompressionContext(session, facilityBallID) {
       scene,
       shipEntity,
       facilityEntity,
+      facilityTypelists,
       maxRangeMeters,
     },
   };
@@ -775,20 +837,21 @@ module.exports = {
   TYPE_REPROCESSING_EFFICIENCY,
   TYPE_SCRAPMETAL_PROCESSING,
   TYPE_GAS_DECOMPRESSION_EFFICIENCY,
-  resolveReprocessingContext,
-  getStationEfficiencyForTypeID,
-  getStationTaxRate,
-  getReprocessingYieldForType,
-  getGasDecompressionCharacterEfficiency,
-  getStructureGasDecompressionEfficiency,
-  buildReprocessingOptionsForTypes,
-  buildReprocessingQuoteForItem,
-  buildReprocessingQuotesForItems,
-  reprocessItems,
+  resolveReprocessingContext: reprocessingRuntime.resolveReprocessingContext,
+  getStationEfficiencyForTypeID: reprocessingRuntime.getStationEfficiencyForTypeID,
+  getStationTaxRate: reprocessingRuntime.getStationTaxRate,
+  getReprocessingYieldForType: reprocessingRuntime.getReprocessingYieldForType,
+  getGasDecompressionCharacterEfficiency: reprocessingRuntime.getGasDecompressionCharacterEfficiency,
+  getStructureGasDecompressionEfficiency: reprocessingRuntime.getStructureGasDecompressionEfficiency,
+  buildReprocessingOptionsForTypes: reprocessingRuntime.buildReprocessingOptionsForTypes,
+  buildReprocessingQuoteForItem: reprocessingRuntime.buildReprocessingQuoteForItem,
+  buildReprocessingQuotesForItems: reprocessingRuntime.buildReprocessingQuotesForItems,
+  reprocessItems: reprocessingRuntime.reprocessItems,
   compressInventoryItem,
   decompressGasInStructure,
   resolveGasDecompressionSourceType,
   resolveInSpaceCompressionContext,
+  getInSpaceCompressionRangeMeters: reprocessingRuntime.getInSpaceCompressionRangeMeters,
   isCompressibleType,
   isCompressedType,
 };

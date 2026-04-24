@@ -11,7 +11,7 @@
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
-const { buildGlobalConfigDict } = require(path.join(
+const { buildGlobalConfigDict, buildServerStatusResponse } = require(path.join(
   __dirname,
   "./globalConfig",
 ));
@@ -69,11 +69,13 @@ class MachoNetService extends BaseService {
         ["marketProxy", null],
         ["structureDirectory", null],
         ["structureDeployment", null],
+        ["structureProfiles", null],
         ["structureControl", null],
         ["structureDocking", null],
         ["structureHangarViewMgr", null],
         ["fwWarzoneSolarsystem", null],
         ["beyonce", "solarsystem2"],
+        ["scanMgr", null],
         ["miningScanMgr", null],
         ["characterMiningLedger", null],
         ["corpMiningLedger", null],
@@ -81,8 +83,11 @@ class MachoNetService extends BaseService {
         ["structureCompressionMgr", null],
         ["dogmaIM", "character"],
         ["invbroker", "station"],
+        ["trademgr", "station"],
+        ["tradeMgr", "station"],
         ["charFittingMgr", null],
         ["corpFittingMgr", null],
+        ["allianceFittingMgr", null],
         ["LSC", null],
         ["onlineStatus", null],
         ["billMgr", null],
@@ -96,17 +101,32 @@ class MachoNetService extends BaseService {
         ["lookupSvc", null],
         ["certificateMgr", null],
         ["tutorialSvc", null],
+        ["operationsManager", null],
+        ["air_npe", null],
+        ["nes_intro", null],
         ["agentMgr", null],
         ["bookmarkMgr", null],
+        ["accessGroupBookmarkMgr", null],
+        ["ownerGroupManager", null],
+        ["calendarMgr", null],
+        ["calendarProxy", null],
         ["standing2", null],
+        ["missionTrackerMgr", null],
         ["dungeonExplorationMgr", null],
+        ["dungeonInstanceCacheMgr", null],
         ["userSvc", null],
         ["structureGuests", null],
         ["skillMgr", null],
         ["skillMgr2", null],
         ["skillHandler", null],
+        ["wormholeMgr", null],
+        ["alphaInjectorMgr", null],
+        ["nonDiminishingInjectionMgr", null],
         ["contractMgr", null],
         ["blueprintManager", null],
+        ["facilityManager", null],
+        ["industryManager", null],
+        ["industryMonitor", null],
         ["repairSvc", "station"],
         ["repackagingSvc", null],
         ["reprocessingSvc", "station"],
@@ -137,6 +157,11 @@ class MachoNetService extends BaseService {
   Handle_GetServiceInfo(args, session) {
     log.debug("[MachoNet] GetServiceInfo");
     return this.getServiceInfoDict();
+  }
+
+  Handle_GetServerStatus(args, session) {
+    log.debug("[MachoNet] GetServerStatus");
+    return buildServerStatusResponse();
   }
 
   /**

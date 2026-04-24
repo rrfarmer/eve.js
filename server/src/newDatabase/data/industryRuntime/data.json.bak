@@ -1,0 +1,198 @@
+{
+  "_meta": {
+    "generatedAt": null,
+    "lastUpdatedAt": "2026-04-14T13:45:12.990Z",
+    "nextMonitorID": 329,
+    "version": 1
+  },
+  "facilityTaxesByFacilityID": {},
+  "jobMonitorsByID": {},
+  "monitors": {
+    "297": {
+      "monitorID": 297,
+      "activityID": 1,
+      "blueprintID": 2990000067,
+      "createdAt": 1775578158142
+    },
+    "298": {
+      "monitorID": 298,
+      "activityID": 1,
+      "blueprintID": 2990000067,
+      "createdAt": 1775578161221
+    },
+    "299": {
+      "monitorID": 299,
+      "activityID": 1,
+      "blueprintID": 2990000559,
+      "createdAt": 1775578162387
+    },
+    "300": {
+      "monitorID": 300,
+      "activityID": 1,
+      "blueprintID": 2990000081,
+      "createdAt": 1775578165236
+    },
+    "301": {
+      "monitorID": 301,
+      "activityID": 1,
+      "blueprintID": 2990000559,
+      "createdAt": 1775578167111
+    },
+    "302": {
+      "monitorID": 302,
+      "activityID": 1,
+      "blueprintID": 2990000079,
+      "createdAt": 1775578167512
+    },
+    "303": {
+      "monitorID": 303,
+      "activityID": 1,
+      "blueprintID": 2990000081,
+      "createdAt": 1775578170657
+    },
+    "304": {
+      "monitorID": 304,
+      "activityID": 1,
+      "blueprintID": 2990000555,
+      "createdAt": 1775578172895
+    },
+    "305": {
+      "monitorID": 305,
+      "activityID": 1,
+      "blueprintID": 2990000557,
+      "createdAt": 1775578174643
+    },
+    "306": {
+      "monitorID": 306,
+      "activityID": 1,
+      "blueprintID": 2990000556,
+      "createdAt": 1775578179987
+    },
+    "307": {
+      "monitorID": 307,
+      "activityID": 1,
+      "blueprintID": 2990000557,
+      "createdAt": 1775578180493
+    },
+    "309": {
+      "monitorID": 309,
+      "activityID": 1,
+      "blueprintID": 2990000559,
+      "createdAt": 1775949278592
+    },
+    "310": {
+      "monitorID": 310,
+      "activityID": 1,
+      "blueprintID": 2990000067,
+      "createdAt": 1775949281310
+    },
+    "311": {
+      "monitorID": 311,
+      "activityID": 1,
+      "blueprintID": 2990000555,
+      "createdAt": 1775949302528
+    },
+    "312": {
+      "monitorID": 312,
+      "activityID": 1,
+      "blueprintID": 2990000081,
+      "createdAt": 1775949323977
+    },
+    "313": {
+      "monitorID": 313,
+      "activityID": 1,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949334937
+    },
+    "314": {
+      "monitorID": 314,
+      "activityID": 4,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949335722
+    },
+    "315": {
+      "monitorID": 315,
+      "activityID": 5,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949336809
+    },
+    "316": {
+      "monitorID": 316,
+      "activityID": 3,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949337358
+    },
+    "317": {
+      "monitorID": 317,
+      "activityID": 4,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949337896
+    },
+    "318": {
+      "monitorID": 318,
+      "activityID": 5,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949342516
+    },
+    "319": {
+      "monitorID": 319,
+      "activityID": 3,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949343031
+    },
+    "320": {
+      "monitorID": 320,
+      "activityID": 1,
+      "blueprintID": 2990000080,
+      "createdAt": 1775949343558
+    },
+    "321": {
+      "monitorID": 321,
+      "activityID": 1,
+      "blueprintID": 2990003593,
+      "createdAt": 1776174269139
+    },
+    "322": {
+      "monitorID": 322,
+      "activityID": 1,
+      "blueprintID": 2990003620,
+      "createdAt": 1776174283591
+    },
+    "323": {
+      "monitorID": 323,
+      "activityID": 1,
+      "blueprintID": 2990003593,
+      "createdAt": 1776174284129
+    },
+    "324": {
+      "monitorID": 324,
+      "activityID": 1,
+      "blueprintID": 2990003620,
+      "createdAt": 1776174303159
+    },
+    "325": {
+      "monitorID": 325,
+      "activityID": 1,
+      "blueprintID": 2990003593,
+      "createdAt": 1776174303668
+    },
+    "326": {
+      "monitorID": 326,
+      "activityID": 1,
+      "blueprintID": 2990003593,
+      "createdAt": 1776174305537
+    },
+    "327": {
+      "monitorID": 327,
+      "activityID": 1,
+      "blueprintID": 2990003593,
+      "createdAt": 1776174312317
+    },
+    "328": {
+      "monitorID": 328,
+      "activityID": 1,
+      "blueprintID": 2990003593,
+      "createdAt": 1776174312990
+    }
+  }
+}

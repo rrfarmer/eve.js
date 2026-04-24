@@ -35,17 +35,13 @@ const DEFAULT_CUSTOM_CORPORATION_LOGO = Object.freeze({
   color3: null,
   typeface: null,
 });
-const NPC_CORPORATION_SOURCE = path.join(
-  __dirname,
-  "../../../../data/eve-online-static-data-3253748-jsonl/npcCorporations.jsonl",
-);
-const NPC_CHARACTER_SOURCE = path.join(
-  __dirname,
-  "../../../../data/eve-online-static-data-3253748-jsonl/npcCharacters.jsonl",
-);
+const DATA_DIRECTORY_PATH = path.join(__dirname, "../../../../data");
 
 let npcCorporationCache = null;
 let npcCharacterCache = null;
+let cachedStaticJsonlDirectoryPath = null;
+let cachedNpcCorporationSourcePath = null;
+let cachedNpcCharacterSourcePath = null;
 let corporationsBootstrapComplete = false;
 let alliancesBootstrapComplete = false;
 let corporationMembersIndexCache = null;
@@ -224,13 +220,74 @@ function parseJsonlFile(filePath) {
     .filter(Boolean);
 }
 
+function resolveLatestStaticJsonlDirectoryPath() {
+  if (cachedStaticJsonlDirectoryPath !== null) {
+    return cachedStaticJsonlDirectoryPath;
+  }
+
+  try {
+    const directoryEntries = fs.readdirSync(DATA_DIRECTORY_PATH, {
+      withFileTypes: true,
+    });
+    const candidateDirectory = directoryEntries
+      .filter((entry) =>
+        entry &&
+        entry.isDirectory() &&
+        /^eve-online-static-data-\d+-jsonl$/i.test(entry.name),
+      )
+      .map((entry) => ({
+        name: entry.name,
+        fullPath: path.join(DATA_DIRECTORY_PATH, entry.name),
+      }))
+      .sort((left, right) => right.name.localeCompare(left.name))[0];
+
+    cachedStaticJsonlDirectoryPath = candidateDirectory
+      ? candidateDirectory.fullPath
+      : "";
+  } catch (_error) {
+    cachedStaticJsonlDirectoryPath = "";
+  }
+
+  return cachedStaticJsonlDirectoryPath;
+}
+
+function resolveNpcCorporationSourcePath() {
+  if (cachedNpcCorporationSourcePath !== null) {
+    return cachedNpcCorporationSourcePath;
+  }
+
+  const directoryPath = resolveLatestStaticJsonlDirectoryPath();
+  const candidatePath = directoryPath
+    ? path.join(directoryPath, "npcCorporations.jsonl")
+    : "";
+  cachedNpcCorporationSourcePath = fs.existsSync(candidatePath)
+    ? candidatePath
+    : "";
+  return cachedNpcCorporationSourcePath;
+}
+
+function resolveNpcCharacterSourcePath() {
+  if (cachedNpcCharacterSourcePath !== null) {
+    return cachedNpcCharacterSourcePath;
+  }
+
+  const directoryPath = resolveLatestStaticJsonlDirectoryPath();
+  const candidatePath = directoryPath
+    ? path.join(directoryPath, "npcCharacters.jsonl")
+    : "";
+  cachedNpcCharacterSourcePath = fs.existsSync(candidatePath)
+    ? candidatePath
+    : "";
+  return cachedNpcCharacterSourcePath;
+}
+
 function loadNpcCorporations() {
   if (npcCorporationCache) {
     return npcCorporationCache;
   }
 
   npcCorporationCache = new Map(
-    parseJsonlFile(NPC_CORPORATION_SOURCE).map((entry) => [
+    parseJsonlFile(resolveNpcCorporationSourcePath()).map((entry) => [
       normalizePositiveInteger(entry._key, 0),
       entry,
     ]),
@@ -244,7 +301,7 @@ function loadNpcCharacters() {
   }
 
   npcCharacterCache = new Map(
-    parseJsonlFile(NPC_CHARACTER_SOURCE).map((entry) => [
+    parseJsonlFile(resolveNpcCharacterSourcePath()).map((entry) => [
       normalizePositiveInteger(entry._key, 0),
       entry,
     ]),

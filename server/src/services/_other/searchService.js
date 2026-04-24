@@ -2,6 +2,7 @@ const path = require("path");
 
 const BaseService = require(path.join(__dirname, "../baseService"));
 const database = require(path.join(__dirname, "../../newDatabase"));
+const worldData = require(path.join(__dirname, "../../space/worldData"));
 const {
   buildDict,
   buildList,
@@ -29,9 +30,14 @@ const RESULT_TYPE = {
   CHARACTER: 2,
   CORPORATION: 3,
   ALLIANCE: 4,
+  SOLAR_SYSTEM: 7,
+  STATION: 11,
 };
 
 const MAX_RESULT_COUNT = 500;
+const STATIC_QUERY_CACHE_LIMIT = 512;
+const staticSearchIndexCache = new Map();
+const staticQueryResultCache = new Map();
 
 function extractKwargValue(kwargs, key, fallback = undefined) {
   if (!kwargs) {
@@ -63,6 +69,192 @@ function tokenizeSearchString(value) {
     .split(/\s+/)
     .map((token) => token.replace(/[^a-z0-9]+/g, ""))
     .filter(Boolean);
+}
+
+function appendMapListEntry(map, key, value) {
+  if (!key) {
+    return;
+  }
+  const existing = map.get(key);
+  if (existing) {
+    existing.push(value);
+    return;
+  }
+  map.set(key, [value]);
+}
+
+function getStaticGroupSourceRows(groupID) {
+  const world = worldData.ensureLoaded();
+  switch (Number(groupID) || 0) {
+    case RESULT_TYPE.SOLAR_SYSTEM:
+      return world.solarSystems;
+    case RESULT_TYPE.STATION:
+      return world.stations;
+    default:
+      return null;
+  }
+}
+
+function getStaticGroupEntryName(groupID, row) {
+  switch (Number(groupID) || 0) {
+    case RESULT_TYPE.SOLAR_SYSTEM:
+      return String(row && row.solarSystemName || "");
+    case RESULT_TYPE.STATION:
+      return String(row && (row.stationName || row.itemName) || "");
+    default:
+      return "";
+  }
+}
+
+function getStaticGroupEntryID(groupID, row) {
+  switch (Number(groupID) || 0) {
+    case RESULT_TYPE.SOLAR_SYSTEM:
+      return Number(row && row.solarSystemID) || 0;
+    case RESULT_TYPE.STATION:
+      return Number(row && row.stationID) || 0;
+    default:
+      return 0;
+  }
+}
+
+function buildStaticSearchIndex(groupID) {
+  const rows = getStaticGroupSourceRows(groupID);
+  if (!rows) {
+    return null;
+  }
+
+  const exactRawNameMap = new Map();
+  const exactCollapsedNameMap = new Map();
+  const entries = rows
+    .map((row) => {
+      const id = getStaticGroupEntryID(groupID, row);
+      const name = getStaticGroupEntryName(groupID, row);
+      const rawName = normalizeSearchString(name);
+      const collapsedName = collapseSearchString(name);
+      if (!id || !name || !collapsedName) {
+        return null;
+      }
+      const entry = {
+        id,
+        rawName,
+        collapsedName,
+      };
+      appendMapListEntry(exactRawNameMap, rawName, id);
+      appendMapListEntry(exactCollapsedNameMap, collapsedName, id);
+      return entry;
+    })
+    .filter(Boolean);
+
+  const index = {
+    entries,
+    exactRawNameMap,
+    exactCollapsedNameMap,
+  };
+  staticSearchIndexCache.set(Number(groupID) || 0, index);
+  return index;
+}
+
+function getStaticSearchIndex(groupID) {
+  const normalizedGroupID = Number(groupID) || 0;
+  if (staticSearchIndexCache.has(normalizedGroupID)) {
+    return staticSearchIndexCache.get(normalizedGroupID);
+  }
+  return buildStaticSearchIndex(normalizedGroupID);
+}
+
+function getCachedStaticQueryResult(key) {
+  if (!staticQueryResultCache.has(key)) {
+    return null;
+  }
+  const cached = staticQueryResultCache.get(key);
+  staticQueryResultCache.delete(key);
+  staticQueryResultCache.set(key, cached);
+  return [...cached];
+}
+
+function setCachedStaticQueryResult(key, resultIDs) {
+  staticQueryResultCache.set(key, [...resultIDs]);
+  if (staticQueryResultCache.size <= STATIC_QUERY_CACHE_LIMIT) {
+    return;
+  }
+  const oldestKey = staticQueryResultCache.keys().next().value;
+  if (oldestKey !== undefined) {
+    staticQueryResultCache.delete(oldestKey);
+  }
+}
+
+function searchStaticGroup(groupID, search, exactMode) {
+  const index = getStaticSearchIndex(groupID);
+  if (!index) {
+    return null;
+  }
+
+  const rawSearch = normalizeSearchString(search);
+  const collapsedSearch = collapseSearchString(search);
+  const cacheKey = `${Number(groupID) || 0}|${Number(exactMode) || 0}|${rawSearch}`;
+  const cached = getCachedStaticQueryResult(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  if (!collapsedSearch) {
+    return [];
+  }
+
+  let results = [];
+  switch (Number(exactMode) || 0) {
+    case MATCH_BY.EXACT_TERMS:
+    case MATCH_BY.EXACT_PHRASE:
+    case MATCH_BY.EXACT_PHRASE_ONLY: {
+      const seen = new Set();
+      const exactRaw = index.exactRawNameMap.get(rawSearch) || [];
+      const exactCollapsed = index.exactCollapsedNameMap.get(collapsedSearch) || [];
+      results = [...exactRaw, ...exactCollapsed].filter((id) => {
+        if (!id || seen.has(id)) {
+          return false;
+        }
+        seen.add(id);
+        return true;
+      });
+      break;
+    }
+    case MATCH_BY.PARTIAL_TERMS:
+    default: {
+      const terms = tokenizeSearchString(search);
+      const exactMatches = [];
+      const prefixMatches = [];
+      const substringMatches = [];
+      for (const entry of index.entries) {
+        const matches =
+          terms.length > 0
+            ? terms.every((term) => entry.collapsedName.includes(term))
+            : entry.collapsedName.includes(collapsedSearch);
+        if (!matches) {
+          continue;
+        }
+        if (
+          entry.rawName === rawSearch ||
+          entry.collapsedName === collapsedSearch
+        ) {
+          exactMatches.push(entry.id);
+          continue;
+        }
+        if (
+          entry.rawName.startsWith(rawSearch) ||
+          entry.collapsedName.startsWith(collapsedSearch)
+        ) {
+          prefixMatches.push(entry.id);
+          continue;
+        }
+        substringMatches.push(entry.id);
+      }
+      results = [...exactMatches, ...prefixMatches, ...substringMatches];
+      break;
+    }
+  }
+
+  const limitedResults = results.slice(0, MAX_RESULT_COUNT);
+  setCachedStaticQueryResult(cacheKey, limitedResults);
+  return limitedResults;
 }
 
 function matchesSearch(name, search, exactMode = MATCH_BY.PARTIAL_TERMS) {
@@ -135,10 +327,20 @@ function collectSearchableOwners(groupID) {
 }
 
 function searchGroup(groupID, search, exactMode) {
+  const staticMatches = searchStaticGroup(groupID, search, exactMode);
+  if (staticMatches) {
+    return staticMatches;
+  }
+
   return collectSearchableOwners(groupID)
     .filter((entry) => matchesSearch(entry.name, search, exactMode))
     .map((entry) => entry.id)
     .slice(0, MAX_RESULT_COUNT);
+}
+
+function clearSearchCaches() {
+  staticSearchIndexCache.clear();
+  staticQueryResultCache.clear();
 }
 
 class SearchService extends BaseService {
@@ -182,3 +384,7 @@ class SearchService extends BaseService {
 }
 
 module.exports = SearchService;
+module.exports._testing = {
+  clearSearchCaches,
+  searchStaticGroup,
+};

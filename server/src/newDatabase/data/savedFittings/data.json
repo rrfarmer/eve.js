@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "version": 1,
+    "nextFittingID": 1
+  },
+  "owners": {
+    "1000046": {
+      "ownerID": 1000046,
+      "scope": "corporation",
+      "fittings": {}
+    },
+    "1000282": {
+      "ownerID": 1000282,
+      "scope": "community",
+      "fittings": {}
+    },
+    "140000177": {
+      "ownerID": 140000177,
+      "scope": "character",
+      "fittings": {}
+    }
+  }
+}

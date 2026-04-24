@@ -22,7 +22,6 @@ const {
   repoRoot,
   "server/src/services/character/characterState",
 ));
-
 const FILETIME_EPOCH_OFFSET = 116444736000000000n;
 const TEST_CHARACTER_ID = 140000004;
 const TEST_SYSTEM_ID = 30000142;
@@ -242,6 +241,7 @@ test("restoreSpaceSession rebases a fresh login onto a lagged same-system scene 
     assert.ok(addBallsUpdate, "expected reconnect bootstrap to emit AddBalls2");
   });
 });
+
 
 test("restoreSpaceSession keeps the no-rebase login path when the scene clock is already current", () => {
   withMockedNow(1774200100000, ({ getNow, setNow }) => {

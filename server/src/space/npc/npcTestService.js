@@ -216,7 +216,8 @@ function buildNpcTestCombatCatalog() {
   const definitions = listNpcProfiles()
     .map((profile) => buildNpcDefinition(profile && profile.profileID))
     .filter(Boolean)
-    .filter((definition) => String(definition.profile && definition.profile.entityType || "").trim().toLowerCase() === "npc");
+    .filter((definition) => String(definition.profile && definition.profile.entityType || "").trim().toLowerCase() === "npc")
+    .filter((definition) => definition.profile && definition.profile.capitalNpc !== true);
 
   const catalog = [];
   for (const definition of definitions) {

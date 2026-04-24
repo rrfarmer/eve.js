@@ -2226,9 +2226,1082 @@
           ]
         }
       }
+    },
+    "cash::140000002::cash_plex_20000_gallente::1::fc3243d5ed5540f796c1bb3ad959194d": {
+      "completedAt": "2026-04-03T13:22:45.075Z",
+      "channel": "cash",
+      "characterID": 140000002,
+      "accountID": 1,
+      "storeOfferID": "cash_plex_20000_gallente",
+      "quantity": 1,
+      "receipt": {
+        "order": {
+          "offer": {
+            "store_offer": "cash_plex_20000_gallente"
+          },
+          "quantity": 1,
+          "cost": {
+            "catalog_amount_in_cents": 65000,
+            "tax_amount_in_cents": 0,
+            "total_amount_in_cents": 65000,
+            "tax_rate_points": 0,
+            "currency": "USD"
+          }
+        },
+        "payment_identifier": {
+          "sequential": 1775222565075
+        },
+        "payment_method": 11,
+        "description": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+        "items": [
+          {
+            "name": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+            "quantity": 1
+          }
+        ]
+      },
+      "result": {
+        "receipt": {
+          "order": {
+            "offer": {
+              "store_offer": "cash_plex_20000_gallente"
+            },
+            "quantity": 1,
+            "cost": {
+              "catalog_amount_in_cents": 65000,
+              "tax_amount_in_cents": 0,
+              "total_amount_in_cents": 65000,
+              "tax_rate_points": 0,
+              "currency": "USD"
+            }
+          },
+          "payment_identifier": {
+            "sequential": 1775222565075
+          },
+          "payment_method": 11,
+          "description": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+          "items": [
+            {
+              "name": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+              "quantity": 1
+            }
+          ]
+        },
+        "fulfillment": {
+          "type": "bundle",
+          "grants": [
+            {
+              "type": "plex",
+              "plexAmount": 20000,
+              "wallet": {
+                "characterID": 140000002,
+                "balance": 71979001.47,
+                "aurBalance": 0,
+                "plexBalance": 23222,
+                "balanceChange": -25188.1
+              }
+            },
+            {
+              "type": "item",
+              "typeID": 91938,
+              "quantity": 6,
+              "grant": {
+                "itemType": {
+                  "typeID": 91938,
+                  "groupID": 1194,
+                  "categoryID": 63,
+                  "groupName": "Special Edition Commodities",
+                  "name": "Historic Gallente SKINs Crate",
+                  "mass": 0,
+                  "volume": 5,
+                  "capacity": 0,
+                  "portionSize": 1,
+                  "raceID": 0,
+                  "basePrice": 0,
+                  "marketGroupID": 3832,
+                  "iconID": 24298,
+                  "soundID": 0,
+                  "graphicID": 0,
+                  "radius": 0,
+                  "published": true
+                },
+                "quantity": 6,
+                "items": [
+                  {
+                    "itemID": 991003733,
+                    "typeID": 91938,
+                    "ownerID": 140000002,
+                    "locationID": 60003760,
+                    "flagID": 4,
+                    "quantity": 6,
+                    "stacksize": 6,
+                    "singleton": 0,
+                    "groupID": 1194,
+                    "categoryID": 63,
+                    "customInfo": "",
+                    "itemName": "Historic Gallente SKINs Crate",
+                    "mass": 0,
+                    "volume": 5,
+                    "capacity": 0,
+                    "radius": 0
+                  }
+                ],
+                "changes": [
+                  {
+                    "created": true,
+                    "item": {
+                      "itemID": 991003733,
+                      "typeID": 91938,
+                      "ownerID": 140000002,
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 6,
+                      "stacksize": 6,
+                      "singleton": 0,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "customInfo": "",
+                      "itemName": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "radius": 0
+                    },
+                    "previousState": {
+                      "locationID": 0,
+                      "flagID": 0
+                    }
+                  }
+                ],
+                "grantedEntries": [
+                  {
+                    "itemType": {
+                      "typeID": 91938,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "groupName": "Special Edition Commodities",
+                      "name": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "portionSize": 1,
+                      "raceID": 0,
+                      "basePrice": 0,
+                      "marketGroupID": 3832,
+                      "iconID": 24298,
+                      "soundID": 0,
+                      "graphicID": 0,
+                      "radius": 0,
+                      "published": true
+                    },
+                    "quantity": 6
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "cash::140000004::cash_plex_6000_gallente::1::c129ecf4b9b24015bc8fcb62ab5d8a96": {
+      "completedAt": "2026-04-11T13:44:04.166Z",
+      "channel": "cash",
+      "characterID": 140000004,
+      "accountID": 2,
+      "storeOfferID": "cash_plex_6000_gallente",
+      "quantity": 1,
+      "receipt": {
+        "order": {
+          "offer": {
+            "store_offer": "cash_plex_6000_gallente"
+          },
+          "quantity": 1,
+          "cost": {
+            "catalog_amount_in_cents": 24000,
+            "tax_amount_in_cents": 0,
+            "total_amount_in_cents": 24000,
+            "tax_rate_points": 0,
+            "currency": "USD"
+          }
+        },
+        "payment_identifier": {
+          "sequential": 1775915044166
+        },
+        "payment_method": 11,
+        "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+        "items": [
+          {
+            "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+            "quantity": 1
+          }
+        ]
+      },
+      "result": {
+        "receipt": {
+          "order": {
+            "offer": {
+              "store_offer": "cash_plex_6000_gallente"
+            },
+            "quantity": 1,
+            "cost": {
+              "catalog_amount_in_cents": 24000,
+              "tax_amount_in_cents": 0,
+              "total_amount_in_cents": 24000,
+              "tax_rate_points": 0,
+              "currency": "USD"
+            }
+          },
+          "payment_identifier": {
+            "sequential": 1775915044166
+          },
+          "payment_method": 11,
+          "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+          "items": [
+            {
+              "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+              "quantity": 1
+            }
+          ]
+        },
+        "fulfillment": {
+          "type": "bundle",
+          "grants": [
+            {
+              "type": "plex",
+              "plexAmount": 6000,
+              "wallet": {
+                "characterID": 140000004,
+                "balance": 2487204527.4,
+                "aurBalance": 0,
+                "plexBalance": 9222,
+                "balanceChange": 5419900
+              }
+            },
+            {
+              "type": "item",
+              "typeID": 91938,
+              "quantity": 4,
+              "grant": {
+                "itemType": {
+                  "typeID": 91938,
+                  "groupID": 1194,
+                  "categoryID": 63,
+                  "groupName": "Special Edition Commodities",
+                  "name": "Historic Gallente SKINs Crate",
+                  "mass": 0,
+                  "volume": 5,
+                  "capacity": 0,
+                  "portionSize": 1,
+                  "raceID": 0,
+                  "basePrice": 0,
+                  "marketGroupID": 3832,
+                  "iconID": 24298,
+                  "soundID": 0,
+                  "graphicID": 0,
+                  "radius": 0,
+                  "published": true
+                },
+                "quantity": 4,
+                "items": [
+                  {
+                    "itemID": 2990001144,
+                    "typeID": 91938,
+                    "ownerID": 140000004,
+                    "locationID": 60003760,
+                    "flagID": 4,
+                    "quantity": 4,
+                    "stacksize": 4,
+                    "singleton": 0,
+                    "groupID": 1194,
+                    "categoryID": 63,
+                    "customInfo": "",
+                    "itemName": "Historic Gallente SKINs Crate",
+                    "mass": 0,
+                    "volume": 5,
+                    "capacity": 0,
+                    "radius": 0
+                  }
+                ],
+                "changes": [
+                  {
+                    "created": true,
+                    "item": {
+                      "itemID": 2990001144,
+                      "typeID": 91938,
+                      "ownerID": 140000004,
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 4,
+                      "stacksize": 4,
+                      "singleton": 0,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "customInfo": "",
+                      "itemName": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "radius": 0
+                    },
+                    "previousState": {
+                      "locationID": 0,
+                      "flagID": 0
+                    }
+                  }
+                ],
+                "grantedEntries": [
+                  {
+                    "itemType": {
+                      "typeID": 91938,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "groupName": "Special Edition Commodities",
+                      "name": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "portionSize": 1,
+                      "raceID": 0,
+                      "basePrice": 0,
+                      "marketGroupID": 3832,
+                      "iconID": 24298,
+                      "soundID": 0,
+                      "graphicID": 0,
+                      "radius": 0,
+                      "published": true
+                    },
+                    "quantity": 4
+                  }
+                ],
+                "stackSplitApplied": false,
+                "stackSplitStackCount": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    "cash::140000004::cash_plex_6000_gallente::1::7f16ebd8b8f74e99a4c8f093c677cbce": {
+      "completedAt": "2026-04-11T13:44:49.838Z",
+      "channel": "cash",
+      "characterID": 140000004,
+      "accountID": 2,
+      "storeOfferID": "cash_plex_6000_gallente",
+      "quantity": 1,
+      "receipt": {
+        "order": {
+          "offer": {
+            "store_offer": "cash_plex_6000_gallente"
+          },
+          "quantity": 1,
+          "cost": {
+            "catalog_amount_in_cents": 24000,
+            "tax_amount_in_cents": 0,
+            "total_amount_in_cents": 24000,
+            "tax_rate_points": 0,
+            "currency": "USD"
+          }
+        },
+        "payment_identifier": {
+          "sequential": 1775915089838
+        },
+        "payment_method": 11,
+        "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+        "items": [
+          {
+            "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+            "quantity": 1
+          }
+        ]
+      },
+      "result": {
+        "receipt": {
+          "order": {
+            "offer": {
+              "store_offer": "cash_plex_6000_gallente"
+            },
+            "quantity": 1,
+            "cost": {
+              "catalog_amount_in_cents": 24000,
+              "tax_amount_in_cents": 0,
+              "total_amount_in_cents": 24000,
+              "tax_rate_points": 0,
+              "currency": "USD"
+            }
+          },
+          "payment_identifier": {
+            "sequential": 1775915089838
+          },
+          "payment_method": 11,
+          "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+          "items": [
+            {
+              "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+              "quantity": 1
+            }
+          ]
+        },
+        "fulfillment": {
+          "type": "bundle",
+          "grants": [
+            {
+              "type": "plex",
+              "plexAmount": 6000,
+              "wallet": {
+                "characterID": 140000004,
+                "balance": 2487204527.4,
+                "aurBalance": 0,
+                "plexBalance": 15222,
+                "balanceChange": 5419900
+              }
+            },
+            {
+              "type": "item",
+              "typeID": 91938,
+              "quantity": 4,
+              "grant": {
+                "itemType": {
+                  "typeID": 91938,
+                  "groupID": 1194,
+                  "categoryID": 63,
+                  "groupName": "Special Edition Commodities",
+                  "name": "Historic Gallente SKINs Crate",
+                  "mass": 0,
+                  "volume": 5,
+                  "capacity": 0,
+                  "portionSize": 1,
+                  "raceID": 0,
+                  "basePrice": 0,
+                  "marketGroupID": 3832,
+                  "iconID": 24298,
+                  "soundID": 0,
+                  "graphicID": 0,
+                  "radius": 0,
+                  "published": true
+                },
+                "quantity": 4,
+                "items": [
+                  {
+                    "itemID": 2990001144,
+                    "typeID": 91938,
+                    "ownerID": 140000004,
+                    "locationID": 60003760,
+                    "flagID": 4,
+                    "quantity": 8,
+                    "stacksize": 8,
+                    "singleton": 0,
+                    "groupID": 1194,
+                    "categoryID": 63,
+                    "customInfo": "",
+                    "itemName": "Historic Gallente SKINs Crate",
+                    "mass": 0,
+                    "volume": 5,
+                    "capacity": 0,
+                    "radius": 0
+                  }
+                ],
+                "changes": [
+                  {
+                    "created": false,
+                    "item": {
+                      "itemID": 2990001144,
+                      "typeID": 91938,
+                      "ownerID": 140000004,
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 8,
+                      "stacksize": 8,
+                      "singleton": 0,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "customInfo": "",
+                      "itemName": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "radius": 0
+                    },
+                    "previousState": {
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 4,
+                      "singleton": 0,
+                      "stacksize": 4
+                    }
+                  }
+                ],
+                "grantedEntries": [
+                  {
+                    "itemType": {
+                      "typeID": 91938,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "groupName": "Special Edition Commodities",
+                      "name": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "portionSize": 1,
+                      "raceID": 0,
+                      "basePrice": 0,
+                      "marketGroupID": 3832,
+                      "iconID": 24298,
+                      "soundID": 0,
+                      "graphicID": 0,
+                      "radius": 0,
+                      "published": true
+                    },
+                    "quantity": 4
+                  }
+                ],
+                "stackSplitApplied": false,
+                "stackSplitStackCount": 1
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "purchaseLog": [
+    {
+      "id": "cash::140000004::cash_plex_6000_gallente::1::7f16ebd8b8f74e99a4c8f093c677cbce",
+      "completedAt": "2026-04-11T13:44:49.839Z",
+      "channel": "cash",
+      "characterID": 140000004,
+      "accountID": 2,
+      "storeOfferID": "cash_plex_6000_gallente",
+      "quantity": 1,
+      "receipt": {
+        "order": {
+          "offer": {
+            "store_offer": "cash_plex_6000_gallente"
+          },
+          "quantity": 1,
+          "cost": {
+            "catalog_amount_in_cents": 24000,
+            "tax_amount_in_cents": 0,
+            "total_amount_in_cents": 24000,
+            "tax_rate_points": 0,
+            "currency": "USD"
+          }
+        },
+        "payment_identifier": {
+          "sequential": 1775915089838
+        },
+        "payment_method": 11,
+        "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+        "items": [
+          {
+            "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+            "quantity": 1
+          }
+        ]
+      },
+      "result": {
+        "receipt": {
+          "order": {
+            "offer": {
+              "store_offer": "cash_plex_6000_gallente"
+            },
+            "quantity": 1,
+            "cost": {
+              "catalog_amount_in_cents": 24000,
+              "tax_amount_in_cents": 0,
+              "total_amount_in_cents": 24000,
+              "tax_rate_points": 0,
+              "currency": "USD"
+            }
+          },
+          "payment_identifier": {
+            "sequential": 1775915089838
+          },
+          "payment_method": 11,
+          "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+          "items": [
+            {
+              "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+              "quantity": 1
+            }
+          ]
+        },
+        "fulfillment": {
+          "type": "bundle",
+          "grants": [
+            {
+              "type": "plex",
+              "plexAmount": 6000,
+              "wallet": {
+                "characterID": 140000004,
+                "balance": 2487204527.4,
+                "aurBalance": 0,
+                "plexBalance": 15222,
+                "balanceChange": 5419900
+              }
+            },
+            {
+              "type": "item",
+              "typeID": 91938,
+              "quantity": 4,
+              "grant": {
+                "itemType": {
+                  "typeID": 91938,
+                  "groupID": 1194,
+                  "categoryID": 63,
+                  "groupName": "Special Edition Commodities",
+                  "name": "Historic Gallente SKINs Crate",
+                  "mass": 0,
+                  "volume": 5,
+                  "capacity": 0,
+                  "portionSize": 1,
+                  "raceID": 0,
+                  "basePrice": 0,
+                  "marketGroupID": 3832,
+                  "iconID": 24298,
+                  "soundID": 0,
+                  "graphicID": 0,
+                  "radius": 0,
+                  "published": true
+                },
+                "quantity": 4,
+                "items": [
+                  {
+                    "itemID": 2990001144,
+                    "typeID": 91938,
+                    "ownerID": 140000004,
+                    "locationID": 60003760,
+                    "flagID": 4,
+                    "quantity": 8,
+                    "stacksize": 8,
+                    "singleton": 0,
+                    "groupID": 1194,
+                    "categoryID": 63,
+                    "customInfo": "",
+                    "itemName": "Historic Gallente SKINs Crate",
+                    "mass": 0,
+                    "volume": 5,
+                    "capacity": 0,
+                    "radius": 0
+                  }
+                ],
+                "changes": [
+                  {
+                    "created": false,
+                    "item": {
+                      "itemID": 2990001144,
+                      "typeID": 91938,
+                      "ownerID": 140000004,
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 8,
+                      "stacksize": 8,
+                      "singleton": 0,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "customInfo": "",
+                      "itemName": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "radius": 0
+                    },
+                    "previousState": {
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 4,
+                      "singleton": 0,
+                      "stacksize": 4
+                    }
+                  }
+                ],
+                "grantedEntries": [
+                  {
+                    "itemType": {
+                      "typeID": 91938,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "groupName": "Special Edition Commodities",
+                      "name": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "portionSize": 1,
+                      "raceID": 0,
+                      "basePrice": 0,
+                      "marketGroupID": 3832,
+                      "iconID": 24298,
+                      "soundID": 0,
+                      "graphicID": 0,
+                      "radius": 0,
+                      "published": true
+                    },
+                    "quantity": 4
+                  }
+                ],
+                "stackSplitApplied": false,
+                "stackSplitStackCount": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cash::140000004::cash_plex_6000_gallente::1::c129ecf4b9b24015bc8fcb62ab5d8a96",
+      "completedAt": "2026-04-11T13:44:04.167Z",
+      "channel": "cash",
+      "characterID": 140000004,
+      "accountID": 2,
+      "storeOfferID": "cash_plex_6000_gallente",
+      "quantity": 1,
+      "receipt": {
+        "order": {
+          "offer": {
+            "store_offer": "cash_plex_6000_gallente"
+          },
+          "quantity": 1,
+          "cost": {
+            "catalog_amount_in_cents": 24000,
+            "tax_amount_in_cents": 0,
+            "total_amount_in_cents": 24000,
+            "tax_rate_points": 0,
+            "currency": "USD"
+          }
+        },
+        "payment_identifier": {
+          "sequential": 1775915044166
+        },
+        "payment_method": 11,
+        "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+        "items": [
+          {
+            "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+            "quantity": 1
+          }
+        ]
+      },
+      "result": {
+        "receipt": {
+          "order": {
+            "offer": {
+              "store_offer": "cash_plex_6000_gallente"
+            },
+            "quantity": 1,
+            "cost": {
+              "catalog_amount_in_cents": 24000,
+              "tax_amount_in_cents": 0,
+              "total_amount_in_cents": 24000,
+              "tax_rate_points": 0,
+              "currency": "USD"
+            }
+          },
+          "payment_identifier": {
+            "sequential": 1775915044166
+          },
+          "payment_method": 11,
+          "description": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+          "items": [
+            {
+              "name": "6,000 PLEX + 4 Historic Gallente SKINs Crates",
+              "quantity": 1
+            }
+          ]
+        },
+        "fulfillment": {
+          "type": "bundle",
+          "grants": [
+            {
+              "type": "plex",
+              "plexAmount": 6000,
+              "wallet": {
+                "characterID": 140000004,
+                "balance": 2487204527.4,
+                "aurBalance": 0,
+                "plexBalance": 9222,
+                "balanceChange": 5419900
+              }
+            },
+            {
+              "type": "item",
+              "typeID": 91938,
+              "quantity": 4,
+              "grant": {
+                "itemType": {
+                  "typeID": 91938,
+                  "groupID": 1194,
+                  "categoryID": 63,
+                  "groupName": "Special Edition Commodities",
+                  "name": "Historic Gallente SKINs Crate",
+                  "mass": 0,
+                  "volume": 5,
+                  "capacity": 0,
+                  "portionSize": 1,
+                  "raceID": 0,
+                  "basePrice": 0,
+                  "marketGroupID": 3832,
+                  "iconID": 24298,
+                  "soundID": 0,
+                  "graphicID": 0,
+                  "radius": 0,
+                  "published": true
+                },
+                "quantity": 4,
+                "items": [
+                  {
+                    "itemID": 2990001144,
+                    "typeID": 91938,
+                    "ownerID": 140000004,
+                    "locationID": 60003760,
+                    "flagID": 4,
+                    "quantity": 4,
+                    "stacksize": 4,
+                    "singleton": 0,
+                    "groupID": 1194,
+                    "categoryID": 63,
+                    "customInfo": "",
+                    "itemName": "Historic Gallente SKINs Crate",
+                    "mass": 0,
+                    "volume": 5,
+                    "capacity": 0,
+                    "radius": 0
+                  }
+                ],
+                "changes": [
+                  {
+                    "created": true,
+                    "item": {
+                      "itemID": 2990001144,
+                      "typeID": 91938,
+                      "ownerID": 140000004,
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 4,
+                      "stacksize": 4,
+                      "singleton": 0,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "customInfo": "",
+                      "itemName": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "radius": 0
+                    },
+                    "previousState": {
+                      "locationID": 0,
+                      "flagID": 0
+                    }
+                  }
+                ],
+                "grantedEntries": [
+                  {
+                    "itemType": {
+                      "typeID": 91938,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "groupName": "Special Edition Commodities",
+                      "name": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "portionSize": 1,
+                      "raceID": 0,
+                      "basePrice": 0,
+                      "marketGroupID": 3832,
+                      "iconID": 24298,
+                      "soundID": 0,
+                      "graphicID": 0,
+                      "radius": 0,
+                      "published": true
+                    },
+                    "quantity": 4
+                  }
+                ],
+                "stackSplitApplied": false,
+                "stackSplitStackCount": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cash::140000002::cash_plex_20000_gallente::1::fc3243d5ed5540f796c1bb3ad959194d",
+      "completedAt": "2026-04-03T13:22:45.077Z",
+      "channel": "cash",
+      "characterID": 140000002,
+      "accountID": 1,
+      "storeOfferID": "cash_plex_20000_gallente",
+      "quantity": 1,
+      "receipt": {
+        "order": {
+          "offer": {
+            "store_offer": "cash_plex_20000_gallente"
+          },
+          "quantity": 1,
+          "cost": {
+            "catalog_amount_in_cents": 65000,
+            "tax_amount_in_cents": 0,
+            "total_amount_in_cents": 65000,
+            "tax_rate_points": 0,
+            "currency": "USD"
+          }
+        },
+        "payment_identifier": {
+          "sequential": 1775222565075
+        },
+        "payment_method": 11,
+        "description": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+        "items": [
+          {
+            "name": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+            "quantity": 1
+          }
+        ]
+      },
+      "result": {
+        "receipt": {
+          "order": {
+            "offer": {
+              "store_offer": "cash_plex_20000_gallente"
+            },
+            "quantity": 1,
+            "cost": {
+              "catalog_amount_in_cents": 65000,
+              "tax_amount_in_cents": 0,
+              "total_amount_in_cents": 65000,
+              "tax_rate_points": 0,
+              "currency": "USD"
+            }
+          },
+          "payment_identifier": {
+            "sequential": 1775222565075
+          },
+          "payment_method": 11,
+          "description": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+          "items": [
+            {
+              "name": "20,000 PLEX + 6 Historic Gallente SKINs Crates",
+              "quantity": 1
+            }
+          ]
+        },
+        "fulfillment": {
+          "type": "bundle",
+          "grants": [
+            {
+              "type": "plex",
+              "plexAmount": 20000,
+              "wallet": {
+                "characterID": 140000002,
+                "balance": 71979001.47,
+                "aurBalance": 0,
+                "plexBalance": 23222,
+                "balanceChange": -25188.1
+              }
+            },
+            {
+              "type": "item",
+              "typeID": 91938,
+              "quantity": 6,
+              "grant": {
+                "itemType": {
+                  "typeID": 91938,
+                  "groupID": 1194,
+                  "categoryID": 63,
+                  "groupName": "Special Edition Commodities",
+                  "name": "Historic Gallente SKINs Crate",
+                  "mass": 0,
+                  "volume": 5,
+                  "capacity": 0,
+                  "portionSize": 1,
+                  "raceID": 0,
+                  "basePrice": 0,
+                  "marketGroupID": 3832,
+                  "iconID": 24298,
+                  "soundID": 0,
+                  "graphicID": 0,
+                  "radius": 0,
+                  "published": true
+                },
+                "quantity": 6,
+                "items": [
+                  {
+                    "itemID": 991003733,
+                    "typeID": 91938,
+                    "ownerID": 140000002,
+                    "locationID": 60003760,
+                    "flagID": 4,
+                    "quantity": 6,
+                    "stacksize": 6,
+                    "singleton": 0,
+                    "groupID": 1194,
+                    "categoryID": 63,
+                    "customInfo": "",
+                    "itemName": "Historic Gallente SKINs Crate",
+                    "mass": 0,
+                    "volume": 5,
+                    "capacity": 0,
+                    "radius": 0
+                  }
+                ],
+                "changes": [
+                  {
+                    "created": true,
+                    "item": {
+                      "itemID": 991003733,
+                      "typeID": 91938,
+                      "ownerID": 140000002,
+                      "locationID": 60003760,
+                      "flagID": 4,
+                      "quantity": 6,
+                      "stacksize": 6,
+                      "singleton": 0,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "customInfo": "",
+                      "itemName": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "radius": 0
+                    },
+                    "previousState": {
+                      "locationID": 0,
+                      "flagID": 0
+                    }
+                  }
+                ],
+                "grantedEntries": [
+                  {
+                    "itemType": {
+                      "typeID": 91938,
+                      "groupID": 1194,
+                      "categoryID": 63,
+                      "groupName": "Special Edition Commodities",
+                      "name": "Historic Gallente SKINs Crate",
+                      "mass": 0,
+                      "volume": 5,
+                      "capacity": 0,
+                      "portionSize": 1,
+                      "raceID": 0,
+                      "basePrice": 0,
+                      "marketGroupID": 3832,
+                      "iconID": 24298,
+                      "soundID": 0,
+                      "graphicID": 0,
+                      "radius": 0,
+                      "published": true
+                    },
+                    "quantity": 6
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
     {
       "id": "cash::140000001::cash_plex_20000_gallente::1::d32f6bc471964e6c8ede5da818d09eb9",
       "completedAt": "2026-03-30T11:13:54.423Z",

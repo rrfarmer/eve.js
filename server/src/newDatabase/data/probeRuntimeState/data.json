@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "nextProbeSequence": 11,
+  "charactersByID": {
+    "140000003": {
+      "characterID": 140000003,
+      "lastUpdatedAtMs": 1775952323780,
+      "probesByID": {}
+    },
+    "140000005": {
+      "characterID": 140000005,
+      "lastUpdatedAtMs": 1777001796116,
+      "probesByID": {}
+    },
+    "140000177": {
+      "characterID": 140000177,
+      "lastUpdatedAtMs": 1776176352495,
+      "probesByID": {}
+    }
+  }
+}

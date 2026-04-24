@@ -2,38 +2,42 @@
 setlocal EnableDelayedExpansion
 title EvEJS - Start Server
 
-rem ── Resolve repo root from this script's location ────────────────
+rem Resolve the launcher root from this script's location.
 for %%I in ("%~dp0.") do set "EVEJS_REPO_ROOT=%%~fI"
-set "SCRIPTS=%EVEJS_REPO_ROOT%\scripts\windows"
 
-rem ── Load config ──────────────────────────────────────────────────
-call "%SCRIPTS%\EvEJSConfig.bat"
+rem Load config from the new location first, then older layouts.
+call :ResolveConfigDir
+if errorlevel 1 exit /b 1
+call "%EVEJS_CONFIG_DIR%\EvEJSConfig.bat"
+if errorlevel 1 (
+  echo.
+  echo   [ERROR] Could not load launcher config:
+  echo       %EVEJS_CONFIG_DIR%\EvEJSConfig.bat
+  pause
+  exit /b 1
+)
 
-rem ── Banner ───────────────────────────────────────────────────────
 echo.
 echo   ============================================================
 echo     EvEJS - Start Server
 echo   ============================================================
 echo.
 
-rem ── Check Node.js ────────────────────────────────────────────────
 where node >nul 2>&1
 if errorlevel 1 (
-  echo   [!] Node.js is not installed or not on PATH.
+  echo   [ERROR] Node.js is not installed or not on PATH.
   echo       The server requires Node.js to run.
   echo       Download it from https://nodejs.org
   pause
   exit /b 1
 )
 
-rem ── Check server directory exists ────────────────────────────────
 if not exist "%EVEJS_REPO_ROOT%\server\index.js" (
-  echo   [!] Server not found at %EVEJS_REPO_ROOT%\server
+  echo   [ERROR] Server not found at %EVEJS_REPO_ROOT%\server
   pause
   exit /b 1
 )
 
-rem ── Ask if the user is also playing on this machine ──────────────
 echo   Are you also playing on this machine?
 echo.
 echo     [1] Server only  -  just run the server
@@ -44,7 +48,6 @@ set /p "PLAY_CHOICE=  Choose [1/2]: "
 
 echo.
 
-rem ── Start the server ─────────────────────────────────────────────
 set "EVEJS_PROXY_LOCAL_INTERCEPT=1"
 if not exist "%EVEJS_REPO_ROOT%\server\logs\node-reports" mkdir "%EVEJS_REPO_ROOT%\server\logs\node-reports" >nul 2>&1
 
@@ -54,7 +57,7 @@ if "%PLAY_CHOICE%"=="2" (
   echo   Server starting up...
   echo.
 
-  rem Give the server a few seconds to initialize
+  rem Give the server a few seconds to initialize.
   ping -n 5 127.0.0.1 >nul 2>&1
 
   echo   Launching Play.bat...
@@ -84,3 +87,36 @@ if "%PLAY_CHOICE%"=="2" (
 )
 
 exit /b 0
+
+:ResolveConfigDir
+set "EVEJS_CONFIG_DIR="
+if exist "%EVEJS_REPO_ROOT%\tools\ClientSETUP\scripts\EvEJSConfig.bat" (
+  set "EVEJS_CONFIG_DIR=%EVEJS_REPO_ROOT%\tools\ClientSETUP\scripts"
+  exit /b 0
+)
+if exist "%EVEJS_REPO_ROOT%\scripts\windows\EvEJSConfig.bat" (
+  set "EVEJS_CONFIG_DIR=%EVEJS_REPO_ROOT%\scripts\windows"
+  exit /b 0
+)
+if exist "%~dp0scripts\EvEJSConfig.bat" (
+  set "EVEJS_CONFIG_DIR=%~dp0scripts"
+  exit /b 0
+)
+if exist "%~dp0scripts\windows\EvEJSConfig.bat" (
+  set "EVEJS_CONFIG_DIR=%~dp0scripts\windows"
+  exit /b 0
+)
+if exist "%~dp0EvEJSConfig.bat" (
+  set "EVEJS_CONFIG_DIR=%~dp0"
+  exit /b 0
+)
+echo.
+echo   [ERROR] Launcher config was not found.
+echo       Looked for EvEJSConfig.bat under:
+echo       %EVEJS_REPO_ROOT%\tools\ClientSETUP\scripts
+echo       %EVEJS_REPO_ROOT%\scripts\windows
+echo       %~dp0scripts
+echo.
+echo       Update your launcher files or run the Client Setup wizard again.
+pause
+exit /b 1

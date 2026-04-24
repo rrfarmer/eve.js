@@ -19,6 +19,54 @@ function getSettingPath(characterID, settingKey) {
   return `${getSettingsPath(characterID)}/${normalizeSettingKey(settingKey)}`;
 }
 
+function isSerializedBuffer(value) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    value.type === "Buffer" &&
+    Array.isArray(value.data),
+  );
+}
+
+function decodeBufferLike(value) {
+  if (Buffer.isBuffer(value)) {
+    return value.toString("utf8");
+  }
+
+  if (isSerializedBuffer(value)) {
+    return Buffer.from(value.data).toString("utf8");
+  }
+
+  return value;
+}
+
+function normalizeCharacterSettingValue(value) {
+  return decodeBufferLike(value);
+}
+
+function normalizeSettingsRecord(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const normalized = {};
+  let mutated = false;
+
+  for (const [settingKey, settingValue] of Object.entries(source)) {
+    const normalizedValue = normalizeCharacterSettingValue(settingValue);
+    normalized[settingKey] = normalizedValue;
+    if (
+      Buffer.isBuffer(settingValue) ||
+      isSerializedBuffer(settingValue) ||
+      normalizedValue !== settingValue
+    ) {
+      mutated = true;
+    }
+  }
+
+  return {
+    normalized,
+    mutated,
+  };
+}
+
 function cloneSettings(settings) {
   return { ...(settings && typeof settings === "object" ? settings : {}) };
 }
@@ -34,7 +82,12 @@ function getCharacterSettings(characterID) {
     return {};
   }
 
-  return cloneSettings(readResult.data);
+  const { normalized, mutated } = normalizeSettingsRecord(readResult.data);
+  if (mutated) {
+    database.write("characters", getSettingsPath(numericCharacterID), normalized);
+  }
+
+  return cloneSettings(normalized);
 }
 
 function getCharacterSetting(characterID, settingKey, fallback = null) {
@@ -56,10 +109,12 @@ function setCharacterSetting(characterID, settingKey, value) {
     return false;
   }
 
+  const normalizedValue = normalizeCharacterSettingValue(value);
+
   const writeResult = database.write(
     "characters",
     getSettingPath(numericCharacterID, normalizedKey),
-    value,
+    normalizedValue,
   );
   return Boolean(writeResult && writeResult.success);
 }
@@ -86,4 +141,5 @@ module.exports = {
   getCharacterSetting,
   setCharacterSetting,
   deleteCharacterSetting,
+  normalizeCharacterSettingValue,
 };

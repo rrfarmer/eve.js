@@ -97,6 +97,28 @@ class MapService extends BaseService {
     };
   }
 
+  Handle_GetIncursionGlobalReport() {
+    log.debug("[MapService] GetIncursionGlobalReport called");
+    return [];
+  }
+
+  GetIncursionGlobalReport() {
+    return this.Handle_GetIncursionGlobalReport();
+  }
+
+  Handle_GetSystemsInIncursions() {
+    log.debug("[MapService] GetSystemsInIncursions called");
+    return buildRowset(
+      ["locationID", "sceneType"],
+      [],
+      "eve.common.script.sys.rowset.Rowset",
+    );
+  }
+
+  GetSystemsInIncursions() {
+    return this.Handle_GetSystemsInIncursions();
+  }
+
   Handle_GetCurrentSovData(args, session) {
     const locationID = Number(args && args.length > 0 ? args[0] : 0) || 0;
     log.debug(`[MapService] GetCurrentSovData(${locationID})`);

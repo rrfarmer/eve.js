@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "nextBillID": 61
+    "nextBillID": 62
   },
   "bills": {
     "1": {
@@ -837,6 +837,20 @@
       "debtorID": 98000000,
       "creditorID": 1000125,
       "dueDateTime": "134195344453030000",
+      "paid": false,
+      "paidDateTime": null,
+      "paidByOwnerID": 0,
+      "externalID": 1000044,
+      "externalID2": -1
+    },
+    "61": {
+      "billID": 61,
+      "billTypeID": 4,
+      "amount": 100000000,
+      "interest": 0,
+      "debtorID": 98000000,
+      "creditorID": 1000125,
+      "dueDateTime": "134205108791840000",
       "paid": false,
       "paidDateTime": null,
       "paidByOwnerID": 0,

@@ -7,6 +7,8 @@ const {
   buildFiletimeLong,
   buildKeyVal,
   buildList,
+  normalizeNumber,
+  normalizeText,
   resolveBoundNodeId,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
 const {
@@ -86,6 +88,11 @@ function resolveBoundWarID(args, session) {
   return normalizeWarID(
     (args && args[0]) || (session && session._boundWarStatisticID),
   );
+}
+
+function normalizeKillmailIDArg(value) {
+  const numeric = normalizeNumber(value, 0);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : 0;
 }
 
 class WarStatisticMgrService extends BaseService {
@@ -168,8 +175,10 @@ class WarStatisticMgrService extends BaseService {
   }
 
   Handle_GetKillMail(args) {
-    const killID = args && args.length > 0 ? Number(args[0]) || 0 : 0;
-    const hashValue = args && args.length > 1 ? String(args[1] || "") : "";
+    const killID = Array.isArray(args) ? normalizeKillmailIDArg(args[0]) : 0;
+    const hashValue = Array.isArray(args)
+      ? normalizeText(args[1], "").trim()
+      : "";
     const killmail = getKillmailRecord(killID);
     if (!killmail) {
       return null;

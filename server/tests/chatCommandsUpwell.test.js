@@ -7,9 +7,14 @@ const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const {
   executeChatCommand,
 } = require(path.join(repoRoot, "server/src/services/chat/chatCommands"));
+const spaceRuntime = require(path.join(repoRoot, "server/src/space/runtime"));
 const structureState = require(path.join(
   repoRoot,
   "server/src/services/structure/structureState",
+));
+const structureLocatorGeometry = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureLocatorGeometry",
 ));
 const structureTetherRestrictionState = require(path.join(
   repoRoot,
@@ -19,6 +24,9 @@ const structureAutoState = require(path.join(
   repoRoot,
   "server/src/services/structure/structureAutoState",
 ));
+const {
+  resolveShipByTypeID,
+} = require(path.join(repoRoot, "server/src/services/chat/shipTypeRegistry"));
 
 function readTable(tableName) {
   const result = database.read(tableName, "/");
@@ -29,6 +37,33 @@ function readTable(tableName) {
 function writeTable(tableName, payload) {
   const result = database.write(tableName, "/", payload);
   assert.equal(result.success, true, `Failed to write ${tableName}`);
+}
+
+function assertNearlyEqual(actual, expected, tolerance = 0.01, label = "value") {
+  assert.ok(
+    Math.abs(Number(actual) - Number(expected)) <= tolerance,
+    `${label}: expected ${expected}, got ${actual}`,
+  );
+}
+
+function assertVectorAlmostEqual(actual, expected, tolerance = 0.01, label = "vector") {
+  assertNearlyEqual(actual && actual.x, expected && expected.x, tolerance, `${label}.x`);
+  assertNearlyEqual(actual && actual.y, expected && expected.y, tolerance, `${label}.y`);
+  assertNearlyEqual(actual && actual.z, expected && expected.z, tolerance, `${label}.z`);
+}
+
+function getVectorMagnitude(vector) {
+  return Math.sqrt(
+    Math.pow(Number(vector && vector.x) || 0, 2) +
+    Math.pow(Number(vector && vector.y) || 0, 2) +
+    Math.pow(Number(vector && vector.z) || 0, 2),
+  );
+}
+
+function getUndockDummiesForScene(scene) {
+  return [...scene.dynamicEntities.values()].filter(
+    (entity) => entity && entity.kind === "ship" && /Undock Dummy$/.test(String(entity.itemName || "")),
+  );
 }
 
 test("/upwell GM commands can seed, advance, inspect, and remove a structure lifecycle", () => {
@@ -470,5 +505,266 @@ test("/upwellauto status and stop can inspect and cancel active Upwell automatio
     writeTable("structureAssetSafety", wrapsBackup);
     writeTable("structureTetherRestrictions", tetherRestrictionsBackup);
     structureState.clearStructureCaches();
+  }
+});
+
+test("/upwellauto undock spawns moving dummy hulls from real structure undock locators", () => {
+  const structuresBackup = readTable("structures");
+  const wrapsBackup = readTable("structureAssetSafety");
+  const tetherRestrictionsBackup = readTable("structureTetherRestrictions");
+
+  try {
+    spaceRuntime._testing.clearScenes();
+    structureState.clearStructureCaches();
+    structureAutoState._testing.clearAllJobs();
+
+    const session = {
+      clientID: 881401,
+      characterID: 140000401,
+      charid: 140000401,
+      userid: 140000401,
+      corporationID: 1000009,
+      corpid: 1000009,
+      shipTypeID: 638,
+      solarsystemid2: 30000142,
+      solarsystemid: 30000142,
+    };
+    const chatHub = {
+      messages: [],
+      sendSystemMessage(targetSession, message, channelID) {
+        this.messages.push({ targetSession, message, channelID });
+      },
+    };
+
+    const createResult = structureState.createStructure({
+      typeID: 35834,
+      name: "Auto Undock Keepstar",
+      itemName: "Auto Undock Keepstar",
+      ownerCorpID: 1000009,
+      solarSystemID: 30000142,
+      position: { x: 250000, y: 800, z: -125000 },
+      rotation: [180, 0, 0],
+      state: 110,
+      upkeepState: 1,
+      hasQuantumCore: true,
+      accessProfile: {
+        docking: "public",
+        tethering: "public",
+      },
+      serviceStates: {
+        "1": 1,
+      },
+    });
+    assert.equal(createResult.success, true, "Expected structure creation to succeed");
+    const structure = createResult.data;
+
+    const undockResult = executeChatCommand(
+      session,
+      `/upwellauto undock ${structure.structureID} 12`,
+      chatHub,
+      {},
+    );
+    assert.equal(undockResult.handled, true, "Expected /upwellauto undock to be handled");
+    assert.match(
+      String(undockResult.message || ""),
+      /Started staggered undock wave job=/i,
+      "Expected /upwellauto undock to report the staggered wave job",
+    );
+    assert.match(
+      String(undockResult.message || ""),
+      /published\+unpublished/i,
+      "Expected the default undock wave to include both published and unpublished hulls in the pool",
+    );
+    assert.match(
+      String(undockResult.message || ""),
+      /launch at each hull's max velocity/i,
+      "Expected /upwellauto undock to mention max-velocity launch behavior",
+    );
+
+    const scene = spaceRuntime.ensureScene(structure.solarSystemID);
+    const initialDummies = getUndockDummiesForScene(scene);
+    assert.ok(
+      initialDummies.length > 0 && initialDummies.length < 12,
+      "Expected staggered undock waves to spawn only the first batch immediately",
+    );
+    const initialJob = structureAutoState._testing.getJobByStructureID(structure.structureID);
+    assert.ok(initialJob, "Expected /upwellauto undock to create a background automation job");
+    assert.ok(
+      Number(initialJob.batchSize || 0) > 0 && Number(initialJob.batchSize || 0) < 12,
+      "Expected the undock job to use a partial batch size",
+    );
+
+    let activeJob = initialJob;
+    for (let step = 0; step < 20 && activeJob; step += 1) {
+      structureAutoState._testing.runJobNow(activeJob.jobID);
+      activeJob = structureAutoState._testing.getJobByStructureID(structure.structureID);
+    }
+    assert.equal(activeJob, null, "Expected the staggered undock job to complete after all batches");
+
+    const dummies = getUndockDummiesForScene(scene);
+    assert.equal(dummies.length, 12, "Expected the undock command to eventually spawn 12 dummy ships");
+
+    const uniqueShipTypes = new Set();
+    const uniquePositionKeys = new Set();
+    for (const entity of dummies) {
+      uniqueShipTypes.add(Number(entity.typeID) || 0);
+      uniquePositionKeys.add(
+        [
+          Number(entity.position && entity.position.x || 0).toFixed(2),
+          Number(entity.position && entity.position.y || 0).toFixed(2),
+          Number(entity.position && entity.position.z || 0).toFixed(2),
+        ].join(":"),
+      );
+
+      assert.equal(entity.mode, "GOTO", "Expected spawned dummies to undock in GOTO mode");
+      assert.equal(entity.speedFraction, 1, "Expected spawned dummies to undock at full speed");
+      assert.notDeepEqual(
+        entity.targetPoint,
+        entity.position,
+        "Expected spawned dummies to have a forward travel target",
+      );
+      assertNearlyEqual(
+        getVectorMagnitude(entity.velocity),
+        entity.maxVelocity,
+        0.2,
+        `dummy-${entity.itemID}.velocityMagnitude`,
+      );
+
+      const expectedUndockState = spaceRuntime.getStationUndockSpawnState(structure, {
+        shipTypeID: entity.typeID,
+        selectionStrategy: "hash",
+        selectionKey: `${structure.structureID}:${entity.itemID}`,
+      });
+      assertVectorAlmostEqual(
+        entity.position,
+        expectedUndockState.position,
+        0.05,
+        `dummy-${entity.itemID}.position`,
+      );
+      assertVectorAlmostEqual(
+        entity.direction,
+        expectedUndockState.direction,
+        0.0001,
+        `dummy-${entity.itemID}.direction`,
+      );
+      assert.equal(
+        expectedUndockState.locatorCategory,
+        structureLocatorGeometry.getUndockCategoryByShipType(entity.typeID),
+        `Expected dummy ${entity.itemID} to use the correct hull-size locator family`,
+      );
+    }
+
+    assert.ok(uniqueShipTypes.size > 1, "Expected the undock wave to sample multiple hull types");
+    assert.ok(uniquePositionKeys.size > 1, "Expected the undock wave to spread across multiple undock points");
+  } finally {
+    structureAutoState._testing.clearAllJobs();
+    spaceRuntime._testing.clearScenes();
+    writeTable("structures", structuresBackup);
+    writeTable("structureAssetSafety", wrapsBackup);
+    writeTable("structureTetherRestrictions", tetherRestrictionsBackup);
+    structureState.clearStructureCaches();
+    structureLocatorGeometry.clearStructureLocatorGeometryCache();
+  }
+});
+
+test("/upwellauto undock can restrict the dummy hull pool to unpublished ships only", () => {
+  const structuresBackup = readTable("structures");
+  const wrapsBackup = readTable("structureAssetSafety");
+  const tetherRestrictionsBackup = readTable("structureTetherRestrictions");
+
+  try {
+    spaceRuntime._testing.clearScenes();
+    structureState.clearStructureCaches();
+    structureAutoState._testing.clearAllJobs();
+
+    const session = {
+      clientID: 881402,
+      characterID: 140000402,
+      charid: 140000402,
+      userid: 140000402,
+      corporationID: 1000009,
+      corpid: 1000009,
+      shipTypeID: 638,
+      solarsystemid2: 30000142,
+      solarsystemid: 30000142,
+    };
+    const chatHub = {
+      messages: [],
+      sendSystemMessage(targetSession, message, channelID) {
+        this.messages.push({ targetSession, message, channelID });
+      },
+    };
+
+    const createResult = structureState.createStructure({
+      typeID: 35834,
+      name: "Auto Unpublished Undock Keepstar",
+      itemName: "Auto Unpublished Undock Keepstar",
+      ownerCorpID: 1000009,
+      solarSystemID: 30000142,
+      position: { x: 325000, y: 1200, z: -215000 },
+      rotation: [180, 0, 0],
+      state: 110,
+      upkeepState: 1,
+      hasQuantumCore: true,
+      accessProfile: {
+        docking: "public",
+        tethering: "public",
+      },
+      serviceStates: {
+        "1": 1,
+      },
+    });
+    assert.equal(createResult.success, true, "Expected structure creation to succeed");
+    const structure = createResult.data;
+
+    const undockResult = executeChatCommand(
+      session,
+      `/upwellauto undock ${structure.structureID} 10 unpublished`,
+      chatHub,
+      {},
+    );
+    assert.equal(undockResult.handled, true, "Expected /upwellauto undock unpublished to be handled");
+    assert.match(
+      String(undockResult.message || ""),
+      /unpublished-only/i,
+      "Expected /upwellauto undock unpublished to acknowledge the restricted hull pool",
+    );
+    assert.match(
+      String(undockResult.message || ""),
+      /Started staggered undock wave job=/i,
+      "Expected unpublished undock waves to use the same staggered job path",
+    );
+
+    const scene = spaceRuntime.ensureScene(structure.solarSystemID);
+    const initialDummies = getUndockDummiesForScene(scene);
+    assert.ok(
+      initialDummies.length > 0 && initialDummies.length < 10,
+      "Expected unpublished undock waves to start with a partial first batch",
+    );
+    let activeJob = structureAutoState._testing.getJobByStructureID(structure.structureID);
+    assert.ok(activeJob, "Expected unpublished undock waves to create an active job");
+    for (let step = 0; step < 20 && activeJob; step += 1) {
+      structureAutoState._testing.runJobNow(activeJob.jobID);
+      activeJob = structureAutoState._testing.getJobByStructureID(structure.structureID);
+    }
+    assert.equal(activeJob, null, "Expected the unpublished-only undock job to complete");
+
+    const dummies = getUndockDummiesForScene(scene);
+    assert.equal(dummies.length, 10, "Expected the unpublished-only undock wave to spawn 10 dummy ships");
+    assert.ok(
+      dummies.every((entity) => {
+        const shipType = resolveShipByTypeID(entity.typeID);
+        return shipType && shipType.published === false;
+      }),
+      "Expected every unpublished-only dummy hull to resolve to an unpublished ship type",
+    );
+  } finally {
+    structureAutoState._testing.clearAllJobs();
+    spaceRuntime._testing.clearScenes();
+    writeTable("structures", structuresBackup);
+    writeTable("structureAssetSafety", wrapsBackup);
+    writeTable("structureTetherRestrictions", tetherRestrictionsBackup);
+    structureState.clearStructureCaches();
+    structureLocatorGeometry.clearStructureLocatorGeometryCache();
   }
 });

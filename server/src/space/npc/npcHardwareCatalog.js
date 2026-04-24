@@ -6,6 +6,13 @@ const {
   typeHasEffectName,
 } = require(path.join(__dirname, "../../services/fitting/liveFittingState"));
 const {
+  TABLE,
+  readStaticRows,
+} = require(path.join(__dirname, "../../services/_shared/referenceData"));
+const {
+  resolveItemByTypeID,
+} = require(path.join(__dirname, "../../services/inventory/itemTypeRegistry"));
+const {
   getNpcCapabilityTypeID,
   isNpcChargeCompatibleWithModule,
   resolveNpcPropulsionEffectName,
@@ -16,6 +23,50 @@ const CONCORD_STANDARD_CRYSTAL_TYPE_IDS = Object.freeze({
   multifrequencyM: 254,
   multifrequencyXL: 17686,
 });
+const PRECURSOR_WEAPON_GROUP_ID = 1986;
+const EXOTIC_PLASMA_CHARGE_GROUP_ID = 1987;
+const ADVANCED_EXOTIC_PLASMA_CHARGE_GROUP_ID = 1989;
+const MODULE_WARP_SCRAMBLER_II = 448;
+const MODULE_STASIS_WEBIFIER_II = 527;
+const MODULE_SMALL_ENERGY_NEUTRALIZER_II = 13003;
+const MODULE_MEDIUM_ENERGY_NEUTRALIZER_II = 12267;
+const MODULE_HEAVY_ENERGY_NEUTRALIZER_II = 12271;
+const MODULE_SMALL_ENERGY_NOSFERATU_II = 13001;
+const MODULE_MEDIUM_ENERGY_NOSFERATU_II = 12259;
+const MODULE_HEAVY_ENERGY_NOSFERATU_II = 12263;
+
+function buildPublishedTypeIDsForGroups(groupIDs = []) {
+  const allowedGroups = new Set(
+    (Array.isArray(groupIDs) ? groupIDs : [groupIDs])
+      .map((value) => toPositiveInt(value, 0))
+      .filter((value) => value > 0),
+  );
+  if (allowedGroups.size <= 0) {
+    return Object.freeze([]);
+  }
+  const rows = readStaticRows(TABLE.ITEM_TYPES);
+  if (!Array.isArray(rows) || rows.length <= 0) {
+    return Object.freeze([]);
+  }
+  return Object.freeze(
+    rows
+      .filter((row) => (
+        allowedGroups.has(toPositiveInt(row && row.groupID, 0)) &&
+        row &&
+        row.published !== false
+      ))
+      .map((row) => toPositiveInt(row && row.typeID, 0))
+      .filter((value) => value > 0),
+  );
+}
+
+const TRIG_PRECURSOR_WEAPON_TYPE_IDS = buildPublishedTypeIDsForGroups(
+  PRECURSOR_WEAPON_GROUP_ID,
+);
+const TRIG_PRECURSOR_CHARGE_TYPE_IDS = buildPublishedTypeIDsForGroups([
+  EXOTIC_PLASMA_CHARGE_GROUP_ID,
+  ADVANCED_EXOTIC_PLASMA_CHARGE_GROUP_ID,
+]);
 
 const NPC_HARDWARE_CATALOG = Object.freeze({
   bloodRaiders: Object.freeze({
@@ -41,11 +92,25 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       14443,
       14453,
       14455,
+      41103,
+      41118,
+      24550,
     ]),
     chargeTypeIDs: Object.freeze([
       21270,
       21286,
       21302,
+      17680,
+      17686,
+    ]),
+    utilityTypeIDs: Object.freeze([
+      527,
+      448,
+      3244,
+      13003,
+      12267,
+      12271,
+      12263,
     ]),
   }),
   sanshasNation: Object.freeze({
@@ -71,11 +136,20 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       14447,
       14449,
       14451,
+      41104,
+      41119,
     ]),
     chargeTypeIDs: Object.freeze([
       20863,
       20879,
       20895,
+      17680,
+      17686,
+    ]),
+    utilityTypeIDs: Object.freeze([
+      527,
+      448,
+      3244,
     ]),
   }),
   serpentis: Object.freeze({
@@ -93,11 +167,21 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       14389,
       14399,
       14401,
+      41130,
+      41142,
+      24554,
     ]),
     chargeTypeIDs: Object.freeze([
       20040,
       20057,
       20927,
+      17648,
+      41328,
+    ]),
+    utilityTypeIDs: Object.freeze([
+      527,
+      448,
+      3244,
     ]),
   }),
   angelCartel: Object.freeze({
@@ -122,11 +206,22 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       14467,
       14471,
       14475,
+      41083,
+      41160,
+      23674,
     ]),
     chargeTypeIDs: Object.freeze([
       20767,
       20783,
       20799,
+      17670,
+      17678,
+    ]),
+    utilityTypeIDs: Object.freeze([
+      527,
+      448,
+      3244,
+      19806,
     ]),
   }),
   guristasLaunchers: Object.freeze({
@@ -153,6 +248,9 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       14681,
       14682,
       14683,
+      41174,
+      41182,
+      24552,
     ]),
     chargeTypeIDs: Object.freeze([
       27347,
@@ -162,7 +260,23 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       21398,
       21414,
       21430,
+      17857,
+      32442,
     ]),
+    utilityTypeIDs: Object.freeze([
+      3244,
+      19806,
+      2567,
+      20199,
+      20201,
+      20203,
+      20205,
+      20207,
+    ]),
+  }),
+  rogueDrones: Object.freeze({
+    weaponTypeIDs: Object.freeze([]),
+    chargeTypeIDs: Object.freeze([]),
   }),
   concord: Object.freeze({
     weaponTypeIDs: Object.freeze([
@@ -182,6 +296,22 @@ const NPC_HARDWARE_CATALOG = Object.freeze({
       CONCORD_STANDARD_CRYSTAL_TYPE_IDS.multifrequencyS,
       CONCORD_STANDARD_CRYSTAL_TYPE_IDS.multifrequencyM,
       CONCORD_STANDARD_CRYSTAL_TYPE_IDS.multifrequencyXL,
+    ]),
+  }),
+  triglavian: Object.freeze({
+    weaponTypeIDs: TRIG_PRECURSOR_WEAPON_TYPE_IDS,
+    chargeTypeIDs: TRIG_PRECURSOR_CHARGE_TYPE_IDS,
+    tackleTypeIDs: Object.freeze([
+      MODULE_WARP_SCRAMBLER_II,
+    ]),
+    utilityTypeIDs: Object.freeze([
+      MODULE_STASIS_WEBIFIER_II,
+      MODULE_SMALL_ENERGY_NEUTRALIZER_II,
+      MODULE_MEDIUM_ENERGY_NEUTRALIZER_II,
+      MODULE_HEAVY_ENERGY_NEUTRALIZER_II,
+      MODULE_SMALL_ENERGY_NOSFERATU_II,
+      MODULE_MEDIUM_ENERGY_NOSFERATU_II,
+      MODULE_HEAVY_ENERGY_NOSFERATU_II,
     ]),
   }),
 });
@@ -239,24 +369,35 @@ function buildAllowedTypeIDSet(entries = {}) {
 const NPC_HARDWARE_POLICY_BY_FAMILY = Object.freeze(
   Object.fromEntries(
     Object.entries(NPC_HARDWARE_CATALOG).map(([familyName, entry]) => [
-      familyName,
+      normalizeHardwareFamilyName(familyName),
       Object.freeze({
         weaponTypeIDs: buildAllowedTypeIDSet(entry.weaponTypeIDs),
         chargeTypeIDs: buildAllowedTypeIDSet(entry.chargeTypeIDs),
         tackleTypeIDs: buildAllowedTypeIDSet(entry.tackleTypeIDs),
+        utilityTypeIDs: buildAllowedTypeIDSet(entry.utilityTypeIDs),
       }),
     ]),
   ),
 );
 const ATTRIBUTE_ENTITY_MISSILE_TYPE_ID =
   getAttributeIDByNames("entityMissileTypeID") || 507;
+const HARDWARE_FAMILY_CONCORD = normalizeHardwareFamilyName("concord");
+const HARDWARE_FAMILY_MINING_OPS = normalizeHardwareFamilyName("miningOps");
+const HARDWARE_FAMILY_ENTITY_MISSILE_NPC = normalizeHardwareFamilyName("entityMissileNpc");
+const HARDWARE_FAMILY_DRIFTER_HARNESS = normalizeHardwareFamilyName("drifterHarness");
+const GROUP_WARP_SCRAMBLER = 52;
+const GROUP_STASIS_WEB = 65;
+const GROUP_ENERGY_NOSFERATU = 68;
+const GROUP_ENERGY_NEUTRALIZER = 71;
+const GROUP_ECM = 201;
+const GROUP_TARGET_PAINTER = 379;
 
 const NPC_FACTION_HARDWARE_FAMILY = Object.freeze({
-  500010: "guristasLaunchers",
-  500011: "angelCartel",
-  500012: "bloodRaiders",
-  500019: "sanshasNation",
-  500020: "serpentis",
+  500010: normalizeHardwareFamilyName("guristasLaunchers"),
+  500011: normalizeHardwareFamilyName("angelCartel"),
+  500012: normalizeHardwareFamilyName("bloodRaiders"),
+  500019: normalizeHardwareFamilyName("sanshasNation"),
+  500020: normalizeHardwareFamilyName("serpentis"),
 });
 
 function hasEntityMissileLaunchCapability(definition) {
@@ -282,28 +423,32 @@ function resolveNpcHardwareFamily(definition) {
   const profile = definition && definition.profile && typeof definition.profile === "object"
     ? definition.profile
     : {};
+  const explicitHardwareFamily = normalizeHardwareFamilyName(profile.hardwareFamily);
+  if (explicitHardwareFamily) {
+    return explicitHardwareFamily;
+  }
   const entityType = normalizeHardwareFamilyName(profile.entityType);
   const miningRole = normalizeHardwareFamilyName(
     profile.miningRole ||
     profile.role,
   );
   if (entityType === "concord") {
-    return "concord";
+    return HARDWARE_FAMILY_CONCORD;
   }
   if (
     miningRole === "miner" ||
     miningRole === "hauler"
   ) {
-    return "miningOps";
+    return HARDWARE_FAMILY_MINING_OPS;
   }
   if (entityType === "npc" && hasEntityMissileLaunchCapability(definition)) {
-    return "entityMissileNpc";
+    return HARDWARE_FAMILY_ENTITY_MISSILE_NPC;
   }
   if (
     entityType === "npc" &&
     toPositiveInt(profile.factionID, 0) === 500014
   ) {
-    return "miningOps";
+    return HARDWARE_FAMILY_MINING_OPS;
   }
   if (entityType === "npc") {
     return (
@@ -322,10 +467,21 @@ function resolveSyntheticChasePropulsionTemplate(behaviorProfile) {
 }
 
 function resolveModuleRole(moduleEntry, chargeTypeIDs = []) {
+  const explicitRole = normalizeHardwareFamilyName(moduleEntry && moduleEntry.moduleRole);
+  if (
+    explicitRole === "weapon" ||
+    explicitRole === "tackle" ||
+    explicitRole === "propulsion" ||
+    explicitRole === "hostileutility"
+  ) {
+    return explicitRole;
+  }
   const moduleItem = {
     typeID: toPositiveInt(moduleEntry && moduleEntry.typeID, 0),
     npcCapabilityTypeID: toPositiveInt(moduleEntry && moduleEntry.npcCapabilityTypeID, 0),
   };
+  const actualType = resolveItemByTypeID(moduleItem.typeID);
+  const actualGroupID = toPositiveInt(actualType && actualType.groupID, 0);
   const capabilityTypeID = getNpcCapabilityTypeID(moduleItem, 0);
   if (!capabilityTypeID) {
     return "other";
@@ -333,8 +489,17 @@ function resolveModuleRole(moduleEntry, chargeTypeIDs = []) {
   if (resolveNpcPropulsionEffectName(moduleItem)) {
     return "propulsion";
   }
-  if (typeHasEffectName(capabilityTypeID, "warpDisrupt")) {
+  if (actualGroupID === GROUP_WARP_SCRAMBLER || typeHasEffectName(capabilityTypeID, "warpDisrupt")) {
     return "tackle";
+  }
+  if (
+    actualGroupID === GROUP_STASIS_WEB ||
+    actualGroupID === GROUP_ECM ||
+    actualGroupID === GROUP_TARGET_PAINTER ||
+    actualGroupID === GROUP_ENERGY_NOSFERATU ||
+    actualGroupID === GROUP_ENERGY_NEUTRALIZER
+  ) {
+    return "hostileutility";
   }
   const isWeaponLike =
     typeHasEffectName(capabilityTypeID, "targetAttack") ||
@@ -354,7 +519,13 @@ function resolveModuleRole(moduleEntry, chargeTypeIDs = []) {
 }
 
 function validateWeaponCharges(family, weaponModules, chargeTypeIDs) {
-  if (family === "entityMissileNpc") {
+  if (family === HARDWARE_FAMILY_ENTITY_MISSILE_NPC) {
+    return {
+      success: true,
+    };
+  }
+
+  if (!Array.isArray(weaponModules) || weaponModules.length === 0) {
     return {
       success: true,
     };
@@ -373,6 +544,9 @@ function validateWeaponCharges(family, weaponModules, chargeTypeIDs) {
   }
 
   for (const weaponModule of weaponModules) {
+    if (weaponModule && weaponModule.ignoreChargeValidation === true) {
+      continue;
+    }
     const compatibleChargeTypeIDs = chargeTypeIDs.filter((chargeTypeID) => (
       isNpcChargeCompatibleWithModule(weaponModule, chargeTypeID)
     ));
@@ -405,10 +579,18 @@ function validateNpcHardwareDefinition(definition) {
       errorMsg: "NPC_NATIVE_HARDWARE_FAMILY_UNSUPPORTED",
     };
   }
-  if (family === "miningOps") {
+  if (family === HARDWARE_FAMILY_MINING_OPS) {
     // Mining fleets are driven by the mining runtime rather than the combat AI.
     // Allow authored miner/hauler hulls through without forcing them into the
     // combat-only hardware policy used by Blood Raiders / CONCORD.
+    return {
+      success: true,
+      data: {
+        family,
+      },
+    };
+  }
+  if (family === HARDWARE_FAMILY_DRIFTER_HARNESS) {
     return {
       success: true,
       data: {
@@ -428,7 +610,7 @@ function validateNpcHardwareDefinition(definition) {
   const chargeTypeIDs = (Array.isArray(loadout.charges) ? loadout.charges : [])
     .map((entry) => toPositiveInt(entry && entry.typeID, 0))
     .filter((typeID) => typeID > 0);
-  if (family === "entityMissileNpc") {
+  if (family === HARDWARE_FAMILY_ENTITY_MISSILE_NPC) {
     return {
       success: true,
     };
@@ -468,6 +650,19 @@ function validateNpcHardwareDefinition(definition) {
       if (
         !(familyPolicy.tackleTypeIDs instanceof Set) ||
         !familyPolicy.tackleTypeIDs.has(actualTypeID)
+      ) {
+        return {
+          success: false,
+          errorMsg: "NPC_NATIVE_HARDWARE_POLICY_VIOLATION",
+        };
+      }
+      continue;
+    }
+
+    if (role === "hostileutility") {
+      if (
+        !(familyPolicy.utilityTypeIDs instanceof Set) ||
+        !familyPolicy.utilityTypeIDs.has(actualTypeID)
       ) {
         return {
           success: false,

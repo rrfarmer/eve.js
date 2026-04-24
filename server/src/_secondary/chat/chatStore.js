@@ -1,5 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const {
+  getXmppConferenceDomain,
+  getXmppConferenceDomainPattern,
+} = require(path.join(__dirname, "../../services/chat/xmppConfig"));
 
 const DATA_ROOT = path.resolve(
   process.env.EVEJS_CHAT_DATA_ROOT || path.join(__dirname, "../data/chat"),
@@ -23,7 +27,6 @@ let discoveryWriteTimer = null;
 const backlogCache = new Map();
 const INVALID_ROOM_NAMES = new Set([
   "[object object]",
-  "conference.localhost",
 ]);
 const LEGACY_ROOM_NAME_ALIASES = Object.freeze({
   system_evejs_elysian_chat: "player_900001",
@@ -155,12 +158,16 @@ function normalizeRoomName(value) {
     return "";
   }
 
-  if (/@conference\.localhost$/i.test(roomName)) {
+  if (getXmppConferenceDomainPattern().test(roomName)) {
     roomName = roomName.split("@")[0].trim();
   }
 
   const normalizedRoomName = roomName.toLowerCase();
-  if (!roomName || INVALID_ROOM_NAMES.has(normalizedRoomName)) {
+  if (
+    !roomName ||
+    INVALID_ROOM_NAMES.has(normalizedRoomName) ||
+    normalizedRoomName === String(getXmppConferenceDomain()).toLowerCase()
+  ) {
     return "";
   }
 

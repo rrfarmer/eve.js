@@ -5,10 +5,20 @@ const {
 const {
   resolveStateRefreshStamp,
 } = require("../movementSync");
+const {
+  DESTINY_CONTRACTS,
+} = require("../authority/destinyContracts");
+const {
+  snapshotDestinyAuthorityState,
+} = require("../authority/destinySessionState");
 
 function createMovementSceneRefresh(deps = {}) {
   const {
     buildMissileSessionSnapshot,
+    buildDbuffStateEntriesForSession,
+    notifyActiveAssistanceJamStatesToSession,
+    notifyActiveHostileJamStatesToSession,
+    notifyActiveCommandBurstHudStatesToSession,
     isReadyForDestiny,
     logMissileDebug,
     logMovementDebug,
@@ -30,26 +40,37 @@ function createMovementSceneRefresh(deps = {}) {
       const visibleEntities = refreshEntitiesForSlimPayload(
         runtime.getVisibleEntitiesForSession(session),
       );
+      const stateRefreshVisibleEntities = visibleEntities.filter((entity) => !(
+        entity &&
+        entity.dungeonMaterializedSiteContent === true &&
+        entity.staticVisibilityScope === "bubble"
+      ));
       const rawStamp =
         stampOverride === null
           ? runtime.getNextDestinyStamp()
           : toInt(stampOverride, runtime.getNextDestinyStamp());
-      const rawSimTimeMs = runtime.getCurrentSimTimeMs();
+      const rawSimTimeMs =
+        options.nowMs === undefined || options.nowMs === null
+          ? runtime.getCurrentSimTimeMs()
+          : Number(options.nowMs);
       const currentRawDispatchStamp = runtime.getCurrentDestinyStamp(rawSimTimeMs);
       const requestedStamp = runtime.translateDestinyStampForSession(session, rawStamp);
       const currentSessionStamp = runtime.getCurrentSessionDestinyStamp(
         session,
         rawSimTimeMs,
       );
+      const authorityState = snapshotDestinyAuthorityState(session);
       const currentImmediateSessionStamp = runtime.getImmediateDestinyStampForSession(
         session,
         currentSessionStamp,
       );
       const lastSentDestinyStamp = toInt(
+        authorityState && authorityState.lastPresentedStamp,
         session._space && session._space.lastSentDestinyStamp,
         requestedStamp,
       ) >>> 0;
       const lastSentDestinyRawDispatchStamp = toInt(
+        authorityState && authorityState.lastRawDispatchStamp,
         session._space && session._space.lastSentDestinyRawDispatchStamp,
         0,
       ) >>> 0;
@@ -65,10 +86,12 @@ function createMovementSceneRefresh(deps = {}) {
           )
           : 0;
       const lastOwnerMissileLifecycleStamp = toInt(
+        authorityState && authorityState.lastOwnerMissileLifecycleStamp,
         session._space && session._space.lastOwnerMissileLifecycleStamp,
         0,
       ) >>> 0;
       const lastOwnerMissileLifecycleRawDispatchStamp = toInt(
+        authorityState && authorityState.lastOwnerMissileLifecycleRawDispatchStamp,
         session._space && session._space.lastOwnerMissileLifecycleRawDispatchStamp,
         0,
       ) >>> 0;
@@ -84,6 +107,7 @@ function createMovementSceneRefresh(deps = {}) {
           )
           : 0;
       const lastPilotCommandMovementStamp = toInt(
+        authorityState && authorityState.lastOwnerCommandStamp,
         session._space && session._space.lastPilotCommandMovementStamp,
         0,
       ) >>> 0;
@@ -125,7 +149,7 @@ function createMovementSceneRefresh(deps = {}) {
         recentOwnerMovementLane,
         monotonicRefreshFloorBase,
         finalStamp: stamp,
-        visibleEntityCount: visibleEntities.length,
+        visibleEntityCount: stateRefreshVisibleEntities.length,
       });
       // SetState must skip the owner-critical monotonic restamp pass.
       // During missile combat, lifecycle stamps compound far ahead of
@@ -141,11 +165,15 @@ function createMovementSceneRefresh(deps = {}) {
             stamp,
             runtime.system,
             egoEntity.itemID,
-            visibleEntities,
+            stateRefreshVisibleEntities,
             simFileTime,
+            typeof buildDbuffStateEntriesForSession === "function"
+              ? buildDbuffStateEntriesForSession(session, egoEntity, rawSimTimeMs)
+              : [],
           ),
         },
       ], false, {
+        destinyAuthorityContract: DESTINY_CONTRACTS.STATE_RESET,
         skipOwnerMonotonicRestamp: true,
         translateStamps: false,
         missileDebugReason:
@@ -153,6 +181,41 @@ function createMovementSceneRefresh(deps = {}) {
             ? `set-state:${options.reason}`
             : "set-state:unspecified",
       });
+      if (
+        options.skipHudIconReseed !== true &&
+        typeof notifyActiveAssistanceJamStatesToSession === "function"
+      ) {
+        notifyActiveAssistanceJamStatesToSession(
+          runtime,
+          session,
+          egoEntity,
+          stateRefreshVisibleEntities,
+          rawSimTimeMs,
+        );
+      }
+      if (
+        options.skipHudIconReseed !== true &&
+        typeof notifyActiveHostileJamStatesToSession === "function"
+      ) {
+        notifyActiveHostileJamStatesToSession(
+          runtime,
+          session,
+          egoEntity,
+          stateRefreshVisibleEntities,
+          rawSimTimeMs,
+        );
+      }
+      if (
+        options.skipHudIconReseed !== true &&
+        typeof notifyActiveCommandBurstHudStatesToSession === "function"
+      ) {
+        notifyActiveCommandBurstHudStatesToSession(
+          runtime,
+          session,
+          egoEntity,
+          rawSimTimeMs,
+        );
+      }
     },
 
     scheduleWatcherMovementAnchor(

@@ -101,6 +101,7 @@ const CHAT_ROLE_PROFILES = Object.freeze({
 
 const DEFAULT_CHAT_COLOR = "red";
 const DEFAULT_CHAT_ROLE = CHAT_ROLE_PROFILES[DEFAULT_CHAT_COLOR];
+const SESSION_BASE_ROLE_MASK = 0x6000000080000000n;
 
 function normalizeRoleValue(value, fallback = DEFAULT_CHAT_ROLE) {
   try {
@@ -130,6 +131,14 @@ function normalizeRoleValue(value, fallback = DEFAULT_CHAT_ROLE) {
 
 function roleToString(value) {
   return normalizeRoleValue(value, 0n).toString();
+}
+
+function composeSessionRoleMask(accountRole, chatRole = 0n) {
+  return (
+    normalizeRoleValue(accountRole, 0n) |
+    normalizeRoleValue(chatRole, 0n) |
+    SESSION_BASE_ROLE_MASK
+  );
 }
 
 function stripChatClassificationBits(roleValue) {
@@ -178,7 +187,9 @@ module.exports = {
   DEFAULT_CHAT_COLOR,
   DEFAULT_CHAT_ROLE,
   MAX_ACCOUNT_ROLE,
+  SESSION_BASE_ROLE_MASK,
   buildPersistedAccountRoleRecord,
+  composeSessionRoleMask,
   getChatRoleProfile,
   normalizeRoleValue,
   roleToString,

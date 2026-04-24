@@ -7,6 +7,13 @@ const {
 const {
   rebuildOwnerKinematicUpdatesForProjectedStamp,
 } = require("../movementProjection");
+const {
+  DESTINY_CONTRACTS,
+} = require("../authority/destinyContracts");
+const {
+  snapshotDestinyAuthorityState,
+  updateDestinyAuthorityState,
+} = require("../authority/destinySessionState");
 
 function createMovementOwnerDispatch(deps = {}) {
   const {
@@ -53,6 +60,7 @@ function createMovementOwnerDispatch(deps = {}) {
         isReadyForDestiny(session) &&
         !sessionMatchesIdentity(session, excludedSession);
       if (ownerShouldReceiveDirectUpdates) {
+        const ownerAuthorityState = snapshotDestinyAuthorityState(session);
         const ownerMovementUpdates = runtime.filterMovementUpdatesForSession(
           session,
           preparedUpdates,
@@ -102,43 +110,53 @@ function createMovementOwnerDispatch(deps = {}) {
             ) >>> 0
           : 0;
         const lastFreshAcquireLifecycleStamp = toInt(
+          ownerAuthorityState && ownerAuthorityState.lastFreshAcquireLifecycleStamp,
           session._space && session._space.lastFreshAcquireLifecycleStamp,
           0,
         ) >>> 0;
         if (ownerMovementUpdates.length > 0) {
           const lastOwnerNonMissileCriticalStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerNonMissileCriticalStamp,
             session._space && session._space.lastOwnerNonMissileCriticalStamp,
             0,
           ) >>> 0;
           const lastOwnerNonMissileCriticalRawDispatchStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerNonMissileCriticalRawDispatchStamp,
             session._space && session._space.lastOwnerNonMissileCriticalRawDispatchStamp,
             0,
           ) >>> 0;
           const lastOwnerMissileLifecycleStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerMissileLifecycleStamp,
             session._space && session._space.lastOwnerMissileLifecycleStamp,
             0,
           ) >>> 0;
           const lastOwnerMissileLifecycleRawDispatchStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerMissileLifecycleRawDispatchStamp,
             session._space && session._space.lastOwnerMissileLifecycleRawDispatchStamp,
             0,
           ) >>> 0;
           const lastOwnerMissileFreshAcquireStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerMissileFreshAcquireStamp,
             session._space && session._space.lastOwnerMissileFreshAcquireStamp,
             0,
           ) >>> 0;
           const lastOwnerMissileFreshAcquireRawDispatchStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerMissileFreshAcquireRawDispatchStamp,
             session._space && session._space.lastOwnerMissileFreshAcquireRawDispatchStamp,
             0,
           ) >>> 0;
           const previousOwnerPilotCommandStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerCommandStamp,
             session._space && session._space.lastPilotCommandMovementStamp,
             0,
           ) >>> 0;
           const previousOwnerPilotCommandAnchorStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerCommandAnchorStamp,
             session._space && session._space.lastPilotCommandMovementAnchorStamp,
             0,
           ) >>> 0;
           const previousOwnerPilotCommandRawDispatchStamp = toInt(
+            ownerAuthorityState && ownerAuthorityState.lastOwnerCommandRawDispatchStamp,
             session._space && session._space.lastPilotCommandMovementRawDispatchStamp,
             0,
           ) >>> 0;
@@ -151,9 +169,8 @@ function createMovementOwnerDispatch(deps = {}) {
             currentVisibleOwnerStamp,
             currentPresentedOwnerStamp,
             previousLastSentDestinyWasOwnerCritical:
-              session &&
-              session._space &&
-              session._space.lastSentDestinyWasOwnerCritical === true,
+              ownerAuthorityState &&
+              ownerAuthorityState.lastSentWasOwnerCritical === true,
             quietWindowMinimumStamp,
             lastFreshAcquireLifecycleStamp,
             lastOwnerNonMissileCriticalStamp,
@@ -293,6 +310,7 @@ function createMovementOwnerDispatch(deps = {}) {
               ownerUpdatesForSend,
               {
                 sendOptions: {
+                  destinyAuthorityContract: DESTINY_CONTRACTS.OWNER_PILOT_COMMAND,
                   // Direct owner movement already resolved its held-future lane
                   // in resolveOwnerMovementRestampState. Running the generic
                   // owner-critical monotonic pass again pushes normal steering
@@ -310,6 +328,7 @@ function createMovementOwnerDispatch(deps = {}) {
               ownerUpdatesForSend,
               false,
               {
+                destinyAuthorityContract: DESTINY_CONTRACTS.OWNER_PILOT_COMMAND,
                 // See tick-batch path above: these owner movement packets are
                 // already restamped once and must not be lifted again by the
                 // generic owner-critical monotonic pass.
@@ -333,6 +352,19 @@ function createMovementOwnerDispatch(deps = {}) {
               session._space.lastPilotCommandMovementRawDispatchStamp =
                 currentRawDispatchStamp;
             }
+            updateDestinyAuthorityState(session, {
+              lastOwnerNonMissileCriticalStamp:
+                toInt(session._space.lastOwnerNonMissileCriticalStamp, 0) >>> 0,
+              lastOwnerNonMissileCriticalRawDispatchStamp:
+                currentRawDispatchStamp,
+              ...(ownerHasSteeringCommand
+                ? {
+                    lastOwnerCommandStamp:
+                      toInt(session._space.lastPilotCommandMovementStamp, 0) >>> 0,
+                    lastOwnerCommandRawDispatchStamp: currentRawDispatchStamp,
+                  }
+                : {}),
+            });
           }
           const sessionAfterOwnerMovementSend = buildMissileSessionSnapshot(
             runtime,
@@ -376,6 +408,22 @@ function createMovementOwnerDispatch(deps = {}) {
                 latestGotoDirection,
               );
             }
+            updateDestinyAuthorityState(session, {
+              lastOwnerCommandAnchorStamp: toInt(
+                session._space.lastPilotCommandMovementAnchorStamp,
+                liveOwnerSessionStamp,
+              ) >>> 0,
+              lastOwnerCommandHeadingHash: latestGotoDirection
+                ? JSON.stringify({
+                    x: toFiniteNumber(latestGotoDirection.x, 0),
+                    y: toFiniteNumber(latestGotoDirection.y, 0),
+                    z: toFiniteNumber(latestGotoDirection.z, 0),
+                  })
+                : (
+                    ownerAuthorityState &&
+                    ownerAuthorityState.lastOwnerCommandHeadingHash
+                  ) || "",
+            });
           }
         }
 

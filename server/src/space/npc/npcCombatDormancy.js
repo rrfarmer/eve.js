@@ -277,6 +277,9 @@ function materializeDormantCombatControllersForScene(scene, options = {}) {
     if (!materializeResult.success || !materializeResult.data) {
       return materializeResult;
     }
+    if (materializeResult.data.prunedInvalidStoredController === true) {
+      continue;
+    }
 
     materialized.push({
       entityID,

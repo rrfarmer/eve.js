@@ -1,5 +1,5 @@
 {
-  "nextCargoID": 980200000014,
+  "nextCargoID": 980200000015,
   "cargo": {
     "980200000000": {
       "cargoID": 980200000000,
@@ -146,6 +146,19 @@
     },
     "980200000013": {
       "cargoID": 980200000013,
+      "entityID": 9800002001,
+      "ownerID": 1000129,
+      "moduleID": 0,
+      "typeID": 30370,
+      "groupID": 711,
+      "categoryID": 2,
+      "itemName": "Fullerite-C50",
+      "quantity": 1,
+      "singleton": false,
+      "transient": false
+    },
+    "980200000014": {
+      "cargoID": 980200000014,
       "entityID": 9800002001,
       "ownerID": 1000129,
       "moduleID": 0,

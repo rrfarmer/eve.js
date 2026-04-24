@@ -17,8 +17,16 @@ const {
   isModuleOnline,
 } = require(path.join(repoRoot, "server/src/services/fitting/liveFittingState"));
 const {
+  _testing: runtimeTesting,
+} = require(path.join(repoRoot, "server/src/space/runtime"));
+const DogmaService = require(path.join(
+  repoRoot,
+  "server/src/services/dogma/dogmaService",
+));
+const {
   getCharacterRecord,
   getActiveShipRecord,
+  syncChargeSublocationForSession,
   syncChargeSublocationTransitionForSession,
   syncLoadedChargeDogmaBootstrapForSession,
   _testing: characterStateTesting,
@@ -284,6 +292,32 @@ function readOnItemChangeItemID(notification) {
     : null;
 }
 
+function readOnItemChangeFields(notification) {
+  const payload = notification && Array.isArray(notification.payload)
+    ? notification.payload
+    : null;
+  const row = Array.isArray(payload) ? payload[0] : null;
+  return row && row.fields && typeof row.fields === "object"
+    ? row.fields
+    : {};
+}
+
+function readOnItemChangePreviousValue(notification, key) {
+  const payload = notification && Array.isArray(notification.payload)
+    ? notification.payload
+    : null;
+  const changeDict =
+    Array.isArray(payload) && payload[1] && payload[1].type === "dict"
+      ? payload[1]
+      : null;
+  const matchingEntry = Array.isArray(changeDict && changeDict.entries)
+    ? changeDict.entries.find((entry) => (
+      Number(Array.isArray(entry) ? entry[0] : 0) === Number(key)
+    ))
+    : null;
+  return Array.isArray(matchingEntry) ? matchingEntry[1] : undefined;
+}
+
 function readOnGodmaPrimeTupleItemID(notification) {
   const payload = notification && Array.isArray(notification.payload)
     ? notification.payload
@@ -359,8 +393,8 @@ test("charge tuple godma prime stays on the public quantity-only contract", () =
       "groupID",
       "categoryID",
       "customInfo",
-      "singleton",
       "stacksize",
+      "singleton",
     ],
   );
   assert.equal(invItem && invItem.typeID, chargeItem.typeID);
@@ -396,16 +430,74 @@ test("live fitted charge primes keep quantity on the public quantity-only contra
   assert.equal(invItem && invItem.singleton, 0);
 });
 
-test("invbroker item descriptor marks singleton/stacksize as DBTYPE_EMPTY so godma filters them from sublocrd", () => {
+test("tuple charge rows normalize nullable stacksize fields for fitting consumers", () => {
+  const row = characterStateTesting.buildChargeSublocationRow({
+    itemID: [2990001841, 31, 42696],
+    typeID: 42696,
+    ownerID: 140000003,
+    locationID: 2990001841,
+    flagID: 31,
+    quantity: 300,
+    groupID: 1769,
+    categoryID: 8,
+    customInfo: null,
+    stacksize: null,
+    singleton: null,
+  });
+
+  assert.equal(row && row.fields && row.fields.quantity, 300);
+  assert.equal(row && row.fields && row.fields.stacksize, 300);
+  assert.equal(row && row.fields && row.fields.singleton, 0);
+  assert.equal(row && row.fields && row.fields.customInfo, "");
+});
+
+test("tuple charge OnItemChange falls back to previous quantity for ixStackSize old values", () => {
+  const notifications = [];
+  const session = {
+    sendNotification(name, idType, payload) {
+      notifications.push({ name, idType, payload });
+    },
+  };
+
+  syncChargeSublocationForSession(
+    session,
+    {
+      itemID: [2990001841, 31, 42696],
+      typeID: 42696,
+      ownerID: 140000003,
+      locationID: 2990001841,
+      flagID: 31,
+      quantity: 299,
+      groupID: 1769,
+      categoryID: 8,
+      customInfo: "",
+      stacksize: 299,
+      singleton: 0,
+    },
+    {
+      locationID: 2990001841,
+      flagID: 31,
+      quantity: 300,
+    },
+  );
+
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].name, "OnItemChange");
+  assert.equal(
+    readOnItemChangePreviousValue(notifications[0], 10),
+    300,
+    "Expected ixStackSize to use the previous quantity when stacksize is omitted",
+  );
+});
+
+test("invbroker item descriptor keeps singleton/stacksize as concrete DB types", () => {
   const invBroker = new InvBrokerService();
   const descriptor = invBroker.Handle_GetItemDescriptor([], null);
 
-  // godma.py builds sublocrd / subloc_internalrd by iterating the descriptor
-  // and filtering with `if dbtype == 0 and size == 0: continue`.  singleton
-  // and stacksize must use DBTYPE_EMPTY (0) so that filter removes them —
-  // otherwise the derived descriptors expect too many columns and CCP code
-  // crashes with "sequence is too short" when constructing blue.DBRow for
-  // charge tuples.
+  // The packaged client in this worktree does not tolerate EveJS Elysian advertising
+  // true virtual item columns without a backing virtual getter/setter. Keeping
+  // stacksize/singleton concrete avoids the global "Virtual columns are
+  // read-only" / "no mVirtualGetSet" failures in godma/invCache/HUD code.
   assert.deepEqual(
     readInventoryDescriptorColumnPairs(descriptor),
     [
@@ -418,8 +510,8 @@ test("invbroker item descriptor marks singleton/stacksize as DBTYPE_EMPTY so god
       ["groupID", 3],
       ["categoryID", 3],
       ["customInfo", 129],
-      ["stacksize", 0],
-      ["singleton", 0],
+      ["stacksize", 3],
+      ["singleton", 2],
     ],
   );
   assert.deepEqual(
@@ -466,8 +558,8 @@ test("same-type tuple charge transitions keep live ammo consumption on ixStackSi
   assert.ok(tupleRow, "Expected a same-type ammo decrement to emit a tuple-backed OnItemChange");
   assert.deepEqual(
     readOnItemChangeKeys(tupleRow),
-    [3, 4, 10],
-    "Expected same-type live ammo consumption to stay on the tuple-backed location/flag/stacksize repair contract",
+    [10],
+    "Expected same-type live ammo consumption to stay on an ixStackSize-only tuple update",
   );
   assert.deepEqual(
     readOnItemChangeDescriptorColumnPairs(tupleRow),
@@ -481,10 +573,21 @@ test("same-type tuple charge transitions keep live ammo consumption on ixStackSi
       ["groupID", 3],
       ["categoryID", 3],
       ["customInfo", 129],
-      ["singleton", 2],
       ["stacksize", 3],
+      ["singleton", 2],
     ],
     "Expected tuple-backed ammo repair rows to stay on the reference charge sublocation descriptor contract",
+  );
+  const tupleFields = readOnItemChangeFields(tupleRow);
+  assert.equal(
+    Number(tupleFields.locationID) || 0,
+    990114054,
+    "Expected same-type tuple updates to keep the existing ship location instead of reappearing from location 0",
+  );
+  assert.equal(
+    Number(tupleFields.flagID) || 0,
+    27,
+    "Expected same-type tuple updates to keep the existing launcher flag instead of reappearing from flag 0",
   );
   assert.equal(
     notifications.some((entry) => entry && entry.name === "OnGodmaPrimeItem"),
@@ -1004,4 +1107,249 @@ test("prime-repair-then-quantity charge bootstrap primes first, then repairs the
     clearTimeout(session._space._chargeBootstrapRepairTimer);
     session._space._chargeBootstrapRepairTimer = null;
   }
+});
+
+test("real HUD charge-row sessions restate the integer charge row after a same-ammo live charge transition", () => {
+  const shipID = 990114999;
+  const flagID = 27;
+  const charge = buildLoadedCharge(
+    "Baryon Exotic Plasma L",
+    990115000,
+    shipID,
+    flagID,
+    481,
+  );
+  const notifications = [];
+  const session = {
+    characterID: 9000001,
+    charid: 9000001,
+    shipID,
+    shipid: shipID,
+    _space: {
+      useRealChargeInventoryHudRows: true,
+    },
+    socket: { destroyed: false },
+    sendNotification(name, idType, payload) {
+      notifications.push({ name, idType, payload });
+    },
+  };
+
+  const notified = runtimeTesting.notifyRuntimeChargeTransitionToSessionForTesting(
+    session,
+    shipID,
+    flagID,
+    {
+      typeID: charge.typeID,
+      quantity: 481,
+    },
+    {
+      typeID: charge.typeID,
+      quantity: 480,
+    },
+    session.characterID,
+    {
+      previousChargeItem: charge,
+      nextChargeItem: {
+        ...charge,
+        quantity: 480,
+        stacksize: 480,
+      },
+    },
+  );
+
+  assert.equal(notified, true);
+
+  const tupleKey = [shipID, flagID, charge.typeID];
+  const firstTupleReplayIndex = notifications.findIndex((entry) => (
+    entry &&
+    entry.name === "OnItemChange" &&
+    JSON.stringify(readOnItemChangeItemID(entry)) === JSON.stringify(tupleKey)
+  ));
+  const firstRealRowReplayIndex = notifications.findIndex((entry) => (
+    entry &&
+    entry.name === "OnItemChange" &&
+    Number(readOnItemChangeItemID(entry)) === Number(charge.itemID)
+  ));
+
+  assert.equal(
+    firstTupleReplayIndex >= 0,
+    true,
+    "Expected the live tuple charge transition to keep the dogma tuple lane updated",
+  );
+  assert.equal(
+    firstRealRowReplayIndex >= 0,
+    true,
+    "Expected the real loaded charge HUD row to be restated after the tuple transition",
+  );
+  assert.equal(
+    firstTupleReplayIndex < firstRealRowReplayIndex,
+    true,
+    "Expected the real charge-row replay to land after the tuple transition so the HUD stays bound to the integer item",
+  );
+
+  const realRowFields = readOnItemChangeFields(notifications[firstRealRowReplayIndex]);
+  assert.equal(Number(realRowFields.itemID), Number(charge.itemID));
+  assert.equal(Number(realRowFields.stacksize), 480);
+  assert.equal(Number(realRowFields.quantity), 480);
+});
+
+test("real HUD reload transitions finish on the integer charge row after the delayed tuple finalize", async () => {
+  const shipID = 990115100;
+  const flagID = 27;
+  const previousCharge = buildLoadedCharge(
+    "Baryon Exotic Plasma L",
+    990115101,
+    shipID,
+    flagID,
+    300,
+  );
+  const nextCharge = buildLoadedCharge(
+    "Meson Exotic Plasma L",
+    990115102,
+    shipID,
+    flagID,
+    500,
+  );
+  const notifications = [];
+  const session = {
+    characterID: 9000001,
+    charid: 9000001,
+    shipID,
+    shipid: shipID,
+    _space: {
+      useRealChargeInventoryHudRows: true,
+    },
+    socket: { destroyed: false },
+    sendNotification(name, idType, payload) {
+      notifications.push({ name, idType, payload });
+    },
+  };
+  const dogma = new DogmaService();
+
+  dogma._notifyChargeQuantityTransition(
+    session,
+    session.characterID,
+    shipID,
+    flagID,
+    {
+      typeID: previousCharge.typeID,
+      quantity: 300,
+    },
+    {
+      typeID: nextCharge.typeID,
+      quantity: 500,
+    },
+    {
+      forceTupleRepair: true,
+      previousChargeItem: previousCharge,
+      nextChargeItem: nextCharge,
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 180));
+
+  const nextTupleKey = [shipID, flagID, nextCharge.typeID];
+  const lastNextTupleReplayIndex = notifications.reduce((index, entry, entryIndex) => (
+    entry &&
+    entry.name === "OnItemChange" &&
+    JSON.stringify(readOnItemChangeItemID(entry)) === JSON.stringify(nextTupleKey)
+      ? entryIndex
+      : index
+  ), -1);
+  const lastRealRowReplayIndex = notifications.reduce((index, entry, entryIndex) => (
+    entry &&
+    entry.name === "OnItemChange" &&
+    Number(readOnItemChangeItemID(entry)) === Number(nextCharge.itemID)
+      ? entryIndex
+      : index
+  ), -1);
+
+  assert.equal(
+    lastNextTupleReplayIndex >= 0,
+    true,
+    "Expected reload charge transitions to keep the tuple dogma lane updated",
+  );
+  assert.equal(
+    lastRealRowReplayIndex >= 0,
+    true,
+    "Expected reload charge transitions to restate the real loaded charge row",
+  );
+  assert.equal(
+    lastNextTupleReplayIndex < lastRealRowReplayIndex,
+    true,
+    "Expected the real charge-row replay to land after the delayed tuple finalize so tooltips stay bound to the integer row",
+  );
+
+  const finalRealRowFields = readOnItemChangeFields(
+    notifications[lastRealRowReplayIndex],
+  );
+  assert.equal(Number(finalRealRowFields.itemID), Number(nextCharge.itemID));
+  assert.equal(Number(finalRealRowFields.stacksize), 500);
+  assert.equal(Number(finalRealRowFields.quantity), 500);
+});
+
+test("slot unload cancels any pending delayed tuple replay for that rack flag", async () => {
+  const chargeType = resolveExactItem("Mjolnir Light Missile");
+  const shipID = 990119999;
+  const flagID = 27;
+  const notifications = [];
+  const session = {
+    characterID: 9000001,
+    charid: 9000001,
+    shipID,
+    shipid: shipID,
+    _space: {},
+    socket: { destroyed: false },
+    sendNotification(name, idType, payload) {
+      notifications.push({ name, idType, payload });
+    },
+  };
+
+  syncChargeSublocationTransitionForSession(session, {
+    shipID,
+    flagID,
+    ownerID: session.characterID,
+    previousState: { typeID: 0, quantity: 0 },
+    nextState: { typeID: chargeType.typeID, quantity: 40 },
+    primeNextCharge: true,
+    nextChargeRepairDelayMs: 20,
+  });
+
+  assert.ok(
+    session._space._chargeSublocationReplayTimers instanceof Map &&
+      session._space._chargeSublocationReplayTimers.has(`${shipID}:${flagID}`),
+    "Expected charge recovery to schedule a delayed tuple replay",
+  );
+
+  syncChargeSublocationTransitionForSession(session, {
+    shipID,
+    flagID,
+    ownerID: session.characterID,
+    previousState: { typeID: chargeType.typeID, quantity: 40 },
+    nextState: { typeID: 0, quantity: 0 },
+  });
+
+  assert.equal(
+    session._space._chargeSublocationReplayTimers.has(`${shipID}:${flagID}`),
+    false,
+    "Expected slot unload to cancel the pending tuple replay timer",
+  );
+
+  const immediateNotificationCount = notifications.length;
+  await new Promise((resolve) => setTimeout(resolve, 35));
+
+  assert.equal(
+    notifications.length,
+    immediateNotificationCount,
+    "Expected no delayed tuple replay to survive after the slot was unloaded",
+  );
+  assert.equal(
+    extractModuleAttributeChanges(notifications).some((change) => (
+      Array.isArray(change) &&
+      JSON.stringify(change[2]) === JSON.stringify([shipID, flagID, chargeType.typeID]) &&
+      Number(change[3]) === ATTRIBUTE_QUANTITY
+    )),
+    false,
+    "Expected unload to suppress stale tuple quantity replays for the removed charge",
+  );
 });

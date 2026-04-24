@@ -13,6 +13,13 @@ const {
 const {
   computeAsteroidRadiusFromQuantity,
 } = require("./miningMath");
+const {
+  resolveMiningVisualPresentation,
+} = require("./miningVisuals");
+const {
+  flushMiningStartupSummary,
+  mergeMiningPresentationSummary,
+} = require("./miningStartupSummary");
 
 const MINING_RUNTIME_TABLE = "miningRuntimeState";
 const MINING_RUNTIME_VERSION = 1;
@@ -280,24 +287,32 @@ function isDecorativeAsteroidType(typeRecord) {
 }
 
 function resolveDirectYieldType(entity) {
-  const typeRecord = resolveItemByTypeID(toInt(entity && entity.typeID, 0)) || null;
-  if (!typeRecord) {
-    return null;
-  }
-  if (!isDecorativeAsteroidType(typeRecord)) {
-    const classification = classifyMiningMaterialType(typeRecord);
-    if (classification) {
-      return classification.typeRecord;
-    }
-  }
+  const candidateTypeIDs = [
+    toInt(entity && entity.miningYieldTypeID, 0),
+    toInt(entity && entity.slimTypeID, 0),
+    toInt(entity && entity.typeID, 0),
+  ].filter((value, index, array) => value > 0 && array.indexOf(value) === index);
 
-  const phasedMatch = /^phased\s+(.+)$/i.exec(String(typeRecord.name || "").trim());
-  if (phasedMatch) {
-    const lookup = resolveItemByName(phasedMatch[1]);
-    if (lookup.success && lookup.match) {
-      const classification = classifyMiningMaterialType(lookup.match);
+  for (const candidateTypeID of candidateTypeIDs) {
+    const typeRecord = resolveItemByTypeID(candidateTypeID) || null;
+    if (!typeRecord) {
+      continue;
+    }
+    if (!isDecorativeAsteroidType(typeRecord)) {
+      const classification = classifyMiningMaterialType(typeRecord);
       if (classification) {
         return classification.typeRecord;
+      }
+    }
+
+    const phasedMatch = /^phased\s+(.+)$/i.exec(String(typeRecord.name || "").trim());
+    if (phasedMatch) {
+      const lookup = resolveItemByName(phasedMatch[1]);
+      if (lookup.success && lookup.match) {
+        const classification = classifyMiningMaterialType(lookup.match);
+        if (classification) {
+          return classification.typeRecord;
+        }
       }
     }
   }
@@ -386,18 +401,92 @@ function estimateOriginalQuantity(scene, entity, yieldType, templateEntry = null
   return Math.max(1, Math.round(estimatedVolume / unitVolume));
 }
 
-function applyYieldPresentationToEntity(entity, state) {
+function createMiningPresentationSummary(systemID) {
+  return {
+    systemID: toInt(systemID, 0),
+    updatedCount: 0,
+    oreCount: 0,
+    iceCount: 0,
+    gasCount: 0,
+    otherCount: 0,
+    oreRemainingQuantity: 0,
+    iceRemainingQuantity: 0,
+    gasRemainingQuantity: 0,
+    otherRemainingQuantity: 0,
+    withGraphicCount: 0,
+  };
+}
+
+function recordMiningPresentationSummary(summary, entity, state) {
+  if (!summary || !state) {
+    return;
+  }
+
+  summary.updatedCount += 1;
+  const remainingQuantity = Math.max(0, toInt(state.remainingQuantity, 0));
+  const yieldKind = String(state.yieldKind || "").trim().toLowerCase();
+
+  if (yieldKind === "ice") {
+    summary.iceCount += 1;
+    summary.iceRemainingQuantity += remainingQuantity;
+  } else if (yieldKind === "gas") {
+    summary.gasCount += 1;
+    summary.gasRemainingQuantity += remainingQuantity;
+  } else if (yieldKind === "ore") {
+    summary.oreCount += 1;
+    summary.oreRemainingQuantity += remainingQuantity;
+  } else {
+    summary.otherCount += 1;
+    summary.otherRemainingQuantity += remainingQuantity;
+  }
+
+  if (
+    toInt(entity && entity.graphicID, 0) > 0 ||
+    toInt(entity && entity.slimGraphicID, 0) > 0
+  ) {
+    summary.withGraphicCount += 1;
+  }
+}
+
+function logMiningPresentationSummary(scene, summary) {
+  if (!scene || !summary) {
+    return;
+  }
+
+  mergeMiningPresentationSummary(scene, summary);
+  flushMiningStartupSummary(scene);
+}
+
+function applyYieldPresentationToEntity(entity, state, summary = null) {
   if (!entity || !state) {
     return;
   }
 
-  const spaceTypeID = toInt(
-    state.visualTypeID || entity.visualTypeID || entity.slimTypeID || entity.typeID,
+  const yieldTypeRecord = resolveItemByTypeID(toInt(state.yieldTypeID, 0)) || null;
+  const resolvedPresentation =
+    typeof resolveMiningVisualPresentation === "function" && yieldTypeRecord
+      ? (() => {
+          try {
+            return resolveMiningVisualPresentation(yieldTypeRecord, {
+              entityID: toInt(entity && entity.itemID, 0),
+              radius: state.originalRadius || entity.radius,
+            });
+          } catch (_error) {
+            return null;
+          }
+        })()
+      : null;
+
+  const preferredVisualTypeID = toInt(
+    state.visualTypeID ||
+      (resolvedPresentation && resolvedPresentation.visualTypeID) ||
+      entity.visualTypeID ||
+      entity.typeID,
     0,
   );
-  const spaceTypeRecord = resolveItemByTypeID(spaceTypeID) || null;
-  if (spaceTypeID > 0) {
-    entity.visualTypeID = spaceTypeID;
+  const spaceTypeRecord = resolveItemByTypeID(preferredVisualTypeID) || null;
+  if (preferredVisualTypeID > 0) {
+    entity.visualTypeID = preferredVisualTypeID;
   }
   if (spaceTypeRecord) {
     entity.typeID = spaceTypeRecord.typeID;
@@ -405,7 +494,6 @@ function applyYieldPresentationToEntity(entity, state) {
     entity.categoryID = spaceTypeRecord.categoryID;
   }
 
-  const yieldTypeRecord = resolveItemByTypeID(toInt(state.yieldTypeID, 0)) || null;
   if (yieldTypeRecord) {
     entity.miningYieldTypeID = yieldTypeRecord.typeID;
     entity.miningYieldKind = state.yieldKind || null;
@@ -420,6 +508,17 @@ function applyYieldPresentationToEntity(entity, state) {
     entity.slimCategoryID = spaceTypeRecord.categoryID;
     entity.itemName = spaceTypeRecord.name;
     entity.slimName = spaceTypeRecord.name;
+  }
+
+  const resolvedGraphicID = toInt(
+    (resolvedPresentation && resolvedPresentation.graphicID) ||
+      entity.graphicID ||
+      entity.slimGraphicID,
+    0,
+  );
+  if (resolvedGraphicID > 0) {
+    entity.graphicID = resolvedGraphicID;
+    entity.slimGraphicID = resolvedGraphicID;
   }
 
   if (state.remainingQuantity > 0) {
@@ -447,6 +546,7 @@ function applyYieldPresentationToEntity(entity, state) {
       Math.max(minimumRuntimeRadius, state.originalRadius),
     );
   }
+  recordMiningPresentationSummary(summary, entity, state);
 }
 
 function buildSceneCache(scene, persistedByEntityID = {}) {
@@ -468,12 +568,60 @@ function readPersistedSystemState(systemID) {
   return result.data;
 }
 
-function writePersistedState(scene, state) {
+function areMiningStatesEquivalent(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    toInt(left.entityID, 0) === toInt(right.entityID, 0) &&
+    toInt(left.visualTypeID, 0) === toInt(right.visualTypeID, 0) &&
+    toInt(left.beltID, 0) === toInt(right.beltID, 0) &&
+    String(left.fieldStyleID || "").trim() === String(right.fieldStyleID || "").trim() &&
+    toInt(left.yieldTypeID, 0) === toInt(right.yieldTypeID, 0) &&
+    String(left.yieldKind || "").trim().toLowerCase() === String(right.yieldKind || "").trim().toLowerCase() &&
+    Math.abs(toFiniteNumber(left.unitVolume, 0) - toFiniteNumber(right.unitVolume, 0)) < 0.000001 &&
+    toInt(left.originalQuantity, 0) === toInt(right.originalQuantity, 0) &&
+    toInt(left.remainingQuantity, 0) === toInt(right.remainingQuantity, 0) &&
+    Math.abs(toFiniteNumber(left.originalRadius, 0) - toFiniteNumber(right.originalRadius, 0)) < 0.000001
+  );
+}
+
+function writePersistedState(scene, state, options = {}) {
+  const existingPersistedState = options && options.existingPersistedState
+    ? normalizeStateRecord(options.existingPersistedState)
+    : null;
+  const shouldPersistBaseline = options && options.persistBaseline === true;
+  if (
+    !shouldPersistBaseline &&
+    !existingPersistedState &&
+    toInt(state && state.remainingQuantity, 0) === toInt(state && state.originalQuantity, 0)
+  ) {
+    return false;
+  }
+  if (existingPersistedState && areMiningStatesEquivalent(existingPersistedState, state)) {
+    return false;
+  }
+
   database.write(
     MINING_RUNTIME_TABLE,
     `/systems/${String(toInt(scene && scene.systemID, 0))}/entities/${String(toInt(state && state.entityID, 0))}`,
     cloneValue(state),
   );
+  const persistedByEntityID =
+    (options && options.persistedByEntityID && typeof options.persistedByEntityID === "object")
+      ? options.persistedByEntityID
+      : (
+          scene &&
+          scene._miningRuntimeState &&
+          scene._miningRuntimeState.persistedByEntityID &&
+          typeof scene._miningRuntimeState.persistedByEntityID === "object"
+            ? scene._miningRuntimeState.persistedByEntityID
+            : null
+        );
+  if (persistedByEntityID) {
+    persistedByEntityID[String(toInt(state && state.entityID, 0))] = cloneValue(state);
+  }
+  return true;
 }
 
 function buildMineableState(scene, entity, persistedState = null) {
@@ -553,7 +701,9 @@ function buildMineableState(scene, entity, persistedState = null) {
     originalQuantity,
     remainingQuantity,
     originalRadius,
-    updatedAtMs: Date.now(),
+    updatedAtMs: normalizedPersistedState
+      ? toInt(normalizedPersistedState.updatedAtMs, Date.now())
+      : Date.now(),
   });
 }
 
@@ -582,12 +732,14 @@ function ensureSceneMiningState(scene) {
 
   const persistedByEntityID = readPersistedSystemState(scene.systemID);
   const cache = buildSceneCache(scene, persistedByEntityID);
+  const presentationSummary = createMiningPresentationSummary(scene.systemID);
 
   for (const entity of [...(scene.staticEntities || [])]) {
     if (!isMineableStaticEntity(entity)) {
       continue;
     }
 
+    entity.systemID = toInt(scene && scene.systemID, 0);
     const persistedState = persistedByEntityID[String(toInt(entity.itemID, 0))] || null;
     const state = buildMineableState(scene, entity, persistedState);
     if (!state) {
@@ -599,16 +751,25 @@ function ensureSceneMiningState(scene) {
         broadcast: false,
       });
       cache.byEntityID.set(state.entityID, state);
-      writePersistedState(scene, state);
+      writePersistedState(scene, state, {
+        existingPersistedState: persistedState,
+        persistedByEntityID,
+        persistBaseline: true,
+      });
       continue;
     }
 
-    applyYieldPresentationToEntity(entity, state);
+    applyYieldPresentationToEntity(entity, state, presentationSummary);
     cache.byEntityID.set(state.entityID, state);
-    writePersistedState(scene, state);
+    writePersistedState(scene, state, {
+      existingPersistedState: persistedState,
+      persistedByEntityID,
+      persistBaseline: false,
+    });
   }
 
   scene._miningRuntimeState = cache;
+  logMiningPresentationSummary(scene, presentationSummary);
   return cache;
 }
 
@@ -631,7 +792,10 @@ function updateMineableState(scene, entity, nextState, options = {}) {
 
   const normalizedState = normalizeStateRecord(nextState);
   cache.byEntityID.set(normalizedState.entityID, normalizedState);
-  writePersistedState(scene, normalizedState);
+  writePersistedState(scene, normalizedState, {
+    existingPersistedState: cache.persistedByEntityID[String(normalizedState.entityID)] || null,
+    persistBaseline: true,
+  });
 
   if (normalizedState.remainingQuantity <= 0) {
     if (typeof scene.clearAllTargetingForEntity === "function") {

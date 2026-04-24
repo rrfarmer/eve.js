@@ -16,10 +16,12 @@ const {
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const {
   buildShipResourceState,
-  calculateShipDerivedAttributes,
   getAttributeIDByNames,
   getTypeAttributeValue,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
+const {
+  getShipFittingSnapshot,
+} = require(path.join(__dirname, "../../_secondary/fitting/fittingRuntime"));
 const {
   resolveItemByTypeID,
 } = require(path.join(__dirname, "../inventory/itemTypeRegistry"));
@@ -31,6 +33,10 @@ const {
   resolveDroneCombatSnapshot,
   resolveDroneMiningSnapshot,
 } = require(path.join(__dirname, "./droneDogma"));
+const jammerModuleRuntime = require(path.join(
+  __dirname,
+  "../../space/modules/jammerModuleRuntime",
+));
 const {
   hasDamageableHealth,
 } = require(path.join(__dirname, "../../space/combat/damage"));
@@ -132,6 +138,31 @@ function buildCreatedInventoryInsertPreviousState(item) {
     quantity: 0,
     stacksize: 0,
     singleton: 0,
+  };
+}
+
+function buildDroneLaunchPreviousState(entity, item, shipRecord) {
+  const shipID = toInt(shipRecord && shipRecord.itemID, 0);
+  const systemID = toInt(entity && entity.systemID, 0);
+  if (
+    shipID <= 0 ||
+    systemID <= 0 ||
+    !item ||
+    !isDroneItemRecord(item) ||
+    toInt(item.locationID, 0) !== systemID ||
+    toInt(item.flagID, 0) !== 0
+  ) {
+    return null;
+  }
+
+  // CCP client godma treats launched drones specially only when the item
+  // change says they moved from the controlling ship's drone bay into the
+  // solar system. Without this old location/flag pair, split-created drones
+  // look like generic brand-new space items and one can fall out of the
+  // active-drone UI even though the ball exists.
+  return {
+    locationID: shipID,
+    flagID: ITEM_FLAGS.DRONE_BAY,
   };
 }
 
@@ -274,7 +305,10 @@ function serializeDroneSpaceState(entity) {
 }
 
 function buildDroneErrorTuple(message) {
-  return ["CustomNotify", { notify: String(message || "") }];
+  return [
+    "CustomNotify",
+    buildMarshalDict([["notify", String(message || "")]]),
+  ];
 }
 
 function buildMarshalDict(entries = []) {
@@ -581,7 +615,10 @@ function ensureDroneClientIdentityState(
   }
 
   const primeCache = getDroneIdentityPrimeCache(entity);
-  const sessionsNeedingIdentity = options.forceInsert === true
+  const forceInsert = options.forceInsert === true;
+  const forceRefresh = options.forceRefresh === true;
+  const skipInventorySync = options.skipInventorySync === true;
+  const sessionsNeedingIdentity = forceInsert || forceRefresh
     ? targetSessions
     : targetSessions.filter((session) => {
         const sessionKey = getDroneIdentityPrimeSessionKey(session);
@@ -592,11 +629,14 @@ function ensureDroneClientIdentityState(
   }
 
   const currentItem = findItemById(toInt(entity.itemID, 0));
-  if (currentItem) {
-    syncInventoryItemToSessions(
-      sessionsNeedingIdentity,
+  if (currentItem && !skipInventorySync) {
+    const launchPreviousState = buildDroneLaunchPreviousState(
+      entity,
       currentItem,
-      options.forceInsert === false
+      shipRecord,
+    );
+    const previousInventoryState = launchPreviousState ||
+      (forceInsert !== true
         ? {
             locationID: currentItem.locationID,
             flagID: currentItem.flagID,
@@ -604,7 +644,11 @@ function ensureDroneClientIdentityState(
             stacksize: currentItem.stacksize,
             singleton: currentItem.singleton,
           }
-        : buildCreatedInventoryInsertPreviousState(currentItem),
+        : buildCreatedInventoryInsertPreviousState(currentItem));
+    syncInventoryItemToSessions(
+      sessionsNeedingIdentity,
+      currentItem,
+      previousInventoryState,
       {
         emitCfgLocation: false,
       },
@@ -612,7 +656,7 @@ function ensureDroneClientIdentityState(
   }
 
   if (shipRecord) {
-    emitDroneDogmaPrime(entity, shipRecord, sessionsNeedingIdentity);
+    emitDroneDogmaPrime(entity, shipRecord, sessionsNeedingIdentity, currentItem);
   }
 
   if (primeCache) {
@@ -676,7 +720,7 @@ function emitDroneActivityChange(entity, activityID = null, activity = null, ses
   }
 }
 
-function emitDroneDogmaPrime(entity, shipRecord, sessions = null) {
+function emitDroneDogmaPrime(entity, shipRecord, sessions = null, itemOverride = null) {
   if (!entity || !shipRecord) {
     return;
   }
@@ -690,22 +734,59 @@ function emitDroneDogmaPrime(entity, shipRecord, sessions = null) {
     return;
   }
 
+  const currentItem =
+    itemOverride && typeof itemOverride === "object"
+      ? itemOverride
+      : findItemById(toInt(entity.itemID, 0)) || null;
+  // Prime launched/returning drones as their real live in-space items. If we
+  // advertise them as flag=DRONE_BAY under the controlling ship here, the
+  // client synthesizes phantom bay rows and the drone UI/damage tracker churn.
   const dogmaPrimeItem = {
     itemID: toInt(entity.itemID, 0),
-    typeID: toInt(entity.typeID, 0),
-    ownerID: toInt(entity.ownerID, 0),
-    locationID: toInt(shipRecord.itemID, 0),
-    flagID: ITEM_FLAGS.DRONE_BAY,
-    quantity: 1,
-    stacksize: 1,
-    singleton: 1,
-    groupID: toInt(entity.groupID, 0),
-    categoryID: DRONE_CATEGORY_ID,
-    customInfo: "",
+    typeID: toInt(
+      currentItem && currentItem.typeID,
+      toInt(entity.typeID, 0),
+    ),
+    ownerID: toInt(
+      currentItem && currentItem.ownerID,
+      toInt(entity.ownerID, 0),
+    ),
+    locationID: toInt(
+      currentItem && currentItem.locationID,
+      toInt(entity.systemID, 0),
+    ),
+    flagID: toInt(currentItem && currentItem.flagID, 0),
+    quantity:
+      currentItem && currentItem.quantity !== undefined
+        ? currentItem.quantity
+        : null,
+    stacksize: Math.max(
+      1,
+      toInt(
+        currentItem && (currentItem.stacksize ?? currentItem.quantity),
+        1,
+      ),
+    ),
+    singleton: toInt(currentItem && currentItem.singleton, 1),
+    groupID: toInt(
+      currentItem && currentItem.groupID,
+      toInt(entity.groupID, 0),
+    ),
+    categoryID: toInt(
+      currentItem && currentItem.categoryID,
+      DRONE_CATEGORY_ID,
+    ),
+    customInfo:
+      currentItem && currentItem.customInfo !== undefined && currentItem.customInfo !== null
+        ? String(currentItem.customInfo)
+        : "",
     moduleState: null,
     conditionState: null,
     launcherID: toInt(shipRecord.itemID, 0),
-    volume: toNumber(entity.volume, null),
+    volume: toNumber(
+      currentItem && currentItem.volume,
+      toNumber(entity.volume, null),
+    ),
   };
   const primeEntry = buildDogmaPrimeEntry(dogmaPrimeItem, {
     description: "drone",
@@ -714,12 +795,15 @@ function emitDroneDogmaPrime(entity, shipRecord, sessions = null) {
     return;
   }
 
-  const shipID = toInt(shipRecord.itemID, 0);
+  const primeLocationID = toInt(
+    dogmaPrimeItem.locationID,
+    toInt(entity.systemID, 0),
+  );
   for (const session of targetSessions) {
     if (!session || typeof session.sendNotification !== "function") {
       continue;
     }
-    session.sendNotification("OnGodmaPrimeItem", "clientID", [shipID, primeEntry]);
+    session.sendNotification("OnGodmaPrimeItem", "clientID", [primeLocationID, primeEntry]);
   }
 }
 
@@ -769,7 +853,14 @@ function queueSplitLaunchDogmaReplay(scene, droneID) {
             0,
           ),
         ) || null;
-      ensureDroneClientIdentityState(droneEntity, controllerShipRecord);
+      ensureDroneClientIdentityState(
+        droneEntity,
+        controllerShipRecord,
+        null,
+        {
+          forceRefresh: true,
+        },
+      );
       emitDroneStateChange(droneEntity);
       emitDroneActivityChange(droneEntity, null, null);
     }
@@ -1769,24 +1860,6 @@ function recallDroneToBay(scene, shipRecord, droneEntity) {
       return removalResult;
     }
 
-    const removalChanges =
-      removalResult.data && Array.isArray(removalResult.data.changes)
-        ? removalResult.data.changes
-        : [];
-    for (const removalChange of removalChanges) {
-      if (!removalChange || !removalChange.item) {
-        continue;
-      }
-      syncInventoryItemToSessions(
-        [ownerSession],
-        removalChange.item,
-        removalChange.previousData || {},
-        {
-          emitCfgLocation: false,
-        },
-      );
-    }
-
     changes.push({
       item: mergeTargetUpdateResult.data,
       previousData: mergeTargetUpdateResult.previousData || {},
@@ -1839,8 +1912,15 @@ function launchDronesForSession(session, rawLaunchRequests) {
   }
 
   const { characterID, shipRecord, shipEntity, scene } = shipState;
-  const derived = calculateShipDerivedAttributes(characterID, shipRecord);
-  const shipAttributes = derived && derived.attributes ? derived.attributes : {};
+  const ownerSession = findSessionByCharacterID(toInt(shipRecord && shipRecord.ownerID, 0));
+  const launchIdentitySessions = normalizeDroneSessions([session, ownerSession]);
+  const fittingSnapshot = getShipFittingSnapshot(characterID, shipRecord.itemID, {
+    shipItem: shipRecord,
+    reason: "drone.launch",
+  });
+  const shipAttributes = fittingSnapshot && fittingSnapshot.shipAttributes
+    ? fittingSnapshot.shipAttributes
+    : {};
   const maxActiveDrones = Math.max(0, toInt(shipAttributes.maxActiveDrones, 5));
   const droneBandwidth = Math.max(0, toNumber(shipAttributes.droneBandwidth, 0));
   let activeDroneEntities = listControlledDroneEntities(scene, shipRecord.itemID);
@@ -1892,23 +1972,24 @@ function launchDronesForSession(session, rawLaunchRequests) {
         break;
       }
 
-      emitRelevantInventoryChanges(
-        session,
-        shipRecord.itemID,
-        moveResult.data && moveResult.data.changes,
-        {
-          // CCP client tooltip/dogma parity: split launches create brand-new
-          // in-space itemIDs that still need an OnItemChange insert so
-          // clientDogmaIM can resolve bandwidth and health for every launched
-          // drone, not just the source stack head.
-          includeCreatedItems: true,
-        },
-      );
       const launchedItem = extractLaunchedDroneItem(moveResult, scene.systemID);
       if (!launchedItem) {
         appendLaunchError(response, request.itemID, "Drone launch created no in-space item.");
         break;
       }
+
+      const inventoryChanges = Array.isArray(moveResult.data && moveResult.data.changes)
+        ? moveResult.data.changes.filter(
+            (change) =>
+              toInt(change && change.item && change.item.itemID, 0) !==
+              toInt(launchedItem.itemID, 0),
+          )
+        : [];
+      emitRelevantInventoryChanges(
+        session,
+        shipRecord.itemID,
+        inventoryChanges,
+      );
 
       const spaceState = buildDroneLaunchSpaceState(shipEntity, launchIndex);
       const updateResult = updateInventoryItem(launchedItem.itemID, (currentItem) => ({
@@ -1948,10 +2029,23 @@ function launchDronesForSession(session, rawLaunchRequests) {
         droneEntity.droneHomeOrbitDistance,
       );
       droneEntity.droneStateVisible = true;
-      persistDroneEntityState(droneEntity);
+    persistDroneEntityState(droneEntity);
+      const splitCreatedLaunch =
+        toInt(droneEntity.itemID, 0) !== toInt(refreshedSource.itemID, 0);
+      // Keep the first launch-side identity row on the finalized singleton
+      // drone state instead of the transient split-stack row. That gives the
+      // client a real inv/dogma item before OnDroneStateChange2 runs.
+      ensureDroneClientIdentityState(
+        droneEntity,
+        shipRecord,
+        launchIdentitySessions,
+        {
+          forceInsert: splitCreatedLaunch,
+        },
+      );
       emitDroneStateChange(droneEntity);
       emitDroneActivityChange(droneEntity, null, null);
-      if (toInt(droneEntity.itemID, 0) !== toInt(refreshedSource.itemID, 0)) {
+      if (splitCreatedLaunch) {
         queueSplitLaunchDogmaReplay(scene, droneEntity.itemID);
       }
       markSceneControlledCombatDroneIndexDirty(scene);
@@ -2010,7 +2104,15 @@ function commandReturnDrones(session, rawDroneIDs, commandName) {
     // the time OnDroneStateChange2 hits the RETURNING state. The client checks
     // both invCache and dogma first; if either side is missing it falls back
     // to a short synthesized DBRow and logs "sequence is too short".
-    ensureDroneClientIdentityState(droneEntity, shipRecord, interestedSessions);
+    ensureDroneClientIdentityState(
+      droneEntity,
+      shipRecord,
+      interestedSessions,
+      {
+        forceRefresh: true,
+        skipInventorySync: true,
+      },
+    );
     emitDroneStateChange(droneEntity, {}, interestedSessions);
     emitDroneActivityChange(droneEntity, null, null, interestedSessions);
     markSceneControlledCombatDroneIndexDirty(scene);
@@ -2277,8 +2379,13 @@ function commandReconnectToDrones(session, rawDroneIDs) {
 
   const { characterID, shipRecord, scene } = shipState;
   const droneIDs = normalizeDroneIDList(rawDroneIDs);
-  const derived = calculateShipDerivedAttributes(characterID, shipRecord);
-  const shipAttributes = derived && derived.attributes ? derived.attributes : {};
+  const fittingSnapshot = getShipFittingSnapshot(characterID, shipRecord.itemID, {
+    shipItem: shipRecord,
+    reason: "drone.reconnect",
+  });
+  const shipAttributes = fittingSnapshot && fittingSnapshot.shipAttributes
+    ? fittingSnapshot.shipAttributes
+    : {};
   const maxActiveDrones = Math.max(0, toInt(shipAttributes.maxActiveDrones, 5));
   const droneBandwidth = Math.max(0, toNumber(shipAttributes.droneBandwidth, 0));
   const controlledDroneEntities = listControlledDroneEntities(scene, shipRecord.itemID);
@@ -2567,6 +2674,88 @@ function tickDroneCombat(scene, droneEntity, controllerEntity, now) {
   persistAndNotifyDroneState(droneEntity, beforeState);
 
   if (toNumber(combatState.nextCycleAtMs, 0) > now) {
+    return;
+  }
+
+  if (String(snapshot && snapshot.effectKind || "") === "jammer") {
+    const runtime = getRuntime();
+    if (snapshot.effectGUID) {
+      scene.broadcastSpecialFx(
+        droneEntity.itemID,
+        snapshot.effectGUID,
+        {
+          moduleID: toInt(droneEntity && droneEntity.itemID, 0),
+          moduleTypeID: toInt(droneEntity && droneEntity.typeID, 0),
+          targetID: targetEntity.itemID,
+          isOffensive: true,
+          start: true,
+          active: false,
+          duration: Math.max(1, toNumber(snapshot.durationMs, 20_000)),
+          repeat: 1,
+          useCurrentVisibleStamp: true,
+        },
+        droneEntity,
+      );
+    }
+    const effectState = {
+      moduleID: toInt(droneEntity && droneEntity.itemID, 0),
+      targetID: targetEntity.itemID,
+      hostileJammingType: jammerModuleRuntime.ECM_JAMMING_TYPE,
+      jammerModuleEffect: true,
+      jammerStrengthBySensorType: snapshot.jammerStrengthBySensorType || {},
+      jammerMaxRangeMeters: Math.max(0, toNumber(snapshot.optimalRange, 0)),
+      jammerFalloffMeters: Math.max(0, toNumber(snapshot.falloff, 0)),
+      durationMs: Math.max(1, toNumber(snapshot.durationMs, 20_000)),
+      jamDurationMs: Math.max(1, toNumber(snapshot.jamDurationMs, 5_000)),
+      nextCycleAtMs: now + Math.max(1, toNumber(snapshot.durationMs, 20_000)),
+    };
+    const cycleResult = jammerModuleRuntime.executeJammerModuleCycle({
+      scene,
+      entity: droneEntity,
+      effectState,
+      nowMs: now,
+      callbacks: {
+        getEntityByID(entityID) {
+          return scene && typeof scene.getEntityByID === "function"
+            ? scene.getEntityByID(entityID)
+            : null;
+        },
+        isEntityLockedTarget() {
+          return true;
+        },
+        getEntitySurfaceDistance(sourceEntity, externalTargetEntity) {
+          return getEntitySurfaceDistance(sourceEntity, externalTargetEntity);
+        },
+        clearOutgoingTargetLocksExcept(externalTargetEntity, allowedTargetIDs, options = {}) {
+          return scene && typeof scene.clearOutgoingTargetLocksExcept === "function"
+            ? scene.clearOutgoingTargetLocksExcept(externalTargetEntity, allowedTargetIDs, options)
+            : {
+              clearedTargetIDs: [],
+              cancelledPendingIDs: [],
+            };
+        },
+        random() {
+          return scene && typeof scene.__jammerRandom === "function"
+            ? Number(scene.__jammerRandom()) || 0
+            : Math.random();
+        },
+      },
+    });
+    if (
+      cycleResult.success &&
+      runtime &&
+      typeof runtime.applyJammerCyclePresentation === "function"
+    ) {
+      runtime.applyJammerCyclePresentation(
+        scene,
+        droneEntity,
+        effectState,
+        now,
+        cycleResult,
+      );
+    }
+    combatState.nextCycleAtMs = now + Math.max(1, toNumber(snapshot.durationMs, 20_000));
+    persistDroneEntityState(droneEntity);
     return;
   }
 

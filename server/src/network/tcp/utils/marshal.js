@@ -238,6 +238,9 @@ function encodeValue(value, chunks) {
         }
         return;
       }
+      case "tuple":
+        encodeTuple(Array.isArray(value.items) ? value.items : [], chunks);
+        return;
       case "list":
         encodeList(value.items, chunks);
         return;
@@ -756,6 +759,208 @@ function compressRle(buffer) {
   }
 
   return out.subarray(0, outputIndex);
+}
+
+function decompressRle(buffer, expectedLength) {
+  const targetLength = Math.max(0, Number(expectedLength) || 0);
+  const out = Buffer.alloc(targetLength, 0);
+  let inputIndex = 0;
+  let outputIndex = 0;
+
+  while (inputIndex < buffer.length && outputIndex < targetLength) {
+    const control = buffer[inputIndex++];
+    for (let nibbleIndex = 0; nibbleIndex < 2 && outputIndex < targetLength; nibbleIndex += 1) {
+      const nibble =
+        nibbleIndex === 0 ? control & 0x0f : (control >> 4) & 0x0f;
+
+      if (nibble < 8) {
+        const literalCount = 8 - nibble;
+        const available = Math.min(
+          literalCount,
+          buffer.length - inputIndex,
+          targetLength - outputIndex,
+        );
+        if (available > 0) {
+          buffer.copy(out, outputIndex, inputIndex, inputIndex + available);
+          inputIndex += available;
+          outputIndex += available;
+        }
+      } else {
+        outputIndex += Math.min(nibble - 7, targetLength - outputIndex);
+      }
+
+      if (inputIndex >= buffer.length && outputIndex >= targetLength) {
+        break;
+      }
+    }
+  }
+
+  return out;
+}
+
+function normalizePackedColumnName(name, fallback = "") {
+  if (typeof name === "string") {
+    return name;
+  }
+  if (Buffer.isBuffer(name)) {
+    return name.toString("utf8");
+  }
+  if (name && typeof name === "object") {
+    if (typeof name.value === "string") {
+      return name.value;
+    }
+    if (Buffer.isBuffer(name.value)) {
+      return name.value.toString("utf8");
+    }
+  }
+  return fallback;
+}
+
+function coerceDecodedPackedInteger(value) {
+  if (typeof value !== "bigint") {
+    return value;
+  }
+  const numericValue = Number(value);
+  if (
+    Number.isSafeInteger(numericValue) &&
+    BigInt(numericValue) === value
+  ) {
+    return numericValue;
+  }
+  return value;
+}
+
+function decodePackedFixedValue(type, buffer, offset) {
+  switch (type) {
+    case DBTYPE.CY:
+    case DBTYPE.I8:
+    case DBTYPE.UI8:
+    case DBTYPE.FILETIME:
+      return coerceDecodedPackedInteger(buffer.readBigInt64LE(offset));
+    case DBTYPE.I4:
+      return buffer.readInt32LE(offset);
+    case DBTYPE.UI4:
+      return buffer.readUInt32LE(offset);
+    case DBTYPE.R4:
+      return buffer.readFloatLE(offset);
+    case DBTYPE.R8:
+      return buffer.readDoubleLE(offset);
+    case DBTYPE.I2:
+      return buffer.readInt16LE(offset);
+    case DBTYPE.UI2:
+      return buffer.readUInt16LE(offset);
+    case DBTYPE.I1:
+      return buffer.readInt8(offset);
+    case DBTYPE.UI1:
+      return buffer.readUInt8(offset);
+    default:
+      return null;
+  }
+}
+
+function decodePackedRowFields(rowHeader, rleData, state) {
+  const columns = normalizePackedRowColumns({
+    header: rowHeader,
+  });
+  const sizeMap = [];
+  const booleanColumns = new Map();
+  let byteDataBitLength = 0;
+  let booleansBitLength = 0;
+  let nullsBitLength = 0;
+
+  for (let index = 0; index < columns.length; index += 1) {
+    const [, type] = columns[index];
+    const size = getDbTypeSizeBits(type);
+
+    if (type === DBTYPE.BOOL) {
+      booleanColumns.set(index, booleansBitLength);
+      booleansBitLength += 1;
+    }
+
+    nullsBitLength += 1;
+    if (size >= 8) {
+      byteDataBitLength += size;
+    }
+
+    sizeMap.push({ size, index, type });
+  }
+
+  sizeMap.sort((left, right) => {
+    if (right.size !== left.size) {
+      return right.size - left.size;
+    }
+    return left.index - right.index;
+  });
+
+  const bitDataByteLength = ((booleansBitLength + nullsBitLength) >> 3) + 1;
+  const byteDataByteLength = byteDataBitLength >> 3;
+  const packedByteData = decompressRle(
+    rleData,
+    byteDataByteLength + bitDataByteLength,
+  );
+  const bitData = packedByteData.subarray(
+    byteDataByteLength,
+    byteDataByteLength + bitDataByteLength,
+  );
+  const values = new Array(columns.length).fill(null);
+  let offset = 0;
+
+  for (const entry of sizeMap) {
+    if (entry.size <= 1) {
+      continue;
+    }
+
+    const nullBit = entry.index + booleansBitLength;
+    const nullByte = nullBit >> 3;
+    const isNull =
+      nullByte < bitData.length &&
+      (bitData[nullByte] & (1 << (nullBit & 0x7))) !== 0;
+    values[entry.index] = isNull
+      ? null
+      : decodePackedFixedValue(entry.type, packedByteData, offset);
+    offset += entry.size >> 3;
+  }
+
+  for (const entry of sizeMap) {
+    if (entry.size !== 1) {
+      continue;
+    }
+
+    const nullBit = entry.index + booleansBitLength;
+    const nullByte = nullBit >> 3;
+    const isNull =
+      nullByte < bitData.length &&
+      (bitData[nullByte] & (1 << (nullBit & 0x7))) !== 0;
+    if (isNull) {
+      values[entry.index] = null;
+      continue;
+    }
+
+    const boolBit = booleanColumns.get(entry.index);
+    const boolByte = boolBit >> 3;
+    values[entry.index] =
+      boolByte < bitData.length &&
+      (bitData[boolByte] & (1 << (boolBit & 0x7))) !== 0;
+  }
+
+  for (const entry of sizeMap) {
+    if (entry.size !== 0) {
+      continue;
+    }
+    values[entry.index] = decodeValue(state);
+  }
+
+  const fields = {};
+  for (let index = 0; index < columns.length; index += 1) {
+    const columnName = normalizePackedColumnName(columns[index][0], `col_${index}`);
+    fields[columnName] = values[index];
+  }
+
+  return {
+    columns,
+    values,
+    fields,
+  };
 }
 
 function encodePackedRow(packedRow, chunks) {
@@ -1289,9 +1494,13 @@ function decodeValue(state) {
       // Read the RLE-compressed data
       const rleLen = readSizeEx(state);
       const rleData = readBytes(state, rleLen);
+      const decodedRow = decodePackedRowFields(rowHeader, rleData, state);
       result = {
         type: "packedrow",
         header: rowHeader,
+        columns: decodedRow.columns,
+        values: decodedRow.values,
+        fields: decodedRow.fields,
         rleData: rleData,
       };
       break;

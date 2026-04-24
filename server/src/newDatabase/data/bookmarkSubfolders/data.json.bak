@@ -1,0 +1,18 @@
+{
+  "records": {
+    "700001": {
+      "subfolderID": 700001,
+      "folderID": 500002,
+      "subfolderName": "Sub One",
+      "creatorID": 140000001,
+      "created": "134200729719150000"
+    },
+    "700002": {
+      "subfolderID": 700002,
+      "folderID": 500005,
+      "subfolderName": "sad",
+      "creatorID": 140000003,
+      "created": "134200782941330000"
+    }
+  }
+}

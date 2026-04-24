@@ -1333,9 +1333,8 @@ function listEscrowItemsForOrder(orderId, ownerId) {
 }
 
 function throwMarketUnavailable(method, error) {
-  const message = error && error.message ? error.message : "market daemon unavailable";
   throwWrappedUserError("CustomInfo", {
-    info: `Market service is unavailable while the standalone market daemon is starting or offline. Start StartMarketServer.bat and wait for warmup. (${method}: ${message})`,
+    info: "Market is currently offline, elysian says sorry!",
   });
 }
 

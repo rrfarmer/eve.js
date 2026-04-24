@@ -2,7 +2,7 @@
   "source": {
     "provider": "CCP Client Code Snapshot",
     "authority": "fighterConst.py + abilityAttributes.py",
-    "generatedAt": "2026-04-01T14:59:07.460Z",
+    "generatedAt": "2026-04-09T16:56:00.634Z",
     "sourceRoot": "tools/ClientCodeGrabber/Latest",
     "fighterConstFile": "eve/common/script/mgt/fighterConst.py",
     "abilityAttributesFile": "fighters/abilityAttributes.py"

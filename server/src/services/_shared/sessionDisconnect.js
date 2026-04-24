@@ -12,6 +12,9 @@ const {
   unregisterCharacterSession,
 } = require(path.join(__dirname, "../chat/xmppStubServer"));
 const {
+  abortTradesForSession,
+} = require(path.join(__dirname, "../trade/tradeMgrService"));
+const {
   currentFileTime,
 } = require(path.join(__dirname, "./serviceHelpers"));
 const {
@@ -262,6 +265,7 @@ function disconnectCharacterSession(session, options = {}) {
     attemptDroneBayRecovery: true,
     attemptFighterTubeRecovery: true,
   });
+  abortTradesForSession(session);
   chatHub.unregisterSession(session);
   unregisterCharacterSession(session);
 

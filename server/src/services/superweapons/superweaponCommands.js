@@ -8,34 +8,37 @@ const {
   grantItemsToCharacterStationHangar,
   listContainerItems,
   moveItemTypeFromCharacterLocation,
-  moveShipToSpace,
 } = require("../inventory/itemStore");
+const {
+  getCharacterSkillMap,
+} = require("../skills/skillState");
 const {
   listFittedItems,
   selectAutoFitFlagForType,
   validateFitForShip,
 } = require("../fitting/liveFittingState");
-const {
-  ejectSession,
-  boardSpaceShip,
-} = require("../../space/transitions");
 const spaceRuntime = require("../../space/runtime");
 const {
+  boardPreparedShipInSpace,
+} = require("../ship/spaceShipSwapRuntime");
+const {
   pickRandomTitanSuperweaponLoadout,
+  resolveTitanSuperweaponProfileByModuleTypeID,
 } = require("./superweaponCatalog");
+const {
+  registerSuperTitanShowController,
+} = require("../../space/modules/superweapons/superweaponRuntime");
 
-const CAPSULE_TYPE_ID = 670;
 const DEFAULT_HOME_STATION_ID = 60003760;
 const SUPERTITAN_SHOW_DEFAULT_COUNT = 5;
 const SUPERTITAN_SHOW_ENTITY_ID_START = 3950000000000000;
-const SUPERTITAN_SHOW_FLEET_OFFSET_METERS = 120_000;
-const SUPERTITAN_SHOW_MIDPOINT_DISTANCE_METERS = 240_000;
+const SUPERTITAN_SHOW_FLEET_OFFSET_METERS = 40_000;
+const SUPERTITAN_SHOW_MIDPOINT_DISTANCE_METERS = 160_000;
 const SUPERTITAN_SHOW_LATERAL_SPACING_METERS = 25_000;
 const SUPERTITAN_SHOW_ROW_SPACING_METERS = 22_500;
 const SUPERTITAN_SHOW_APPROACH_SPEED_FRACTION = 0.3;
 const SUPERTITAN_SHOW_TARGET_DELAY_MS = 4_000;
-const SUPERTITAN_SHOW_FX_DURATION_MS = 12_000;
-const SUPERTITAN_BOARD_OFFSET_METERS = 1_000;
+const SUPERTITAN_SHOW_REFIRE_MS = 30_000;
 const SUPERTITAN_SHOW_SPAWN_BATCH_SIZE = 4;
 
 let nextSuperTitanShowEntityID = SUPERTITAN_SHOW_ENTITY_ID_START;
@@ -48,6 +51,11 @@ function toInt(value, fallback = 0) {
 function normalizePositiveInteger(value, fallback = null) {
   const numeric = toInt(value, 0);
   return numeric > 0 ? numeric : fallback;
+}
+
+function normalizeNonNegativeInteger(value, fallback = null) {
+  const numeric = toInt(value, Number.NaN);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
 }
 
 function addVectors(left, right) {
@@ -207,10 +215,26 @@ function fitModuleTypeToShip(characterID, stationID, shipItem, moduleType) {
   );
 }
 
-function computeMaxFuelUnitsForCargo(loadout) {
-  const cargoCapacity = Math.max(0, Number(loadout && loadout.hullType && loadout.hullType.capacity) || 0);
-  const fuelVolume = Math.max(0, Number(loadout && loadout.fuelType && loadout.fuelType.volume) || 0);
-  const minimumFuelUnits = Math.max(1, Number(loadout && loadout.fuelPerActivation) || 1);
+function computeMaxFuelUnitsForCargo(loadoutOrProfile) {
+  const cargoCapacity = Math.max(
+    0,
+    Number(loadoutOrProfile && loadoutOrProfile.hullType && loadoutOrProfile.hullType.capacity) || 0,
+  );
+  const fuelVolume = Math.max(
+    0,
+    Number(loadoutOrProfile && loadoutOrProfile.fuelType && loadoutOrProfile.fuelType.volume) || 0,
+  );
+  const minimumFuelUnits = Math.max(
+    1,
+    Number(loadoutOrProfile && loadoutOrProfile.fuelPerActivation) ||
+      Number(
+        Math.max(
+          Number(loadoutOrProfile && loadoutOrProfile.doomsdayFuelPerActivation) || 0,
+          Number(loadoutOrProfile && loadoutOrProfile.lanceFuelPerActivation) || 0,
+        ),
+      ) ||
+      1,
+  );
   if (cargoCapacity <= 0 || fuelVolume <= 0) {
     return minimumFuelUnits;
   }
@@ -219,25 +243,6 @@ function computeMaxFuelUnitsForCargo(loadout) {
     minimumFuelUnits,
     Math.floor(cargoCapacity / fuelVolume),
   );
-}
-
-function buildStoppedSpawnStateNearEntity(entity, offsetMeters = SUPERTITAN_BOARD_OFFSET_METERS) {
-  const direction = normalizeVector(
-    entity && entity.direction,
-    { x: 1, y: 0, z: 0 },
-  );
-  const position = addVectors(
-    entity && entity.position,
-    scaleVector(direction, Math.max(100, Number(offsetMeters) || SUPERTITAN_BOARD_OFFSET_METERS)),
-  );
-  return {
-    position,
-    velocity: { x: 0, y: 0, z: 0 },
-    direction,
-    targetPoint: position,
-    mode: "STOP",
-    speedFraction: 0,
-  };
 }
 
 function seedSuperTitanShip(characterID, stationID, loadout) {
@@ -332,6 +337,93 @@ function allocateSuperTitanShowEntityID() {
   return allocated;
 }
 
+function allocateSyntheticRuntimeItemID(entityID, slotIndex) {
+  return (Number(entityID) * 10) + Number(slotIndex || 0);
+}
+
+function buildSyntheticOnlineModuleItem(entityID, moduleType, flagID, slotIndex) {
+  return {
+    itemID: allocateSyntheticRuntimeItemID(entityID, slotIndex),
+    locationID: entityID,
+    ownerID: 0,
+    typeID: Number(moduleType && moduleType.typeID) || 0,
+    groupID: Number(moduleType && moduleType.groupID) || 0,
+    categoryID: Number(moduleType && moduleType.categoryID) || 7,
+    itemName: String(moduleType && moduleType.name || "Module"),
+    flagID,
+    singleton: 1,
+    stacksize: 1,
+    quantity: 1,
+    moduleState: {
+      online: true,
+      damage: 0,
+      charge: 0,
+      skillPoints: 0,
+      armorDamage: 0,
+      shieldCharge: 0,
+      incapacitated: false,
+    },
+  };
+}
+
+function buildSyntheticFuelCargoItem(entityID, loadout, quantity) {
+  return {
+    itemID: allocateSyntheticRuntimeItemID(entityID, 90),
+    cargoID: allocateSyntheticRuntimeItemID(entityID, 90),
+    locationID: entityID,
+    ownerID: 0,
+    typeID: Number(loadout && loadout.fuelType && loadout.fuelType.typeID) || 0,
+    groupID: Number(loadout && loadout.fuelType && loadout.fuelType.groupID) || 0,
+    categoryID: Number(loadout && loadout.fuelType && loadout.fuelType.categoryID) || 8,
+    itemName: String(loadout && loadout.fuelType && loadout.fuelType.name || "Fuel"),
+    quantity,
+    stacksize: quantity,
+    singleton: 0,
+  };
+}
+
+function buildSyntheticShowTitanShipSpec(ownerSession, loadout, formationSlot, midpoint, entityID) {
+  const modules = [
+    buildSyntheticOnlineModuleItem(entityID, loadout.moduleType, 27, 1),
+  ];
+  const fuelQuantity = computeMaxFuelUnitsForCargo(loadout);
+  return {
+    itemID: entityID,
+    typeID: loadout.hullType.typeID,
+    groupID: loadout.hullType.groupID,
+    categoryID: loadout.hullType.categoryID || 6,
+    itemName: `${loadout.hullType.name}`,
+    ownerID: Number(ownerSession && ownerSession.characterID || 0) || 0,
+    pilotCharacterID: 0,
+    characterID: 0,
+    corporationID: Number(ownerSession && ownerSession.corporationID || 0) || 0,
+    allianceID: Number(ownerSession && ownerSession.allianceID || 0) || 0,
+    warFactionID: Number(ownerSession && ownerSession.warFactionID || 0) || 0,
+    nativeNpc: true,
+    transient: true,
+    fittedItems: modules,
+    nativeCargoItems: [buildSyntheticFuelCargoItem(entityID, loadout, fuelQuantity)],
+    skillMap:
+      ownerSession && ownerSession.characterID
+        ? getCharacterSkillMap(ownerSession.characterID)
+        : new Map(),
+    position: formationSlot.position,
+    velocity: { x: 0, y: 0, z: 0 },
+    direction: formationSlot.direction,
+    targetPoint: midpoint,
+    mode: "GOTO",
+    speedFraction: SUPERTITAN_SHOW_APPROACH_SPEED_FRACTION,
+    conditionState: {
+      damage: 0,
+      charge: 1,
+      armorDamage: 0,
+      shieldCharge: 1,
+      incapacitated: false,
+    },
+    superweaponCycleOverrideMs: SUPERTITAN_SHOW_REFIRE_MS,
+  };
+}
+
 function buildFleetSlots(count) {
   const normalizedCount = Math.max(1, normalizePositiveInteger(count, SUPERTITAN_SHOW_DEFAULT_COUNT));
   const columns = Math.max(1, Math.ceil(Math.sqrt(normalizedCount)));
@@ -417,33 +509,18 @@ function spawnShowFleetWave(
     }
 
     const slot = formation[index];
-    const shipType = loadout.hullType;
+    const entityID = allocateSuperTitanShowEntityID();
     const spawnResult = spaceRuntime.spawnDynamicShip(
       scene.systemID,
       {
-        itemID: allocateSuperTitanShowEntityID(),
-        typeID: shipType.typeID,
-        groupID: shipType.groupID,
-        categoryID: shipType.categoryID || 6,
-        itemName: `${shipType.name} ${fleetLabel}${index + 1}`,
-        ownerID: Number(ownerSession && ownerSession.characterID || 0) || 0,
-        characterID: 0,
-        corporationID: Number(ownerSession && ownerSession.corporationID || 0) || 0,
-        allianceID: Number(ownerSession && ownerSession.allianceID || 0) || 0,
-        warFactionID: Number(ownerSession && ownerSession.warFactionID || 0) || 0,
-        position: slot.position,
-        velocity: { x: 0, y: 0, z: 0 },
-        direction: slot.direction,
-        targetPoint: midpoint,
-        mode: "GOTO",
-        speedFraction: SUPERTITAN_SHOW_APPROACH_SPEED_FRACTION,
-        conditionState: {
-          damage: 0,
-          charge: 1,
-          armorDamage: 0,
-          shieldCharge: 1,
-          incapacitated: false,
-        },
+        ...buildSyntheticShowTitanShipSpec(
+          ownerSession,
+          loadout,
+          slot,
+          midpoint,
+          entityID,
+        ),
+        itemName: `${loadout.hullType.name} ${fleetLabel}${index + 1}`,
       },
       {
         // Giant synthetic show/test formations are especially prone to
@@ -551,116 +628,19 @@ function schedule(callback, delayMs, scheduleFn) {
   return run(callback, Math.max(0, toInt(delayMs, 0)));
 }
 
-function defaultRandomTarget(list, random) {
-  if (!Array.isArray(list) || list.length === 0) {
-    return null;
-  }
-  const boundedRandom = Math.min(0.999999, Math.max(0, Number(random()) || 0));
-  return list[Math.floor(boundedRandom * list.length)] || list[0];
-}
-
-function scheduleTitanShowVolley(session, scene, fleetA, fleetB, config) {
-  const scheduler = config.scheduleFn;
-  const random = typeof config.random === "function" ? config.random : Math.random;
-  const showState = {
-    sourceFleetA: fleetA,
-    sourceFleetB: fleetB,
-    systemID: scene.systemID,
-  };
-
-  schedule(() => {
-    if (!session || !session._space || Number(session._space.systemID || 0) !== Number(showState.systemID)) {
-      return;
-    }
-
-    const allSources = [
-      ...showState.sourceFleetA.map((entry) => ({
-        source: entry,
-        targets: showState.sourceFleetB,
-      })),
-      ...showState.sourceFleetB.map((entry) => ({
-        source: entry,
-        targets: showState.sourceFleetA,
-      })),
-    ];
-    const nowMs =
-      typeof scene.getCurrentSimTimeMs === "function"
-        ? scene.getCurrentSimTimeMs()
-        : Date.now();
-
-    for (const entry of allSources) {
-      const sourceEntity = entry.source && entry.source.entity;
-      const targetEntry = defaultRandomTarget(entry.targets, random);
-      const targetEntity = targetEntry && targetEntry.entity;
-      const loadout = entry.source && entry.source.loadout;
-      if (!sourceEntity || !targetEntity || !loadout || !loadout.fxGuid) {
-        continue;
-      }
-      if (!scene.getEntityByID(sourceEntity.itemID) || !scene.getEntityByID(targetEntity.itemID)) {
-        continue;
-      }
-
-      if (typeof scene.finalizeTargetLock === "function") {
-        scene.finalizeTargetLock(sourceEntity, targetEntity, { nowMs });
-      }
-      sourceEntity.mode = "FOLLOW";
-      sourceEntity.targetEntityID = targetEntity.itemID;
-      sourceEntity.followRange = 45_000;
-      sourceEntity.targetPoint = targetEntity.position;
-      sourceEntity.direction = normalizeVector(
-        subtractVectors(targetEntity.position, sourceEntity.position),
-        sourceEntity.direction,
-      );
-
-      scene.broadcastSpecialFx(
-        sourceEntity.itemID,
-        loadout.fxGuid,
-        {
-          targetID: targetEntity.itemID,
-          start: true,
-          duration: SUPERTITAN_SHOW_FX_DURATION_MS,
-          moduleTypeID: loadout.moduleType.typeID,
-          isOffensive: true,
-          useCurrentVisibleStamp: true,
-          resultSession: session,
-        },
-        sourceEntity,
-      );
-
-      schedule(() => {
-        if (!scene.getEntityByID(sourceEntity.itemID)) {
-          return;
-        }
-        scene.broadcastSpecialFx(
-          sourceEntity.itemID,
-          loadout.fxGuid,
-          {
-            targetID: targetEntity.itemID,
-            start: false,
-            active: false,
-            moduleTypeID: loadout.moduleType.typeID,
-            isOffensive: true,
-            useCurrentVisibleStamp: true,
-            resultSession: session,
-          },
-          sourceEntity,
-        );
-      }, config.fxDurationMs, scheduler);
-    }
-  }, config.volleyStartDelayMs, scheduler);
-}
-
 function buildSuperTitanShowConfig(scene, options = {}) {
   const testing = options && options.superTitanTestConfig || {};
   const tickIntervalMs = resolveSceneTickIntervalMs(scene);
   return {
     random: typeof testing.random === "function" ? testing.random : Math.random,
     scheduleFn: typeof testing.scheduleFn === "function" ? testing.scheduleFn : setTimeout,
-    targetDelayMs: normalizePositiveInteger(testing.targetDelayMs, SUPERTITAN_SHOW_TARGET_DELAY_MS),
-    fxDurationMs: normalizePositiveInteger(testing.fxDurationMs, SUPERTITAN_SHOW_FX_DURATION_MS),
+    targetDelayMs: normalizeNonNegativeInteger(
+      testing.targetDelayMs,
+      SUPERTITAN_SHOW_TARGET_DELAY_MS,
+    ),
+    refireMs: normalizePositiveInteger(testing.refireMs, SUPERTITAN_SHOW_REFIRE_MS),
     spawnBatchSize: normalizePositiveInteger(testing.spawnBatchSize, SUPERTITAN_SHOW_SPAWN_BATCH_SIZE),
     spawnWaveIntervalMs: normalizePositiveInteger(testing.spawnWaveIntervalMs, tickIntervalMs),
-    volleyStartDelayMs: normalizePositiveInteger(testing.volleyStartDelayMs, 0),
     pickLoadout: typeof testing.pickLoadout === "function" ? testing.pickLoadout : null,
   };
 }
@@ -682,11 +662,12 @@ function handleSuperTitanCommand(session, argumentText, options = {}) {
   const testing = options && options.superTitanTestConfig || {};
   const loadout = pickRandomTitanSuperweaponLoadout({
     random: typeof testing.random === "function" ? testing.random : Math.random,
+    requireFxGuid: true,
   });
   if (!loadout) {
     return {
       success: false,
-      message: "No directed titan superweapon loadouts could be resolved from local SDE data.",
+      message: "No titan superweapon loadouts could be resolved from local SDE data.",
     };
   }
 
@@ -711,66 +692,33 @@ function handleSuperTitanCommand(session, argumentText, options = {}) {
     };
   }
 
-  if (Number(activeShip.typeID) !== CAPSULE_TYPE_ID) {
-    const ejectResult = ejectSession(session);
-    if (!ejectResult.success) {
-      return {
-        success: false,
-        message: `SuperTitan eject failed: ${ejectResult.errorMsg || "EJECT_FAILED"}.`,
-      };
-    }
-  }
-
-  const capsuleEntity = spaceRuntime.getEntity(session, session._space.shipID);
-  if (!capsuleEntity) {
-    return {
-      success: false,
-      message: "Capsule entity not found after eject.",
-    };
-  }
-
-  const titanSpawnState = buildStoppedSpawnStateNearEntity(capsuleEntity);
-  const moveResult = moveShipToSpace(
-    seededResult.data.shipItem.itemID,
-    session._space.systemID,
-    {
-      ...titanSpawnState,
-      systemID: session._space.systemID,
-    },
+  const spaceBoardResult = boardPreparedShipInSpace(
+    session,
+    seededResult.data.shipItem,
   );
-  if (!moveResult.success) {
+  if (!spaceBoardResult.success) {
     return {
       success: false,
-      message: `Titan launch to space failed: ${moveResult.errorMsg || "MOVE_FAILED"}.`,
+      message: `Titan space swap failed: ${spaceBoardResult.errorMsg || "SPACE_SWAP_FAILED"}.`,
     };
   }
 
-  const spawnResult = spaceRuntime.spawnDynamicInventoryEntity(
-    session._space.systemID,
-    seededResult.data.shipItem.itemID,
-  );
-  if (!spawnResult.success || !spawnResult.data || !spawnResult.data.entity) {
-    return {
-      success: false,
-      message: `Titan runtime spawn failed: ${spawnResult.errorMsg || "SPAWN_FAILED"}.`,
-    };
-  }
-
-  const boardResult = boardSpaceShip(session, seededResult.data.shipItem.itemID);
-  if (!boardResult.success) {
-    return {
-      success: false,
-      message: `Titan boarding failed: ${boardResult.errorMsg || "BOARD_FAILED"}.`,
-    };
-  }
+  const destroyedShipID = Number(
+    spaceBoardResult &&
+    spaceBoardResult.data &&
+    spaceBoardResult.data.destroyResult &&
+    spaceBoardResult.data.destroyResult.destroyedShipID,
+  ) || 0;
+  const actionText = destroyedShipID > 0
+    ? `Destroyed ship ${destroyedShipID} and boarded`
+    : "Boarded";
 
   return {
     success: true,
     message: [
-      `Ejected and boarded a ${loadout.hullType.name}.`,
+      `${actionText} a new ${loadout.hullType.name} in space as ship ${seededResult.data.shipItem.itemID}.`,
       `Fitted 1x ${loadout.moduleType.name}.`,
       `Loaded ${Number(seededResult.data.cargoFuelUnits || 0).toLocaleString("en-US")} ${loadout.fuelType.name} into cargo (${Number(loadout.fuelPerActivation || 0).toLocaleString("en-US")} per activation).`,
-      "Your abandoned ship remains in space like a normal eject.",
     ].join(" "),
   };
 }
@@ -811,6 +759,7 @@ function handleSuperTitanShowCommand(session, argumentText, options = {}) {
 
   const perFleetCount = requestedCount || SUPERTITAN_SHOW_DEFAULT_COUNT;
   const config = buildSuperTitanShowConfig(scene, options);
+  const random = config.random;
   const basis = buildFormationBasis(anchorEntity.direction);
   const midpoint = addVectors(
     anchorEntity.position,
@@ -834,7 +783,7 @@ function handleSuperTitanShowCommand(session, argumentText, options = {}) {
     scaleVector(basis.forward, -1),
     perFleetCount,
   );
-  const spawnPlan = scheduleShowFleetSpawns(
+  const stagedShow = scheduleShowFleetSpawns(
     scene,
     session,
     formationA,
@@ -842,28 +791,76 @@ function handleSuperTitanShowCommand(session, argumentText, options = {}) {
     midpoint,
     config,
   );
-  const fleetA = spawnPlan.fleetA;
-  const fleetB = spawnPlan.fleetB;
-  config.volleyStartDelayMs = Math.max(
-    config.volleyStartDelayMs,
-    spawnPlan.spawnCompletionDelayMs + config.targetDelayMs,
-  );
 
-  if (fleetA.length === 0 && fleetB.length === 0) {
+  if (
+    (!Array.isArray(stagedShow.fleetA) || stagedShow.fleetA.length === 0) &&
+    (!Array.isArray(stagedShow.fleetB) || stagedShow.fleetB.length === 0)
+  ) {
     return {
       success: false,
       message: "SuperTitan show spawn failed.",
     };
   }
 
-  scheduleTitanShowVolley(session, scene, fleetA, fleetB, config);
+  const firstVolleyDelayMs =
+    stagedShow.spawnCompletionDelayMs + config.targetDelayMs;
+
+  schedule(() => {
+    const controllerFleetA = stagedShow.fleetA
+      .map((entry) => {
+        const moduleTypeID = Number(
+          entry &&
+          entry.loadout &&
+          entry.loadout.moduleType &&
+          entry.loadout.moduleType.typeID,
+        ) || 0;
+        const profile = resolveTitanSuperweaponProfileByModuleTypeID(moduleTypeID);
+        if (!entry || !entry.entity || !profile) {
+          return null;
+        }
+        return {
+          entityID: Number(entry.entity.itemID),
+          profile,
+          nextFamily: entry.loadout && entry.loadout.family,
+        };
+      })
+      .filter(Boolean);
+    const controllerFleetB = stagedShow.fleetB
+      .map((entry) => {
+        const moduleTypeID = Number(
+          entry &&
+          entry.loadout &&
+          entry.loadout.moduleType &&
+          entry.loadout.moduleType.typeID,
+        ) || 0;
+        const profile = resolveTitanSuperweaponProfileByModuleTypeID(moduleTypeID);
+        if (!entry || !entry.entity || !profile) {
+          return null;
+        }
+        return {
+          entityID: Number(entry.entity.itemID),
+          profile,
+          nextFamily: entry.loadout && entry.loadout.family,
+        };
+      })
+      .filter(Boolean);
+    registerSuperTitanShowController(scene, {
+      fleetA: controllerFleetA,
+      fleetB: controllerFleetB,
+      random,
+      initialDelayMs: config.targetDelayMs,
+      refireMs: config.refireMs,
+    });
+  }, stagedShow.spawnCompletionDelayMs, config.scheduleFn);
+
   return {
     success: true,
     message: [
-      `Spawned ${fleetA.length} + ${fleetB.length} transient titan dummies.`,
-      `Staged across ${spawnPlan.waveCount} wave${spawnPlan.waveCount === 1 ? "" : "s"} to avoid same-tick AddBalls bursts.`,
-      `Each fleet is centered about ${(SUPERTITAN_SHOW_FLEET_OFFSET_METERS / 1000).toFixed(0)} km from the midpoint and starts moving toward the other fleet.`,
-      "The show currently uses the directed doomsday and titan-lance FX families only, because those are the superweapon visuals we can prove from the client mirror today.",
+      `Spawned ${perFleetCount} + ${perFleetCount} transient titan battle groups.`,
+      "The fleets start 40 km either side of the midpoint so both formations have clean spacing.",
+      `Staged across ${stagedShow.waveCount} waves so the client can acquire the fleets cleanly.`,
+      `The first real volley begins after ${(firstVolleyDelayMs / 1000).toFixed(0)} seconds, then the fleets continue re-firing every ${(config.refireMs / 1000).toFixed(0)} seconds.`,
+      `Each hull is fitted with one real racial superweapon, chosen as either a doomsday or a lance, with isotope cargo for repeated firings.`,
     ].join(" "),
   };
 }

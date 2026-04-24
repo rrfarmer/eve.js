@@ -1,10 +1,5 @@
 const path = require("path");
 
-const {
-  getCharacterRecord,
-  updateCharacterRecord,
-} = require(path.join(__dirname, "../character/characterState"));
-
 const FILETIME_EPOCH_OFFSET = 116444736000000000n;
 const MAX_PLEX_TRANSACTION_ENTRIES = 2000;
 
@@ -19,6 +14,24 @@ const PLEX_LOG_CATEGORY = Object.freeze({
   CCP: 1021282,
   UNCATEGORIZED: 1022601,
 });
+
+function getCharacterStateService() {
+  return require(path.join(__dirname, "../character/characterState"));
+}
+
+function getCharacterRecord(characterID) {
+  const characterState = getCharacterStateService();
+  return characterState && typeof characterState.getCharacterRecord === "function"
+    ? characterState.getCharacterRecord(characterID)
+    : null;
+}
+
+function updateCharacterRecord(characterID, updater) {
+  const characterState = getCharacterStateService();
+  return characterState && typeof characterState.updateCharacterRecord === "function"
+    ? characterState.updateCharacterRecord(characterID, updater)
+    : { success: false, errorMsg: "CHARACTER_STATE_UNAVAILABLE" };
+}
 
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));

@@ -1,6 +1,10 @@
 const path = require("path");
 
 const worldData = require(path.join(__dirname, "../../space/worldData"));
+const {
+  escapeRegExp,
+  getXmppConferenceDomain,
+} = require("./xmppConfig");
 
 const LOCAL_CHAT_CATEGORY_LOCAL = "local";
 const LOCAL_CHAT_CATEGORY_WORMHOLE = "wormhole";
@@ -14,8 +18,12 @@ const WORMHOLE_SYSTEM_MAX = 31999999;
 const SOLAR_SYSTEM_ZARZAKH = 30100000;
 const FACTION_TRIGLAVIAN = 500026;
 
-const LOCAL_CHAT_ROOM_NAME_PATTERN =
-  /^(local|wormhole|triglavian|nullsec|nolocal)_(\d+)(?:@conference\.localhost)?$/i;
+function getLocalChatRoomNamePattern() {
+  return new RegExp(
+    `^(local|wormhole|triglavian|nullsec|nolocal)_(\\d+)(?:@${escapeRegExp(getXmppConferenceDomain())})?$`,
+    "i",
+  );
+}
 
 function normalizePositiveInt(value, fallback = 0) {
   const numericValue = Number(value);
@@ -143,7 +151,7 @@ function parseLocalChatRoomName(value) {
     .trim()
     .split("/")[0]
     .toLowerCase();
-  const match = LOCAL_CHAT_ROOM_NAME_PATTERN.exec(candidate);
+  const match = getLocalChatRoomNamePattern().exec(candidate);
   if (!match) {
     return null;
   }

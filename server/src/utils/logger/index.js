@@ -7,15 +7,42 @@ const LOG_DIR = path.join(__dirname, "../../../logs");
 const SERVER_LOG_PATH = path.join(LOG_DIR, "server.log");
 const DIVIDER =
   "================================================================";
+let serverLogStream = null;
+let serverLogStreamErrored = false;
 
-function appendServerLog(level, message) {
+function ensureServerLogStream() {
+  if (serverLogStream || serverLogStreamErrored) {
+    return serverLogStream;
+  }
+
   try {
     fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(
-      SERVER_LOG_PATH,
-      `[${new Date().toISOString()}] [${level}] ${message}\n`,
-      "utf8",
-    );
+    serverLogStream = fs.createWriteStream(SERVER_LOG_PATH, {
+      flags: "a",
+      encoding: "utf8",
+    });
+    serverLogStream.on("error", (error) => {
+      serverLogStreamErrored = true;
+      console.error(pc.red(`[ERR]: failed to write server log: ${error.message}`));
+    });
+  } catch (error) {
+    serverLogStreamErrored = true;
+    console.error(pc.red(`[ERR]: failed to open server log: ${error.message}`));
+  }
+
+  return serverLogStream;
+}
+
+function appendServerLog(level, message) {
+  const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
+  try {
+    const stream = ensureServerLogStream();
+    if (stream && !serverLogStreamErrored) {
+      stream.write(line);
+      return;
+    }
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.appendFileSync(SERVER_LOG_PATH, line, "utf8");
   } catch (error) {
     console.error(pc.red(`[ERR]: failed to write server log: ${error.message}`));
   }
@@ -32,6 +59,10 @@ function getLogLevel() {
 
 function isVerboseDebugEnabled() {
   return getLogLevel() >= 2;
+}
+
+function isPacketPayloadDebugEnabled() {
+  return isVerboseDebugEnabled() && Boolean(config.logPacketPayloadDetails);
 }
 
 function formatClock(date = new Date()) {
@@ -264,7 +295,63 @@ function startupSection(title, rows = [], options = {}) {
   line();
 }
 
+function criticalAlert(title, rows = [], options = {}) {
+  flushStack();
+  const timestamp = new Date();
+  const isoStamp = timestamp.toISOString();
+  const alertTitle = String(title || "CRITICAL ALERT").trim() || "CRITICAL ALERT";
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  const border = "!".repeat(78);
+  const header = `[CRITICAL] ${alertTitle}`;
+  const subtitle = String(options.subtitle || "").trim();
+
+  appendServerLog(
+    "CRT",
+    `${header}${subtitle ? ` | ${subtitle}` : ""} | ${normalizedRows
+      .map((row) => {
+        if (!row) {
+          return "";
+        }
+        return `${String(row.label || "").trim()}: ${String(row.value || "").trim()}`;
+      })
+      .filter(Boolean)
+      .join(" | ")}`,
+  );
+
+  console.error("");
+  console.error(pc.bgRed(pc.white(border)));
+  console.error(pc.bgRed(pc.white(`!!! ${header}`.padEnd(border.length - 3, " ") + "!!!")));
+  if (subtitle) {
+    console.error(
+      pc.bgRed(pc.white(`!!! ${subtitle}`.padEnd(border.length - 3, " ") + "!!!")),
+    );
+  }
+  console.error(
+    pc.bgRed(pc.white(`!!! UTC ${isoStamp}`.padEnd(border.length - 3, " ") + "!!!")),
+  );
+  console.error(pc.bgRed(pc.white(border)));
+  for (const row of normalizedRows) {
+    if (!row) {
+      continue;
+    }
+    const label = String(row.label || "").trim();
+    const value = String(row.value || "").trim();
+    if (!label && !value) {
+      continue;
+    }
+    const renderedLabel = label ? pc.bold(label.padEnd(12, " ")) : pc.bold("DETAIL".padEnd(12, " "));
+    console.error(
+      `${pc.red("!")} ${pc.red(renderedLabel)} ${pc.yellow(value || "-")}`,
+    );
+  }
+  console.error(pc.bgRed(pc.white(border)));
+  console.error("");
+}
+
 function info(c) {
+  if (getLogLevel() < 1) {
+    return;
+  }
   appendServerLog("LOG", c);
   renderLine("INFO", c, (label) => pc.bgBlue(pc.white(` ${label} `)));
 }
@@ -287,29 +374,58 @@ function err(c) {
 }
 
 function success(c) {
+  if (getLogLevel() < 1) {
+    return;
+  }
   appendServerLog("SUC", c);
   renderLine("OK", c, (label) => pc.bgGreen(pc.black(` ${label} `)));
 }
 
 function logAsciiLogo() {
-  appendServerLog("LOG", "eve.js startup banner rendered");
+  appendServerLog("LOG", "EveJS Elysian startup banner rendered");
+  const eveJsLogo = [
+    "    ______               _______",
+    "   / ____/   _____      / / ___/",
+    "  / __/ | | / / _ \\__  / /\\__ \\",
+    " / /___ | |/ /  __/ /_/ /___/ /",
+    "/_____/ |___/\\___/\\____//____/ ",
+  ];
+  const elysianLogo = [
+    "    ________           _           ",
+    "   / ____/ /_  _______(_)___ _____ ",
+    "  / __/ / / / / / ___/ / __ `/ __ \\",
+    " / /___/ / /_/ (__  ) / /_/ / / / /",
+    "/_____/_/\\__, /____/_/\\__,_/_/ /_/ ",
+    "        /____/                     ",
+  ];
+  const renderWidth = DIVIDER.length - 2;
+  const renderBlock = (rows, color) => {
+    const blockWidth = rows.reduce((maxWidth, row) => Math.max(maxWidth, row.length), 0);
+    const leftPad = " ".repeat(Math.max(0, Math.floor((renderWidth - blockWidth) / 2)));
+    for (const row of rows) {
+      console.log(color(` ${leftPad}${row}`));
+    }
+  };
+  const caption = "EveJS Elysian  local cluster bootstrap";
+  const captionPad = " ".repeat(Math.max(0, Math.floor((renderWidth - caption.length) / 2)));
+
   line();
+  renderBlock(eveJsLogo, pc.cyan);
+  console.log("");
+  renderBlock(elysianLogo, pc.white);
+  console.log("");
   console.log(
-    `${pc.cyan("     mmmmmm m    m mmmmmm         \"         ")}
-${pc.cyan("     #      \"m  m\" #            mmm    mmm  ")}
-${pc.cyan("     #mmmmm  #  #  #mmmmm         #   #   \" ")}
-${pc.cyan("     #       \"mm\"  #        ##    #    \"\"\"m ")}
-${pc.cyan("     #mmmmm   ##   #mmmmm   ##    #   \"mmm\" ")}
-${pc.dim("                                  #         ")}
-${pc.dim("                                \"\"")}`,
-  );
-  console.log(
-    `${pc.bold(pc.white(" EVE.js Server "))}${pc.dim("  local cluster bootstrap")}`,
+    ` ${captionPad}${pc.bold(pc.white("EveJS Elysian"))}${pc.dim("  local cluster bootstrap")}`,
   );
   line();
 }
 
 process.once("exit", flushStack);
+process.once("beforeExit", () => {
+  if (serverLogStream && !serverLogStream.destroyed) {
+    serverLogStream.end();
+  }
+});
 
 module.exports = {
   info,
@@ -331,5 +447,7 @@ module.exports = {
   logAsciiLogo,
   flushStack,
   isVerboseDebugEnabled,
+  isPacketPayloadDebugEnabled,
+  criticalAlert,
   writeServerLog,
 };

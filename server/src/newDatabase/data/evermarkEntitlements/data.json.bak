@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "version": 1,
+    "description": "DB-backed EverMarks ship-logo entitlements.",
+    "updatedAt": null
+  },
+  "characters": {
+    "140000008": {
+      "shipLogosByKey": {
+        "1:24698": {
+          "characterID": 140000008,
+          "entitlementType": 1,
+          "cosmeticType": 1,
+          "shipTypeID": 24698,
+          "licenseID": 73591,
+          "fsdTypeID": 73591,
+          "grantedAtMs": 1774542920561,
+          "source": "admin_grant",
+          "offerID": null
+        },
+        "2:24698": {
+          "characterID": 140000008,
+          "entitlementType": 2,
+          "cosmeticType": 2,
+          "shipTypeID": 24698,
+          "licenseID": 73670,
+          "fsdTypeID": 73670,
+          "grantedAtMs": 1774542920564,
+          "source": "admin_grant",
+          "offerID": null
+        }
+      }
+    }
+  }
+}

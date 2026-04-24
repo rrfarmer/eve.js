@@ -212,7 +212,7 @@ test("player-created channels survive a durable store reload", () => {
   assert.equal(backlog.some((entry) => entry.message === "Persists to disk."), true);
 });
 
-test("custom Eve JS static room is discoverable without polluting the verified CCP contract list", () => {
+test("custom EveJS Elysian static room is discoverable without polluting the verified CCP contract list", () => {
   const session = {
     characterID: 140000010,
     corporationID: 1000044,
@@ -230,8 +230,8 @@ test("custom Eve JS static room is discoverable without polluting the verified C
   assert.match(elysianRecord.roomName, /^player_\d+$/);
   assert.equal(elysianRecord.type, "player");
   assert.equal(elysianRecord.static, false);
-  assert.equal(elysianRecord.displayName, "Eve JS Elysian chat");
-  assert.match(elysianRecord.motd, /Welcome to Eve JS Elysian/);
+  assert.equal(elysianRecord.displayName, "EveJS Elysian chat");
+  assert.match(elysianRecord.motd, /Welcome to EveJS Elysian/);
   assert.equal(
     elysianRecord.metadata.joinLink,
     "joinChannel:player_900001",

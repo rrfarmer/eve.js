@@ -4,6 +4,10 @@ const { getCharacterRecord } = require(path.join(
   __dirname,
   "../character/characterState",
 ));
+const standingRuntime = require(path.join(
+  __dirname,
+  "../character/standingRuntime",
+));
 const { getCharacterSkillMap } = require(path.join(
   __dirname,
   "../skills/skillState",
@@ -118,31 +122,6 @@ function getCharacterMarketSkillLevels(characterID) {
   };
 }
 
-function getStandingValue(characterID, targetOwnerID) {
-  const numericCharacterID = normalizePositiveInteger(characterID, 0);
-  const numericTargetOwnerID = normalizePositiveInteger(targetOwnerID, 0);
-  if (!numericCharacterID || !numericTargetOwnerID) {
-    return 0;
-  }
-
-  const characterRecord = getCharacterRecord(numericCharacterID) || {};
-  const standingData =
-    characterRecord.standingData && typeof characterRecord.standingData === "object"
-      ? characterRecord.standingData
-      : {};
-  const sourceRows = [
-    ...(Array.isArray(standingData.char) ? standingData.char : []),
-    ...(Array.isArray(standingData.npc) ? standingData.npc : []),
-  ];
-
-  const exactRow = sourceRows.find(
-    (entry) =>
-      normalizePositiveInteger(entry && entry.fromID, 0) === numericCharacterID &&
-      normalizePositiveInteger(entry && entry.toID, 0) === numericTargetOwnerID,
-  );
-  return Number(exactRow && exactRow.standing) || 0;
-}
-
 function getLocationDiscount(warFactionID, solarSystemID) {
   const numericSolarSystemID = normalizePositiveInteger(solarSystemID, 0);
   if (numericSolarSystemID !== ZARZAKH_SOLAR_SYSTEM_ID) {
@@ -165,10 +144,10 @@ function getMarketContext({ characterID, stationID, session } = {}) {
   const stationOwnerID = normalizePositiveInteger(station && station.ownerID, 0);
   const stationFactionID = normalizePositiveInteger(station && station.factionID, 0);
   const factionStanding = isStation
-    ? getStandingValue(numericCharacterID, stationFactionID)
+    ? standingRuntime.getCharacterRawStanding(numericCharacterID, stationFactionID)
     : 0;
   const corpStanding = isStation
-    ? getStandingValue(numericCharacterID, stationOwnerID)
+    ? standingRuntime.getCharacterRawStanding(numericCharacterID, stationOwnerID)
     : 0;
   const modificationFeeDiscount = 0.5 + 0.06 * skills.margin;
 

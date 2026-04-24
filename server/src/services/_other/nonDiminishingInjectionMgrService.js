@@ -1,8 +1,9 @@
-const path = require("path"); // required for db implementation
-const fs = require("fs"); // required for db implementation
+const path = require("path");
 
 const BaseService = require(path.join(__dirname, "../baseService"));
-const log = require(path.join(__dirname, "../../utils/logger"));
+const {
+  getAvailableNonDiminishingInjectionsForSession,
+} = require(path.join(__dirname, "../skills/trading/skillTradingRuntime"));
 
 class nonDiminishingInjectionMgrService extends BaseService {
   constructor() {
@@ -10,9 +11,7 @@ class nonDiminishingInjectionMgrService extends BaseService {
   }
 
   Handle_GetAvailableNonDiminishingInjections(args, session) {
-    // not sure what this is for...
-    // return empty tuple for now
-    return [];
+    return getAvailableNonDiminishingInjectionsForSession(session);
   }
 }
 

@@ -27,6 +27,38 @@ function extractChangeKeys(payload) {
     .sort((left, right) => left - right);
 }
 
+function extractRowDescriptorColumns(payload) {
+  const row = Array.isArray(payload) ? payload[0] : null;
+  return row &&
+    row.header &&
+    Array.isArray(row.header.header) &&
+    Array.isArray(row.header.header[1]) &&
+    Array.isArray(row.header.header[1][0])
+    ? row.header.header[1][0].map((column) =>
+      Array.isArray(column) ? String(column[0]) : String(column),
+    )
+      : [];
+}
+
+function extractRowDescriptorColumnPairs(payload) {
+  const row = Array.isArray(payload) ? payload[0] : null;
+  return row &&
+    row.header &&
+    Array.isArray(row.header.header) &&
+    Array.isArray(row.header.header[1]) &&
+    Array.isArray(row.header.header[1][0])
+    ? row.header.header[1][0].map((column) => [
+      Array.isArray(column) ? String(column[0]) : String(column),
+      Array.isArray(column) ? Number(column[1]) : NaN,
+    ])
+    : [];
+}
+
+function extractRowFields(payload) {
+  const row = Array.isArray(payload) ? payload[0] : null;
+  return row && row.fields && typeof row.fields === "object" ? row.fields : {};
+}
+
 test("stackable inventory item changes prefer ixStackSize over ixQuantity", () => {
   const payload = buildItemChangePayload(
     {
@@ -117,4 +149,64 @@ test("inventory item changes marshal when locationID exceeds int32", () => {
     () => marshalEncode(payload),
     "Expected large wreck-backed location IDs to marshal in item change payloads",
   );
+});
+
+test("inventory item change rows keep CCP customInfo-stacksize-singleton order and normalize singleton drone fields", () => {
+  const payload = buildItemChangePayload(
+    {
+      itemID: 991003770,
+      typeID: 2203,
+      ownerID: 140000013,
+      locationID: 991003768,
+      flagID: 87,
+      quantity: null,
+      stacksize: null,
+      singleton: 1,
+      groupID: 100,
+      categoryID: 18,
+      customInfo: null,
+    },
+    {},
+  );
+
+  assert.deepEqual(
+    extractRowDescriptorColumns(payload),
+    [
+      "itemID",
+      "typeID",
+      "ownerID",
+      "locationID",
+      "flagID",
+      "quantity",
+      "groupID",
+      "categoryID",
+      "customInfo",
+      "stacksize",
+      "singleton",
+    ],
+    "Expected OnItemChange inventory rows to stay on the same customInfo-stacksize-singleton order as invbroker rows",
+  );
+  assert.deepEqual(
+    extractRowDescriptorColumnPairs(payload),
+    [
+      ["itemID", 20],
+      ["typeID", 3],
+      ["ownerID", 3],
+      ["locationID", 20],
+      ["flagID", 2],
+      ["quantity", 3],
+      ["groupID", 3],
+      ["categoryID", 3],
+      ["customInfo", 129],
+      ["stacksize", 3],
+      ["singleton", 2],
+    ],
+    "Expected normal OnItemChange inventory rows to keep concrete singleton/stacksize DB types",
+  );
+
+  const fields = extractRowFields(payload);
+  assert.equal(fields.customInfo, "");
+  assert.equal(fields.quantity, -1);
+  assert.equal(fields.stacksize, 1);
+  assert.equal(fields.singleton, 1);
 });

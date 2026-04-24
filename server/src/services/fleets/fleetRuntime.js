@@ -636,6 +636,44 @@ function notifySession(session, notificationName, payload, idType = "fleetid") {
   session.sendNotification(notificationName, idType, payload);
 }
 
+function resolveFleetInviteMessageName(msgName = null) {
+  const normalized = normalizeText(msgName, "");
+  if (normalized && normalized !== "FleetInvite") {
+    return normalized;
+  }
+  return "CustomQuestion";
+}
+
+function buildMarshalDict(entries = []) {
+  return {
+    type: "dict",
+    entries,
+  };
+}
+
+function buildFleetInviteNotification(inviterCharID, options = {}) {
+  const inviterRecord = resolveCharacterRecord(inviterCharID);
+  const inviterName = normalizeText(
+    inviterRecord.characterName,
+    inviterCharID > 0 ? `Character ${inviterCharID}` : "another pilot",
+  );
+  const messageName = resolveFleetInviteMessageName(options.msgName);
+  const autoAccept = Boolean(options.autoAccept);
+  const header = normalizeText(options.header, "Fleet Invitation");
+  const question = normalizeText(
+    options.question,
+    `${inviterName} has invited you to join their fleet.`,
+  );
+  return {
+    msgName: messageName,
+    msgDict: buildMarshalDict([
+      ["autoAccept", autoAccept],
+      ["header", header],
+      ["question", question],
+    ]),
+  };
+}
+
 function notifyMoveFailed(session, characterID, isKicked = false) {
   notifySession(session, "OnFleetMoveFailed", [
     toInteger(characterID, 0),
@@ -1305,14 +1343,13 @@ function inviteCharacter(session, fleetID, inviteeCharID, wingID, squadID, role,
 
   const inviteeSession = findSessionByCharacterID(normalizedInvitee);
   if (inviteeSession) {
+    const notification = buildFleetInviteNotification(inviterCharID, options);
     notifySession(inviteeSession, "OnFleetInvite", [
       fleet.fleetID,
       inviterCharID,
-      options.msgName || "FleetInvite",
-      {
-        autoAccept: Boolean(options.autoAccept),
-      },
-    ], "charid");
+      notification.msgName,
+      notification.msgDict,
+    ], "clientID");
   }
 
   return true;
@@ -2467,7 +2504,6 @@ function applyToJoinFleet(session, fleetID, autoAccept = false) {
     defaultPlacement.role,
     {
       autoAccept: true,
-      msgName: "FleetInvite",
     },
   );
   return false;

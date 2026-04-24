@@ -13,8 +13,8 @@ const {
   findItemById,
   getActiveShipItem,
   listContainerItems,
-  setShipPackagingState,
   setItemPackagingState,
+  setShipPackagingState,
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const {
   syncInventoryItemForSession,
@@ -104,6 +104,7 @@ function repackageItemsForSession(session, requests, sourceLabel = "RepackagingS
     }
 
     const isShip = normalizeNumber(item.categoryID, 0) === SHIP_CATEGORY_ID;
+    let updateResult;
 
     if (isShip) {
       if (
@@ -116,26 +117,13 @@ function repackageItemsForSession(session, requests, sourceLabel = "RepackagingS
         continue;
       }
 
-      const updateResult = setShipPackagingState(item.itemID, true);
+      updateResult = setShipPackagingState(item.itemID, true);
       if (!updateResult.success) {
         log.warn(
           `[${sourceLabel}] Failed to repackage ship ${item.itemID}: ${normalizeText(updateResult.errorMsg, "WRITE_ERROR")}`,
         );
         continue;
       }
-
-      syncInventoryItemForSession(
-        session,
-        updateResult.data,
-        {
-          locationID: updateResult.previousData.locationID,
-          flagID: updateResult.previousData.flagID,
-          quantity: updateResult.previousData.quantity,
-          singleton: updateResult.previousData.singleton,
-          stacksize: updateResult.previousData.stacksize,
-        },
-        { emitCfgLocation: false },
-      );
     } else {
       if (normalizeNumber(item.singleton, 0) !== 1) {
         log.warn(
@@ -144,27 +132,29 @@ function repackageItemsForSession(session, requests, sourceLabel = "RepackagingS
         continue;
       }
 
-      const updateResult = setItemPackagingState(item.itemID, true);
+      updateResult = setItemPackagingState(item.itemID, true);
       if (!updateResult.success) {
         log.warn(
           `[${sourceLabel}] Failed to repackage item ${item.itemID}: ${normalizeText(updateResult.errorMsg, "WRITE_ERROR")}`,
         );
         continue;
       }
-
-      syncInventoryItemForSession(
-        session,
-        updateResult.data,
-        {
-          locationID: updateResult.previousData.locationID,
-          flagID: updateResult.previousData.flagID,
-          quantity: updateResult.previousData.quantity,
-          singleton: updateResult.previousData.singleton,
-          stacksize: updateResult.previousData.stacksize,
-        },
-        { emitCfgLocation: false },
-      );
     }
+
+    syncInventoryItemForSession(
+      session,
+      updateResult.data,
+      {
+        locationID: updateResult.previousData.locationID,
+        flagID: updateResult.previousData.flagID,
+        quantity: updateResult.previousData.quantity,
+        singleton: updateResult.previousData.singleton,
+        stacksize: updateResult.previousData.stacksize,
+      },
+      {
+        emitCfgLocation: false,
+      },
+    );
   }
 }
 

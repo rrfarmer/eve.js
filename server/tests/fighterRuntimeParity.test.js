@@ -234,10 +234,34 @@ function clearShipBayItemsByType(characterID, shipID, flagID, typeID) {
   }
 }
 
+function primeTargetLock(sourceEntity, targetEntity, scene) {
+  const nowMs = scene.getCurrentSimTimeMs();
+  if (!(sourceEntity.lockedTargets instanceof Map)) {
+    sourceEntity.lockedTargets = new Map();
+  }
+  if (!(targetEntity.targetedBy instanceof Set)) {
+    targetEntity.targetedBy = new Set();
+  }
+  sourceEntity.lockedTargets.set(targetEntity.itemID, {
+    targetID: targetEntity.itemID,
+    lockedAtMs: nowMs,
+  });
+  targetEntity.targetedBy.add(sourceEntity.itemID);
+}
+
 function flushDeferredNotifications() {
   return new Promise((resolve) => {
     setImmediate(resolve);
   });
+}
+
+function advanceScene(scene, deltaMs) {
+  const baseWallclock = Math.max(
+    Number(scene.lastWallclockTickAt) || 0,
+    Number(scene.getCurrentWallclockMs()) || 0,
+    Number(scene.getCurrentSimTimeMs()) || 0,
+  );
+  scene.tick(baseWallclock + Math.max(0, Number(deltaMs) || 0));
 }
 
 function finishInitialBallpark(session) {
@@ -657,6 +681,127 @@ test("fighterMgr ability activation returns per-fighter error payloads for inval
   assert.ok(activationNotice, "Expected targeted fighter ability activation notification");
   assert.equal(Number(activationNotice.payload[0]), Number(fighterItem.itemID));
   assert.equal(Number(activationNotice.payload[1]), 0);
+});
+
+test("fighter ECM ability clears locks, restricts relocks to the jammer, and expires cleanly", { concurrency: false }, async () => {
+  snapshotItemsTable();
+  resetInventoryStoreForTests();
+  const candidates = getActiveShipCandidates();
+  assert.ok(candidates.length >= 2, "Expected at least two active ship candidates for fighter ECM parity");
+  const controllerCandidate = candidates[0];
+  const targetCandidate = candidates.find(
+    (entry) => Number(entry.characterID) !== Number(controllerCandidate.characterID),
+  );
+  assert.ok(targetCandidate, "Expected a second active ship candidate for fighter ECM parity");
+
+  const controllerSession = buildSession(controllerCandidate);
+  const targetSession = buildSession(targetCandidate);
+  applyCharacterToSession(controllerSession, controllerCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  applyCharacterToSession(targetSession, targetCandidate.characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  registerSession(controllerSession);
+  registerSession(targetSession);
+  promoteShip(controllerCandidate, "Thanatos");
+  const controllerEntity = attachSessionToScene(controllerSession, controllerCandidate.ship);
+  const targetEntity = attachSessionToScene(targetSession, targetCandidate.ship);
+  controllerEntity.position = { x: 1_000_000, y: 0, z: 0 };
+  controllerEntity.targetPoint = { ...controllerEntity.position };
+  controllerEntity.velocity = { x: 0, y: 0, z: 0 };
+  targetEntity.position = { x: 1_002_500, y: 0, z: 0 };
+  targetEntity.targetPoint = { ...targetEntity.position };
+  targetEntity.velocity = { x: 0, y: 0, z: 0 };
+  finishInitialBallpark(controllerSession);
+  finishInitialBallpark(targetSession);
+
+  const service = new FighterMgrService();
+  const fighterItem = grantTransientFighter(controllerCandidate, "Scarab I");
+  assert.equal(
+    service.Handle_LoadFightersToTube(
+      [fighterItem.itemID, ITEM_FLAGS.FIGHTER_TUBE_0],
+      controllerSession,
+      {},
+    ),
+    true,
+  );
+  service.Handle_LaunchFightersFromTubes([[ITEM_FLAGS.FIGHTER_TUBE_0]], controllerSession, {});
+
+  const scene = spaceRuntime.ensureScene(TEST_SYSTEM_ID);
+  scene.__jammerRandom = () => 0;
+  const fighterEntity = scene.getEntityByID(fighterItem.itemID);
+  assert.ok(fighterEntity, "Expected launched Scarab fighter entity for ECM parity");
+  primeTargetLock(targetEntity, controllerEntity, scene);
+
+  const ecmSlot = getFighterAbilitySlots(fighterItem.typeID).find(
+    (slot) => slot && String(slot.effectFamily) === "fighterAbilityECM",
+  );
+  assert.ok(ecmSlot, "Expected Scarab I to expose a targeted ECM ability slot");
+
+  controllerSession.notifications.length = 0;
+  targetSession.notifications.length = 0;
+  crimewatchState.setSafetyLevel(
+    controllerCandidate.characterID,
+    crimewatchState.SAFETY_LEVEL_NONE,
+  );
+  const activateResult = service.Handle_CmdActivateAbilitySlots(
+    [[fighterItem.itemID], ecmSlot.slotID, targetCandidate.ship.itemID],
+    controllerSession,
+    {},
+  );
+  assert.deepEqual(getDictEntries(activateResult), [[Number(fighterItem.itemID), null]]);
+  await flushDeferredNotifications();
+
+  let jamStarted = false;
+  for (let step = 0; step < 16; step += 1) {
+    advanceScene(scene, 1000);
+    if (findNotification(targetSession, "OnJamStart")) {
+      jamStarted = true;
+      break;
+    }
+  }
+
+  assert.equal(jamStarted, true, "Expected Scarab ECM to apply a live jam");
+  assert.ok(findNotification(targetSession, "OnJamStart"), "Expected target OnJamStart for fighter ECM");
+  assert.ok(findNotification(targetSession, "OnEwarStart"), "Expected target OnEwarStart for fighter ECM");
+  assert.equal(targetEntity.lockedTargets.size, 0, "Expected fighter ECM to clear the target's active locks");
+  assert.ok(
+    getSpecialFxEvents(controllerSession.notifications, (entry) => (
+      Number(entry.args[0]) === Number(fighterItem.itemID) &&
+      Number(entry.args[3]) === Number(targetCandidate.ship.itemID) &&
+      String(entry.args[5]) === "effects.ElectronicAttributeModifyTarget"
+    )).length > 0,
+    "Expected controller session to receive fighter ECM FX",
+  );
+
+  const blockedValidation = scene.validateTargetLockRequest(
+    targetSession,
+    targetEntity,
+    controllerEntity,
+  );
+  assert.equal(blockedValidation.success, false, "Expected fighter ECM to block relocking non-jammer targets");
+
+  const allowedValidation = scene.validateTargetLockRequest(
+    targetSession,
+    targetEntity,
+    fighterEntity,
+  );
+  assert.equal(allowedValidation.success, true, "Expected fighter ECM to allow locking the active jammer");
+
+  targetSession.notifications.length = 0;
+  advanceScene(scene, Number(ecmSlot.durationMs || 0) + 100);
+  assert.ok(findNotification(targetSession, "OnJamEnd"), "Expected fighter ECM jam expiry notification");
+  assert.ok(findNotification(targetSession, "OnEwarEnd"), "Expected fighter ECM tactical expiry notification");
+
+  const restoredValidation = scene.validateTargetLockRequest(
+    targetSession,
+    targetEntity,
+    controllerEntity,
+  );
+  assert.equal(restoredValidation.success, true, "Expected normal locking to return after fighter ECM expires");
 });
 
 test("fighter bomb abilities respect extracted empire-space restrictions in high security space", { concurrency: false }, () => {

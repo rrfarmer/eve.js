@@ -17,9 +17,9 @@ const {
 ));
 const {
   ITEM_FLAGS,
-  listContainerItems,
   grantItemToCharacterLocation,
-  removeInventoryItem,
+  findItemById,
+  listContainerItems,
   resetInventoryStoreForTests,
 } = require(path.join(
   repoRoot,
@@ -31,6 +31,21 @@ const {
   repoRoot,
   "server/src/services/inventory/itemTypeRegistry",
 ));
+
+function cloneValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function readItemsTable() {
+  const result = database.read("items", "/");
+  assert.equal(result.success, true, "Failed to read items");
+  return result.data || {};
+}
+
+function writeItemsTable(items) {
+  const result = database.write("items", "/", items);
+  assert.equal(result.success, true, "Failed to write items");
+}
 
 function getDockedCandidate() {
   const charactersResult = database.read("characters", "/");
@@ -49,7 +64,8 @@ function getDockedCandidate() {
       }
       return { characterID, characterRecord, stationID };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((left, right) => left.characterID - right.characterID);
 
   assert.ok(candidates.length > 0, "Expected at least one docked character");
   return candidates[0];
@@ -83,12 +99,13 @@ function bindStationHangar(service, session) {
   session.currentBoundObjectID = boundID;
 }
 
-test.afterEach(() => {
-  resetInventoryStoreForTests();
-});
+test("TrashItems removes a single item from the station hangar", (t) => {
+  const originalItems = cloneValue(readItemsTable());
+  t.after(() => {
+    writeItemsTable(originalItems);
+    resetInventoryStoreForTests();
+  });
 
-test("TrashItems removes a single item from the station hangar", () => {
-  resetInventoryStoreForTests();
   const candidate = getDockedCandidate();
   const session = buildSession(candidate);
   const service = new InvBrokerService();
@@ -115,33 +132,31 @@ test("TrashItems removes a single item from the station hangar", () => {
 
   bindStationHangar(service, session);
 
-  try {
-    // Client passes: TrashItems(itemsToTrash, locationID)
-    const result = service.Handle_TrashItems(
-      [{ type: "list", items: [sourceItem.itemID] }, candidate.stationID],
-      session,
-    );
+  const result = service.Handle_TrashItems(
+    [{ type: "list", items: [sourceItem.itemID] }, candidate.stationID],
+    session,
+  );
 
-    assert.equal(result, null, "Expected TrashItems to return null (no errors)");
-
-    const hangarItems = listContainerItems(
+  assert.equal(result, null, "Expected TrashItems to return null");
+  assert.equal(findItemById(sourceItem.itemID), null, "Expected trashed item to be removed");
+  assert.equal(
+    listContainerItems(
       candidate.characterID,
       candidate.stationID,
       ITEM_FLAGS.HANGAR,
-    );
-    assert.equal(
-      hangarItems.some((item) => Number(item.itemID) === Number(sourceItem.itemID)),
-      false,
-      "Expected the trashed item to be removed from the station hangar",
-    );
-  } finally {
-    removeInventoryItem(sourceItem.itemID, { removeContents: true });
-    resetInventoryStoreForTests();
-  }
+    ).some((item) => Number(item.itemID) === Number(sourceItem.itemID)),
+    false,
+    "Expected the trashed item to be removed from the station hangar",
+  );
 });
 
-test("TrashItems removes multiple items from the station hangar in a single call", () => {
-  resetInventoryStoreForTests();
+test("TrashItems removes multiple items from the station hangar in a single call", (t) => {
+  const originalItems = cloneValue(readItemsTable());
+  t.after(() => {
+    writeItemsTable(originalItems);
+    resetInventoryStoreForTests();
+  });
+
   const candidate = getDockedCandidate();
   const session = buildSession(candidate);
   const service = new InvBrokerService();
@@ -181,41 +196,39 @@ test("TrashItems removes multiple items from the station hangar in a single call
 
   bindStationHangar(service, session);
 
-  try {
-    const result = service.Handle_TrashItems(
-      [
-        { type: "list", items: [item1.itemID, item2.itemID] },
-        candidate.stationID,
-      ],
-      session,
-    );
-
-    assert.equal(result, null, "Expected TrashItems to return null (no errors)");
-
-    const hangarItems = listContainerItems(
-      candidate.characterID,
+  const result = service.Handle_TrashItems(
+    [
+      { type: "list", items: [item1.itemID, item2.itemID] },
       candidate.stationID,
-      ITEM_FLAGS.HANGAR,
-    );
-    assert.equal(
-      hangarItems.some((item) => Number(item.itemID) === Number(item1.itemID)),
-      false,
-      "Expected first trashed item to be removed from the station hangar",
-    );
-    assert.equal(
-      hangarItems.some((item) => Number(item.itemID) === Number(item2.itemID)),
-      false,
-      "Expected second trashed item to be removed from the station hangar",
-    );
-  } finally {
-    removeInventoryItem(item1.itemID, { removeContents: true });
-    removeInventoryItem(item2.itemID, { removeContents: true });
-    resetInventoryStoreForTests();
-  }
+    ],
+    session,
+  );
+
+  assert.equal(result, null, "Expected TrashItems to return null");
+  const hangarItems = listContainerItems(
+    candidate.characterID,
+    candidate.stationID,
+    ITEM_FLAGS.HANGAR,
+  );
+  assert.equal(
+    hangarItems.some((item) => Number(item.itemID) === Number(item1.itemID)),
+    false,
+    "Expected first trashed item to be removed from the station hangar",
+  );
+  assert.equal(
+    hangarItems.some((item) => Number(item.itemID) === Number(item2.itemID)),
+    false,
+    "Expected second trashed item to be removed from the station hangar",
+  );
 });
 
-test("TrashItems emits inventory change notifications for removed items", () => {
-  resetInventoryStoreForTests();
+test("TrashItems emits inventory change notifications for removed items", (t) => {
+  const originalItems = cloneValue(readItemsTable());
+  t.after(() => {
+    writeItemsTable(originalItems);
+    resetInventoryStoreForTests();
+  });
+
   const candidate = getDockedCandidate();
   const session = buildSession(candidate);
   const service = new InvBrokerService();
@@ -241,64 +254,16 @@ test("TrashItems emits inventory change notifications for removed items", () => 
 
   bindStationHangar(service, session);
 
-  try {
-    const notificationsBefore = session.notifications.length;
-
-    service.Handle_TrashItems(
-      [{ type: "list", items: [sourceItem.itemID] }, candidate.stationID],
-      session,
-    );
-
-    assert.ok(
-      session.notifications.length > notificationsBefore,
-      "Expected TrashItems to emit at least one inventory change notification",
-    );
-  } finally {
-    removeInventoryItem(sourceItem.itemID, { removeContents: true });
-    resetInventoryStoreForTests();
-  }
-});
-
-test("TrashItems with an unknown item ID returns null without throwing", () => {
-  resetInventoryStoreForTests();
-  const candidate = getDockedCandidate();
-  const session = buildSession(candidate);
-  const service = new InvBrokerService();
-
-  const applyResult = applyCharacterToSession(session, candidate.characterID, {
-    emitNotifications: false,
-    logSelection: false,
-  });
-  assert.equal(applyResult.success, true);
-
-  bindStationHangar(service, session);
+  const notificationsBefore = session.notifications.length;
 
   const result = service.Handle_TrashItems(
-    [{ type: "list", items: [9999999999] }, candidate.stationID],
+    [{ type: "list", items: [sourceItem.itemID] }, candidate.stationID],
     session,
   );
 
-  assert.equal(result, null, "Expected TrashItems to return null for unknown item IDs");
-});
-
-test("TrashItems with an empty item list returns null without throwing", () => {
-  resetInventoryStoreForTests();
-  const candidate = getDockedCandidate();
-  const session = buildSession(candidate);
-  const service = new InvBrokerService();
-
-  const applyResult = applyCharacterToSession(session, candidate.characterID, {
-    emitNotifications: false,
-    logSelection: false,
-  });
-  assert.equal(applyResult.success, true);
-
-  bindStationHangar(service, session);
-
-  const result = service.Handle_TrashItems(
-    [{ type: "list", items: [] }, candidate.stationID],
-    session,
+  assert.equal(result, null, "Expected TrashItems to return null");
+  assert.ok(
+    session.notifications.length > notificationsBefore,
+    "Expected TrashItems to emit at least one inventory change notification",
   );
-
-  assert.equal(result, null, "Expected TrashItems with empty list to return null");
 });

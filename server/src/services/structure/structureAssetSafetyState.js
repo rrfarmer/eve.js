@@ -307,7 +307,7 @@ function sessionCanManageWrap(session, wrap) {
   if (!wrap) {
     return false;
   }
-  if (config.devMode === true) {
+  if (config.devBypassAssetSafetyWrapAccess === true) {
     return true;
   }
 

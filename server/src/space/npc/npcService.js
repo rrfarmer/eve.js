@@ -1,7 +1,12 @@
 const path = require("path");
 
 const config = require(path.join(__dirname, "../../config"));
+const worldData = require(path.join(__dirname, "../worldData"));
 const spaceRuntime = require(path.join(__dirname, "../runtime"));
+const wormholeAuthority = require(path.join(
+  __dirname,
+  "../../services/exploration/wormholes/wormholeAuthority",
+));
 const {
   buildNpcDefinition,
   listNpcProfiles,
@@ -60,6 +65,8 @@ const {
 const {
   isCombatStartupRuleDormancyEligible,
 } = require(path.join(__dirname, "./npcCombatDormancy"));
+
+const DRIFTER_FACTION_ID = 500024;
 
 function resolveProfileDefinition(query, fallbackProfileID) {
   const profileResolution = resolveNpcProfile(query, fallbackProfileID);
@@ -471,19 +478,84 @@ function ruleAppliesToSystem(rule, systemID) {
     return false;
   }
 
+  const system = worldData.getSolarSystemByID(numericSystemID);
+  const regionIDs = Array.isArray(rule.regionIDs)
+    ? rule.regionIDs.map((value) => toPositiveInt(value, 0)).filter((value) => value > 0)
+    : [];
+  const constellationIDs = Array.isArray(rule.constellationIDs)
+    ? rule.constellationIDs.map((value) => toPositiveInt(value, 0)).filter((value) => value > 0)
+    : [];
+  const wormholeClassIDs = Array.isArray(rule.wormholeClassIDs)
+    ? rule.wormholeClassIDs.map((value) => toPositiveInt(value, 0)).filter((value) => value > 0)
+    : [];
   const systemIDs = Array.isArray(rule.systemIDs)
     ? rule.systemIDs.map((value) => toPositiveInt(value, 0)).filter((value) => value > 0)
     : [];
   const fallbackSystemID = toPositiveInt(rule.systemID, 0);
-  if (systemIDs.length === 0 && fallbackSystemID <= 0) {
+  const fallbackRegionID = toPositiveInt(rule.regionID, 0);
+  const fallbackConstellationID = toPositiveInt(rule.constellationID, 0);
+  const fallbackWormholeClassID = toPositiveInt(rule.wormholeClassID, 0);
+  if (
+    systemIDs.length === 0 &&
+    fallbackSystemID <= 0 &&
+    regionIDs.length === 0 &&
+    fallbackRegionID <= 0 &&
+    constellationIDs.length === 0 &&
+    fallbackConstellationID <= 0 &&
+    wormholeClassIDs.length === 0 &&
+    fallbackWormholeClassID <= 0
+  ) {
     return false;
   }
 
-  return systemIDs.includes(numericSystemID) || fallbackSystemID === numericSystemID;
+  if (systemIDs.includes(numericSystemID) || fallbackSystemID === numericSystemID) {
+    return true;
+  }
+
+  const regionID = toPositiveInt(system && system.regionID, 0);
+  if (
+    regionID > 0 &&
+    (
+      regionIDs.includes(regionID) ||
+      fallbackRegionID === regionID
+    )
+  ) {
+    return true;
+  }
+
+  const constellationID = toPositiveInt(system && system.constellationID, 0);
+  if (
+    constellationID > 0 &&
+    (
+      constellationIDs.includes(constellationID) ||
+      fallbackConstellationID === constellationID
+    )
+  ) {
+    return true;
+  }
+
+  const wormholeClassID = wormholeAuthority.getSystemClassID(
+    numericSystemID,
+    Number(system && system.security),
+  );
+  if (
+    wormholeClassID > 0 &&
+    (
+      wormholeClassIDs.includes(wormholeClassID) ||
+      fallbackWormholeClassID === wormholeClassID
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function isGeneratedStartupRule(rule) {
-  return rule && rule.generatedByConfig === true;
+  return rule && (
+    rule.generatedByConfig === true ||
+    rule.generatedByAuthority === true
+  );
 }
 
 function isGateOperatorStartupRule(rule) {
@@ -846,6 +918,16 @@ function spawnStartupRulesForSystem(systemID) {
   };
 }
 
+function refreshStartupRulesForScene(scene) {
+  if (!scene || toPositiveInt(scene.systemID, 0) <= 0) {
+    return {
+      success: false,
+      errorMsg: "SCENE_NOT_FOUND",
+    };
+  }
+  return spawnStartupRulesForSystem(scene.systemID);
+}
+
 function tickScene(scene, now) {
   tickBehaviorScene(scene, now);
   maintainStartupRulesInScene(scene, now);
@@ -982,7 +1064,35 @@ function wakeControllersInSystem(systemID) {
 }
 
 function wakeNpcController(entityID, whenMs = 0) {
-  const controller = getControllerByEntityID(entityID);
+  const normalizedEntityID = toPositiveInt(entityID, 0);
+  let controller = getControllerByEntityID(normalizedEntityID);
+  if (!controller) {
+    const controllerRecord = nativeNpcStore.getNativeController(normalizedEntityID);
+    const systemID = toPositiveInt(controllerRecord && controllerRecord.systemID, 0);
+    if (controllerRecord && systemID > 0) {
+      const scene = spaceRuntime.ensureScene(systemID);
+      const materializeResult = nativeNpcService.materializeStoredNativeController(
+        scene,
+        normalizedEntityID,
+        {
+          broadcast: false,
+        },
+      );
+      if (!materializeResult.success) {
+        return {
+          success: false,
+          errorMsg: materializeResult.errorMsg || "NPC_WAKE_MATERIALIZE_FAILED",
+        };
+      }
+      controller =
+        getControllerByEntityID(normalizedEntityID) ||
+        (
+          materializeResult.data &&
+          materializeResult.data.controller
+        ) ||
+        null;
+    }
+  }
   if (!controller) {
     return {
       success: false,
@@ -1219,9 +1329,170 @@ function toggleCharacterNpcInvulnerability(characterID) {
   return toggleCharacterInvulnerability(characterID);
 }
 
+function isDrifterController(controller, entity = null) {
+  if (!controller || typeof controller !== "object") {
+    return false;
+  }
+
+  if (
+    controller.behaviorOverrides &&
+    controller.behaviorOverrides.drifterBehavior === true
+  ) {
+    return true;
+  }
+  if (
+    controller.behaviorProfile &&
+    controller.behaviorProfile.drifterBehavior === true
+  ) {
+    return true;
+  }
+  return (
+    toPositiveInt(entity && entity.factionID, 0) === DRIFTER_FACTION_ID ||
+    toPositiveInt(entity && entity.slimFactionID, 0) === DRIFTER_FACTION_ID
+  );
+}
+
+function resolveDrifterAggressionGroupKey(controller) {
+  const groupedFields = [
+    "startupRuleID",
+    "spawnSiteID",
+    "spawnGroupID",
+    "selectionID",
+    "operatorKind",
+  ];
+  for (const field of groupedFields) {
+    const normalizedValue = String(controller && controller[field] || "").trim();
+    if (normalizedValue) {
+      return `${field}:${normalizedValue}`;
+    }
+  }
+  return "";
+}
+
+function shouldPropagateDrifterAggression(
+  sourceController,
+  candidateController,
+  sourceEntity,
+  candidateEntity,
+) {
+  if (
+    !sourceController ||
+    !candidateController ||
+    sourceController.entityID === candidateController.entityID
+  ) {
+    return false;
+  }
+  if (!isDrifterController(candidateController, candidateEntity)) {
+    return false;
+  }
+
+  const sourceGroupKey = resolveDrifterAggressionGroupKey(sourceController);
+  const candidateGroupKey = resolveDrifterAggressionGroupKey(candidateController);
+  if (sourceGroupKey && candidateGroupKey) {
+    return sourceGroupKey === candidateGroupKey;
+  }
+  if (sourceGroupKey || candidateGroupKey) {
+    return false;
+  }
+
+  const sourceFactionID = toPositiveInt(sourceEntity && sourceEntity.factionID, 0);
+  const candidateFactionID = toPositiveInt(candidateEntity && candidateEntity.factionID, 0);
+  if (
+    sourceFactionID > 0 &&
+    candidateFactionID > 0 &&
+    sourceFactionID === candidateFactionID
+  ) {
+    return true;
+  }
+
+  const sourceCorporationID = toPositiveInt(
+    sourceEntity && sourceEntity.corporationID,
+    0,
+  );
+  const candidateCorporationID = toPositiveInt(
+    candidateEntity && candidateEntity.corporationID,
+    0,
+  );
+  return (
+    sourceCorporationID > 0 &&
+    candidateCorporationID > 0 &&
+    sourceCorporationID === candidateCorporationID
+  );
+}
+
+function propagateDrifterAggressionToPack(targetEntity, attackerEntity, now) {
+  const targetEntityID = toPositiveInt(targetEntity && targetEntity.itemID, 0);
+  const attackerEntityID = toPositiveInt(attackerEntity && attackerEntity.itemID, 0);
+  const attackerOwnerID = toPositiveInt(
+    attackerEntity && attackerEntity.ownerID,
+    toPositiveInt(
+      attackerEntity && attackerEntity.pilotCharacterID,
+      toPositiveInt(attackerEntity && attackerEntity.characterID, 0),
+    ),
+  );
+  if (!targetEntityID || !attackerEntityID) {
+    return [];
+  }
+
+  const sourceController = getControllerByEntityID(targetEntityID);
+  if (!sourceController) {
+    return [];
+  }
+
+  const systemID = toPositiveInt(
+    sourceController.systemID,
+    toPositiveInt(targetEntity && targetEntity.systemID, 0),
+  );
+  if (!systemID) {
+    return [];
+  }
+
+  const scene = spaceRuntime.ensureScene(systemID);
+  const sourceEntity = scene.getEntityByID(targetEntityID) || targetEntity;
+  if (!isDrifterController(sourceController, sourceEntity)) {
+    return [];
+  }
+
+  const propagatedEntityIDs = [];
+  const normalizedNow = Math.max(0, toFiniteNumber(now, Date.now()));
+  for (const candidateController of listControllersBySystem(systemID)) {
+    const candidateEntity = scene.getEntityByID(
+      toPositiveInt(candidateController && candidateController.entityID, 0),
+    );
+    if (!shouldPropagateDrifterAggression(
+      sourceController,
+      candidateController,
+      sourceEntity,
+      candidateEntity,
+    )) {
+      continue;
+    }
+
+    candidateController.preferredTargetID = attackerEntityID;
+    candidateController.preferredTargetOwnerID = attackerOwnerID;
+    candidateController.lastAggressorID = attackerEntityID;
+    candidateController.lastAggressorOwnerID = attackerOwnerID;
+    candidateController.lastAggressedAtMs = normalizedNow;
+    if (String(candidateController.runtimeKind || "").trim() === "nativeAmbient") {
+      candidateController.runtimeKind = "nativeCombat";
+    }
+    candidateController.nextThinkAtMs = 0;
+    propagatedEntityIDs.push(candidateController.entityID);
+  }
+
+  return propagatedEntityIDs;
+}
+
 function noteNpcIncomingAggression(targetEntity, attackerEntity, now) {
   const targetEntityID = toPositiveInt(targetEntity && targetEntity.itemID, 0);
   const attackerEntityID = toPositiveInt(attackerEntity && attackerEntity.itemID, 0);
+  const attackerOwnerID = toPositiveInt(
+    attackerEntity && attackerEntity.ownerID,
+    toPositiveInt(
+      attackerEntity && attackerEntity.pilotCharacterID,
+      toPositiveInt(attackerEntity && attackerEntity.characterID, 0),
+    ),
+  );
   if (!targetEntityID || !attackerEntityID) {
     return {
       success: false,
@@ -1229,7 +1500,32 @@ function noteNpcIncomingAggression(targetEntity, attackerEntity, now) {
     };
   }
 
-  return noteIncomingAggression(targetEntityID, attackerEntityID, now);
+  const noteResult = noteIncomingAggression(
+    targetEntityID,
+    attackerEntityID,
+    now,
+    {
+      attackerOwnerID,
+    },
+  );
+  if (!noteResult.success) {
+    return noteResult;
+  }
+
+  const propagatedEntityIDs = propagateDrifterAggressionToPack(
+    targetEntity,
+    attackerEntity,
+    now,
+  );
+  return {
+    ...noteResult,
+    data: {
+      ...(noteResult.data && typeof noteResult.data === "object"
+        ? noteResult.data
+        : {}),
+      propagatedEntityIDs,
+    },
+  };
 }
 
 function getNpcOperatorSummary() {
@@ -1249,6 +1545,9 @@ function getNpcOperatorSummary() {
     anchorKind: controller.anchorKind || null,
     anchorID: controller.anchorID || 0,
     transient: controller.transient === true,
+    capitalNpc: controller.capitalNpc === true,
+    capitalClassID: controller.capitalClassID || null,
+    capitalRarity: controller.capitalRarity || null,
     allowPodKill:
       controller.behaviorOverrides &&
       Object.prototype.hasOwnProperty.call(controller.behaviorOverrides, "allowPodKill")
@@ -1280,6 +1579,7 @@ module.exports = {
   spawnNpcSite,
   spawnNpcSiteForSession,
   spawnStartupRulesForSystem,
+  refreshStartupRulesForScene,
   handleSceneCreated,
   tickScene,
   issueManualOrder,
@@ -1297,4 +1597,7 @@ module.exports = {
   getNpcOperatorSummary,
   wakeNpcController,
   scheduleNpcController,
+  _testing: {
+    ruleAppliesToSystem,
+  },
 };
