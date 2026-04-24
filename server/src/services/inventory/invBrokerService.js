@@ -2677,6 +2677,39 @@ class InvBrokerService extends BaseService {
     return null;
   }
 
+  Handle_DestroyFitting(args, session) {
+    this._traceInventory("DestroyFitting", session, { args });
+    const itemID = this._normalizeInventoryId(args && args.length > 0 ? args[0] : 0, 0);
+    if (itemID <= 0) {
+      log.warn(`[InvBroker] DestroyFitting failed: invalid itemID`);
+      return null;
+    }
+
+    const item = findItemById(itemID);
+    if (!item) {
+      log.warn(`[InvBroker] DestroyFitting failed: itemID=${itemID} not found`);
+      return null;
+    }
+
+    if (!SLOT_FAMILY_FLAGS.rig.includes(item.flagID)) {
+      log.warn(`[InvBroker] DestroyFitting rejected: itemID=${itemID} flagID=${item.flagID} is not a rig slot`);
+      return null;
+    }
+
+    log.debug(`[InvBroker] DestroyFitting itemID=${itemID} flagID=${item.flagID}`);
+    const removeResult = removeInventoryItem(itemID, { removeContents: false });
+    if (!removeResult.success) {
+      log.warn(`[InvBroker] DestroyFitting failed to remove itemID=${itemID} error=${removeResult.errorMsg}`);
+      return null;
+    }
+
+    const changes = (removeResult.data && removeResult.data.changes) || [];
+    this._emitInventoryMoveChanges(session, changes);
+    this._refreshBallparkShipPresentation(session, changes);
+    this._refreshBallparkInventoryPresentation(session, changes);
+    return null;
+  }
+
   Handle_TrashItems(args, session) {
     this._traceInventory("TrashItems", session, { args });
     const itemIDs = this._normalizeItemIdList(args && args.length > 0 ? args[0] : args);
