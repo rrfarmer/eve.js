@@ -3512,6 +3512,15 @@ class InvBrokerService extends BaseService {
       return null;
     }
 
+    // Rigs cannot be removed from a ship and returned to inventory — they must be destroyed.
+    // If the item is currently in a rig slot, block the move silently.
+    if (SLOT_FAMILY_FLAGS.rig.includes(Number(item.flagID))) {
+      log.warn(
+        `[InvBroker] Add rejected itemID=${itemID} — item is a rig in slot flagID=${item.flagID} and cannot be unfit to inventory`,
+      );
+      return null;
+    }
+
     const destination = this._resolveDestinationForMove(
       session,
       boundContext,

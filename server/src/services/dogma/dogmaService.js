@@ -88,6 +88,7 @@ const {
   getTypeAttributeValue,
   isShipFittingFlag,
   applyModifierGroups,
+  typeHasEffectName,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
 const {
   getShipFittingSnapshot,
@@ -6269,6 +6270,12 @@ class DogmaService extends BaseService {
         Number(moduleItem.ownerID) !== charID ||
         Number(moduleItem.locationID) !== shipID
       ) {
+        continue;
+      }
+      if (typeHasEffectName(moduleItem.typeID, "rigSlot")) {
+        log.debug(
+          `[DogmaIM] UnloadAmmo skipping rig module moduleID=${moduleID} typeID=${moduleItem.typeID} — rigs cannot be unloaded`,
+        );
         continue;
       }
       const chargeItem = getLoadedChargeByFlag(charID, shipID, moduleItem.flagID);
