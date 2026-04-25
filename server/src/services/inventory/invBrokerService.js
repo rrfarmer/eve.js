@@ -5,10 +5,10 @@
  * Called after character selection to load inventory data.
  */
 
-const fs = require("fs");
 const path = require("path");
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 const { throwWrappedUserError } = require(path.join(
   __dirname,
   "../../common/machoErrors",
@@ -180,12 +180,7 @@ function appendInventoryDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(inventoryDebugPath), { recursive: true });
-    fs.appendFileSync(
-      inventoryDebugPath,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(inventoryDebugPath, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[InvBroker] Failed to write inventory debug log: ${error.message}`);
   }

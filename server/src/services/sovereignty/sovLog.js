@@ -1,19 +1,14 @@
-const fs = require("fs");
 const path = require("path");
 
 const logger = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 
 const LOG_DIR = path.join(__dirname, "../../../logs");
 const SOV_LOG_PATH = path.join(LOG_DIR, "sovereignty.log");
 
 function appendSovLog(level, message) {
   try {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(
-      SOV_LOG_PATH,
-      `[${new Date().toISOString()}] [${String(level || "LOG").toUpperCase()}] ${String(message || "").trim()}\n`,
-      "utf8",
-    );
+    rotatingLog.append(SOV_LOG_PATH, `[${new Date().toISOString()}] [${String(level || "LOG").toUpperCase()}] ${String(message || "").trim()}\n`);
   } catch (error) {
     logger.warn(`[SovLog] Failed to write sovereignty.log: ${error.message}`);
   }

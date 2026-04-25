@@ -1,7 +1,7 @@
-const fs = require("fs");
 const path = require("path");
 
 const log = require(path.join(__dirname, "../../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../../utils/rotatingLog"));
 
 const DESTINY_JOURNEY_LOG_PATH = path.join(
   __dirname,
@@ -79,12 +79,7 @@ function appendDestinyJourneyLog(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(DESTINY_JOURNEY_LOG_PATH), { recursive: true });
-    fs.appendFileSync(
-      DESTINY_JOURNEY_LOG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(DESTINY_JOURNEY_LOG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[DestinyJourneyLog] Failed to write journey log: ${error.message}`);
   }
@@ -95,12 +90,7 @@ function appendNamedDebugLog(targetPath, prefix, entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    fs.appendFileSync(
-      targetPath,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(targetPath, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[${prefix}] Failed to write debug log: ${error.message}`);
   }

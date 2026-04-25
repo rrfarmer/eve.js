@@ -8,9 +8,9 @@
  *   userid, characterID, corporationID, stationID, solarsystemid, role, etc.
  */
 
-const fs = require("fs");
 const path = require("path");
 const log = require(path.join(__dirname, "../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../utils/rotatingLog"));
 const { marshalEncode, marshalDecode, encodePacket } = require(
   path.join(__dirname, "./tcp/utils/marshal"),
 );
@@ -128,12 +128,7 @@ function appendSessionChangeDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(sessionChangeDebugPath), { recursive: true });
-    fs.appendFileSync(
-      sessionChangeDebugPath,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(sessionChangeDebugPath, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(
       `[Session] Failed to write session change debug log: ${error.message}`,

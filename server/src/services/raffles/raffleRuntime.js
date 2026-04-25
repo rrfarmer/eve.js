@@ -1,4 +1,3 @@
-const fs = require("fs");
 const path = require("path");
 
 const config = require(path.join(__dirname, "../../config"));
@@ -22,6 +21,7 @@ const itemTypeRegistry = require(path.join(
   "../inventory/itemTypeRegistry",
 ));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 const {
   FILETIME_TICKS_PER_MS,
   SEED_DURATION_MS,
@@ -108,12 +108,7 @@ function summarizeCreateItem(item) {
 
 function appendCreateDebug(entry) {
   try {
-    fs.mkdirSync(path.dirname(RAFFLE_CREATE_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      RAFFLE_CREATE_DEBUG_PATH,
-      `${JSON.stringify(entry)}\n`,
-      "utf8",
-    );
+    rotatingLog.append(RAFFLE_CREATE_DEBUG_PATH, `${JSON.stringify(entry)}\n`);
   } catch (error) {
     log.warn(`[RaffleRuntime] Failed to write create debug log: ${error.message}`);
   }

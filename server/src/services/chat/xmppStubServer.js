@@ -3,6 +3,7 @@ const path = require("path");
 const tls = require("tls");
 
 const log = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 const config = require(path.join(__dirname, "../../config"));
 const sessionRegistry = require(path.join(__dirname, "./sessionRegistry"));
 const chatRuntime = require(path.join(
@@ -71,12 +72,7 @@ function writeTranscript(direction, xml) {
     return;
   }
   try {
-    ensureTranscriptDir();
-    fs.appendFileSync(
-      transcriptPath,
-      `[${new Date().toISOString()}] ${direction} ${xml}\n`,
-      "utf8",
-    );
+    rotatingLog.append(transcriptPath, `[${new Date().toISOString()}] ${direction} ${xml}\n`);
   } catch (error) {
     log.warn(`[XMPP] Failed to write transcript: ${error.message}`);
   }

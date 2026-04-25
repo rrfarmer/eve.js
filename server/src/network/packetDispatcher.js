@@ -7,8 +7,8 @@
  */
 
 const path = require("path");
-const fs = require("fs");
 const log = require(path.join(__dirname, "../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../utils/rotatingLog"));
 const { MACHONETMSG_TYPE, getTypeName } = require(
   path.join(__dirname, "../common/packetTypes"),
 );
@@ -30,12 +30,7 @@ function appendSlashDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(slashDebugPath), { recursive: true });
-    fs.appendFileSync(
-      slashDebugPath,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(slashDebugPath, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[PacketDispatcher] Failed to write slash debug log: ${error.message}`);
   }
@@ -46,12 +41,7 @@ function appendSpaceDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(spaceDebugPath), { recursive: true });
-    fs.appendFileSync(
-      spaceDebugPath,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(spaceDebugPath, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[PacketDispatcher] Failed to write space debug log: ${error.message}`);
   }
