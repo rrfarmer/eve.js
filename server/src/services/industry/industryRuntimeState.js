@@ -1275,7 +1275,13 @@ function moveBlueprintItemToInstalledLocation(job, session) {
     return updateResult;
   }
 
-  syncInventoryChanges(session, (updateResult.data && updateResult.data.changes) || []);
+  // updateInventoryItem returns { data: item, previousData: item }, not { data: { changes } }.
+  // Notify the client that the blueprint has left the hangar by sending it at junk location 6.
+  syncInventoryItemForSession(
+    session,
+    { ...updateResult.previousData, locationID: 6 },
+    updateResult.previousData,
+  );
   return updateResult;
 }
 
@@ -1304,7 +1310,9 @@ function restoreBlueprintItemFromInstalledLocation(job, session) {
     return updateResult;
   }
 
-  syncInventoryChanges(session, (updateResult.data && updateResult.data.changes) || []);
+  // updateInventoryItem returns { data: item, previousData: item }, not { data: { changes } }.
+  // Notify the client that the blueprint has returned to the hangar.
+  syncInventoryItemForSession(session, updateResult.data, updateResult.previousData || {});
   return updateResult;
 }
 

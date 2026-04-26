@@ -1,8 +1,8 @@
 "use strict";
 
-const fs = require("fs");
 const path = require("path");
 const { performance } = require("perf_hooks");
+const rotatingLog = require(path.join(__dirname, "./rotatingLog"));
 const pc = require("picocolors");
 
 const log = require(path.join(__dirname, "./logger"));
@@ -50,12 +50,7 @@ function getCurrentMonotonicMs() {
 
 function appendTimeDilationLog(entry) {
   try {
-    fs.mkdirSync(path.dirname(TIDI_LOG_PATH), { recursive: true });
-    fs.appendFileSync(
-      TIDI_LOG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(TIDI_LOG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[TiDi] Failed to append TiDi log: ${error.message}`);
   }

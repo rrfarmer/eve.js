@@ -1,8 +1,8 @@
-const fs = require("fs");
 const path = require("path");
 
 const database = require(path.join(__dirname, "../../newDatabase"));
 const log = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 const worldData = require(path.join(__dirname, "../../space/worldData"));
 const { resolveShipByTypeID } = require(path.join(
   __dirname,
@@ -176,12 +176,7 @@ function appendMissileDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(MISSILE_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      MISSILE_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(MISSILE_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[missile-debug] characterState write failed: ${error.message}`);
   }

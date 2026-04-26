@@ -1,19 +1,14 @@
-const fs = require("fs");
 const path = require("path");
 
 const logger = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 
 const LOG_DIR = path.join(__dirname, "../../../logs");
 const UPWELL_LOG_PATH = path.join(LOG_DIR, "upwell.log");
 
 function appendUpwellLog(level, message) {
   try {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(
-      UPWELL_LOG_PATH,
-      `[${new Date().toISOString()}] [${String(level || "LOG").toUpperCase()}] ${String(message || "").trim()}\n`,
-      "utf8",
-    );
+    rotatingLog.append(UPWELL_LOG_PATH, `[${new Date().toISOString()}] [${String(level || "LOG").toUpperCase()}] ${String(message || "").trim()}\n`);
   } catch (error) {
     logger.warn(`[UpwellLog] Failed to write upwell.log: ${error.message}`);
   }

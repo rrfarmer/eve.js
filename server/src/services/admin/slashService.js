@@ -1,5 +1,5 @@
 const path = require("path");
-const fs = require("fs");
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 
 const BaseService = require(path.join(__dirname, "../baseService"));
 const log = require(path.join(__dirname, "../../utils/logger"));
@@ -24,12 +24,7 @@ function appendSlashDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(debugLogPath), { recursive: true });
-    fs.appendFileSync(
-      debugLogPath,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(debugLogPath, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SlashService] Failed to write debug log: ${error.message}`);
   }

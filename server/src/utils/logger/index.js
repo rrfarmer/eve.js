@@ -1,51 +1,15 @@
-const fs = require("fs");
 const path = require("path");
 const pc = require("picocolors");
 const config = require(path.join(__dirname, "../../config"));
+const rotatingLog = require(path.join(__dirname, "../rotatingLog"));
 
 const LOG_DIR = path.join(__dirname, "../../../logs");
 const SERVER_LOG_PATH = path.join(LOG_DIR, "server.log");
 const DIVIDER =
   "================================================================";
-let serverLogStream = null;
-let serverLogStreamErrored = false;
-
-function ensureServerLogStream() {
-  if (serverLogStream || serverLogStreamErrored) {
-    return serverLogStream;
-  }
-
-  try {
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    serverLogStream = fs.createWriteStream(SERVER_LOG_PATH, {
-      flags: "a",
-      encoding: "utf8",
-    });
-    serverLogStream.on("error", (error) => {
-      serverLogStreamErrored = true;
-      console.error(pc.red(`[ERR]: failed to write server log: ${error.message}`));
-    });
-  } catch (error) {
-    serverLogStreamErrored = true;
-    console.error(pc.red(`[ERR]: failed to open server log: ${error.message}`));
-  }
-
-  return serverLogStream;
-}
 
 function appendServerLog(level, message) {
-  const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
-  try {
-    const stream = ensureServerLogStream();
-    if (stream && !serverLogStreamErrored) {
-      stream.write(line);
-      return;
-    }
-    fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(SERVER_LOG_PATH, line, "utf8");
-  } catch (error) {
-    console.error(pc.red(`[ERR]: failed to write server log: ${error.message}`));
-  }
+  rotatingLog.append(SERVER_LOG_PATH, `[${new Date().toISOString()}] [${level}] ${message}\n`);
 }
 
 function writeServerLog(level, message) {
@@ -421,11 +385,6 @@ function logAsciiLogo() {
 }
 
 process.once("exit", flushStack);
-process.once("beforeExit", () => {
-  if (serverLogStream && !serverLogStream.destroyed) {
-    serverLogStream.end();
-  }
-});
 
 module.exports = {
   info,

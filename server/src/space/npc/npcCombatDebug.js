@@ -1,7 +1,7 @@
-const fs = require("fs");
 const path = require("path");
 
 const log = require(path.join(__dirname, "../../utils/logger"));
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 
 const NPC_COMBAT_DEBUG_PATH = path.join(
   __dirname,
@@ -66,12 +66,7 @@ function appendNpcCombatDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(NPC_COMBAT_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      NPC_COMBAT_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(NPC_COMBAT_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[NpcCombatDebug] Failed to write npc combat debug log: ${error.message}`);
   }

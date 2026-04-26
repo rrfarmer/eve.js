@@ -19,6 +19,7 @@
 
 const path = require("path");
 const crypto = require("crypto");
+const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
 const log = require(path.join(__dirname, "../../utils/logger"));
 const config = require(path.join(__dirname, "../../config"));
 const {
@@ -811,10 +812,8 @@ class EVEHandshake {
         if (log.isVerboseDebugEnabled()) {
           log.info(`[HANDSHAKE] signedFunc output: ${output}`);
           try {
-            const fs = require("fs");
-            const path = require("path");
-            fs.appendFileSync(path.join(__dirname, "../../..", "tidi_probe.log"), logLine);
-            log.info(`[HANDSHAKE] Probe results written to server/tidi_probe.log`);
+            rotatingLog.append(path.join(__dirname, "../../..", "logs", "tidi_probe.log"), logLine);
+            log.info(`[HANDSHAKE] Probe results written to server/logs/tidi_probe.log`);
           } catch (e) {
             log.warn(`[HANDSHAKE] Could not write probe log: ${e.message}`);
           }

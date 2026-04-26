@@ -1,7 +1,7 @@
 const crypto = require("crypto");
-const fs = require("fs");
 const path = require("path");
 const { performance } = require("perf_hooks");
+const rotatingLog = require(path.join(__dirname, "../utils/rotatingLog"));
 
 const config = require(path.join(__dirname, "../config"));
 const log = require(path.join(__dirname, "../utils/logger"));
@@ -1206,12 +1206,7 @@ function appendMovementDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(MOVEMENT_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      MOVEMENT_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(MOVEMENT_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to write movement debug log: ${error.message}`);
   }
@@ -1222,12 +1217,7 @@ function appendDestinyDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(DESTINY_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      DESTINY_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(DESTINY_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to write destiny debug log: ${error.message}`);
   }
@@ -1238,12 +1228,7 @@ function appendMissileDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(MISSILE_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      MISSILE_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(MISSILE_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to write missile debug log: ${error.message}`);
   }
@@ -1254,12 +1239,7 @@ function appendWarpDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(WARP_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      WARP_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(WARP_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to write warp debug log: ${error.message}`);
   }
@@ -1270,12 +1250,7 @@ function appendBallDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(BALL_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      BALL_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(BALL_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to write ball debug log: ${error.message}`);
   }
@@ -1286,12 +1261,7 @@ function appendBubbleDebug(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(BUBBLE_DEBUG_PATH), { recursive: true });
-    fs.appendFileSync(
-      BUBBLE_DEBUG_PATH,
-      `[${new Date().toISOString()}] ${entry}\n`,
-      "utf8",
-    );
+    rotatingLog.append(BUBBLE_DEBUG_PATH, `[${new Date().toISOString()}] ${entry}\n`);
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to append bubble debug log: ${error.message}`);
   }
@@ -2108,14 +2078,12 @@ function appendJumpTimingTrace(entry) {
     return;
   }
   try {
-    fs.mkdirSync(path.dirname(JUMP_TIMING_TRACE_PATH), { recursive: true });
-    fs.appendFileSync(
+    rotatingLog.append(
       JUMP_TIMING_TRACE_PATH,
       `${JSON.stringify(normalizeTraceValue({
         loggedAt: new Date().toISOString(),
         ...entry,
       }))}\n`,
-      "utf8",
     );
   } catch (error) {
     log.warn(`[SpaceRuntime] Failed to append jump timing trace log: ${error.message}`);

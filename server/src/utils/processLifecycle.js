@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const log = require("./logger");
+const rotatingLog = require("./rotatingLog");
 
 const INSTALL_MARK = Symbol.for("evejs.processLifecycle.installed");
 const DEFAULT_PROCESS_LIFECYCLE_LOG_PATH = path.join(
@@ -16,13 +17,9 @@ function appendLifecycleLog(
   logPath = DEFAULT_PROCESS_LIFECYCLE_LOG_PATH,
 ) {
   try {
-    fs.mkdirSync(path.dirname(logPath), {
-      recursive: true,
-    });
-    fs.appendFileSync(
+    rotatingLog.appendSync(
       logPath,
       `[${new Date().toISOString()}] [${level}] ${message}\n`,
-      "utf8",
     );
   } catch (error) {
     try {
