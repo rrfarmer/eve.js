@@ -3216,13 +3216,13 @@ class InvBrokerService extends BaseService {
 
     for (const fittedItem of fittedItems) {
       if (SLOT_FAMILY_FLAGS.rig.includes(fittedItem.flagID)) {
-        log.debug(`[InvBroker] StripFitting skipping rig itemID=${fittedItem.itemID} flagID=${fittedItem.flagID} (rigs are destroyed, not moved)`);
         continue;
       }
 
+      //log.debug(`[InvBroker] StripFitting moving itemID=${fittedItem.itemID} typeID=${fittedItem.typeID} flagID=${fittedItem.flagID} categoryID=${fittedItem.categoryID}`);
       const moveResult = moveItemToLocation(fittedItem.itemID, shipRecord.locationID, ITEM_FLAGS.HANGAR);
       if (!moveResult.success) {
-        log.warn(`[InvBroker] StripFitting failed to move itemID=${fittedItem.itemID} error=${moveResult.errorMsg}`);
+        log.warn(`[InvBroker] StripFitting failed to move itemID=${fittedItem.itemID} typeID=${fittedItem.typeID} flagID=${fittedItem.flagID} error=${moveResult.errorMsg}`);
         continue;
       }
 
@@ -3237,6 +3237,16 @@ class InvBrokerService extends BaseService {
     this._emitInventoryMoveChanges(session, allChanges);
     this._refreshBallparkShipPresentation(session, allChanges);
     this._refreshBallparkInventoryPresentation(session, allChanges);
+
+    // After all moves, getLoadedChargeItems returns empty. Syncing with
+    // emitChargeInventoryRows:true sends the client an explicit "no charges"
+    // state for this ship, clearing any stale ammo displayed in the fitting window.
+    syncShipFittingStateForSession(session, shipRecord.itemID, {
+      includeOfflineModules: true,
+      includeCharges: true,
+      emitChargeInventoryRows: true,
+    });
+
     return null;
   }
 

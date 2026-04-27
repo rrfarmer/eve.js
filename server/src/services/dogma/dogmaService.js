@@ -5187,8 +5187,14 @@ class DogmaService extends BaseService {
     const numericShipID = Number(shipID) || this._getShipID(session);
     const destinationValues = extractSequenceValues(destination);
     if (destinationValues.length > 0) {
-      const locationID = Number(destinationValues[0]) || 0;
+      let locationID = Number(destinationValues[0]) || 0;
       const flagID = Number(destinationValues[2]) || ITEM_FLAGS.HANGAR;
+      // Virtual container IDs (10004 = hangar, 10014 = structure) must be
+      // resolved to the player's actual docked station/structure ID so items
+      // are stored at the correct location rather than the abstract constant.
+      if (locationID === 10004 || locationID === 10014) {
+        locationID = getDockedLocationID(session) || this._getLocationID(session);
+      }
       return {
         locationID,
         flagID,

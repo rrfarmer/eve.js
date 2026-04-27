@@ -6,3 +6,4 @@ server/src/_secondary/image/generated/Character
 server/tidi_probe.log
 /server/src/_secondary/data/chat
 /tools/ClientCodeGrabber/Latest
+/server/src/logs
