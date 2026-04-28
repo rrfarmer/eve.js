@@ -82,6 +82,9 @@ const runtime = require(path.join(__dirname, "../../space/runtime"));
 const nativeNpcStore = require(path.join(__dirname, "../../space/npc/nativeNpcStore"));
 const nativeNpcWreckService = require(path.join(__dirname, "../../space/npc/nativeNpcWreckService"));
 const {
+  maybeExpireEmptySpaceContainer,
+} = require(path.join(__dirname, "../ship/jettisonRuntime"));
+const {
   DEFAULT_STATION,
   getStationRecord,
 } = require(path.join(__dirname, "../_shared/stationStaticData"));
@@ -2209,13 +2212,15 @@ class InvBrokerService extends BaseService {
         : itemRecord.singleton;
     const quantity =
       itemRecord.quantity === null || itemRecord.quantity === undefined
-        ? Number(singleton) === 1
-          ? -1
-          : 1
+        ? Number(singleton) === 2
+          ? -2
+          : Number(singleton) === 1
+            ? -1
+            : 1
         : itemRecord.quantity;
     const stacksize =
       itemRecord.stacksize === null || itemRecord.stacksize === undefined
-        ? Number(singleton) === 1
+        ? Number(singleton) > 0
           ? 1
           : quantity
         : itemRecord.stacksize;
@@ -2630,9 +2635,9 @@ class InvBrokerService extends BaseService {
     const locationID = overrides.locationID ?? this._getStationId(session);
     const flagID = overrides.flagID ?? 4; // station hangar
     const singleton = overrides.singleton ?? 1;
-    const quantity = overrides.quantity ?? (singleton === 1 ? -1 : 1);
+    const quantity = overrides.quantity ?? (singleton === 2 ? -2 : singleton === 1 ? -1 : 1);
     const stacksize =
-      overrides.stacksize ?? (singleton === 1 ? 1 : quantity);
+      overrides.stacksize ?? (singleton > 0 ? 1 : quantity);
     const groupID = overrides.groupID ?? shipMetadata.groupID;
     const categoryID = overrides.categoryID ?? shipMetadata.categoryID;
     const customInfo = overrides.customInfo ?? "";
@@ -3612,6 +3617,10 @@ class InvBrokerService extends BaseService {
     this._refreshBallparkShipPresentation(session, moveResult.data.changes);
     this._refreshBallparkInventoryPresentation(session, moveResult.data.changes);
     this._emitFleetLootEvents(session, fleetLootEntries);
+    // If the source was a temporary space container, despawn it when empty.
+    if (item) {
+      maybeExpireEmptySpaceContainer(session, item.locationID);
+    }
     return this._resolveMovedItemID(moveResult, itemID, destination);
   }
 
@@ -3754,6 +3763,15 @@ class InvBrokerService extends BaseService {
     this._refreshBallparkShipPresentation(session, allChanges);
     this._refreshBallparkInventoryPresentation(session, allChanges);
     this._emitFleetLootEvents(session, fleetLootEntries);
+    // If any source was a temporary space container, despawn it when now empty.
+    const sourceContainerIDs = new Set(
+      allChanges
+        .filter((c) => c && c.previousData && Number(c.previousData.locationID) > 0)
+        .map((c) => Number(c.previousData.locationID)),
+    );
+    for (const cid of sourceContainerIDs) {
+      maybeExpireEmptySpaceContainer(session, cid);
+    }
     return true;
   }
 

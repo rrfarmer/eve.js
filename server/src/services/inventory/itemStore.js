@@ -645,12 +645,10 @@ function buildInventoryItem({
 }) {
   const metadata = getItemMetadata(typeID, itemName);
   const defaultSingleton = shouldItemDefaultToSingleton(metadata) ? 1 : 0;
-  const normalizedSingleton =
-    singleton === null || singleton === undefined
-      ? defaultSingleton
-      : toNumber(singleton, defaultSingleton) > 0
-        ? 1
-        : 0;
+  const rawSingleton = singleton === null || singleton === undefined
+    ? defaultSingleton
+    : toNumber(singleton, defaultSingleton);
+  const normalizedSingleton = rawSingleton === 2 ? 2 : rawSingleton > 0 ? 1 : 0;
   const normalizedUnits = normalizePositiveInteger(
     quantity === null || quantity === undefined ? stacksize : quantity,
     normalizePositiveInteger(metadata.portionSize, 1),
@@ -662,8 +660,13 @@ function buildInventoryItem({
     ownerID: toNumber(ownerID),
     locationID: toNumber(locationID),
     flagID: toNumber(flagID, ITEM_FLAGS.HANGAR),
-    quantity: normalizedSingleton === 1 ? -1 : normalizedUnits,
-    stacksize: normalizedSingleton === 1 ? 1 : normalizedUnits,
+    quantity:
+      normalizedSingleton === 2
+        ? -2
+        : normalizedSingleton === 1
+          ? -1
+          : normalizedUnits,
+    stacksize: normalizedSingleton > 0 ? 1 : normalizedUnits,
     singleton: normalizedSingleton,
     groupID: toNumber(metadata.groupID, 0),
     categoryID: toNumber(metadata.categoryID, 0),
@@ -1503,6 +1506,10 @@ function grantItemsToCharacterLocation(
       options.singleton === undefined || options.singleton === null
         ? shouldItemDefaultToSingleton(metadata)
         : toNumber(options.singleton, 0) > 0;
+    const resolvedSingleton =
+      options.singleton !== undefined && options.singleton !== null
+        ? toNumber(options.singleton, 1)
+        : 1;
 
     if (singletonMode) {
       for (let index = 0; index < normalizedQuantity; index += 1) {
@@ -1513,7 +1520,7 @@ function grantItemsToCharacterLocation(
           locationID: numericLocationId,
           flagID: numericFlagId,
           itemName: options.itemName || metadata.name,
-          singleton: 1,
+          singleton: resolvedSingleton,
           customInfo: options.customInfo || "",
           spaceState: options.spaceState || null,
           conditionState: options.conditionState || null,
@@ -1709,6 +1716,10 @@ function grantItemsToOwnerLocation(
       options.singleton === undefined || options.singleton === null
         ? shouldItemDefaultToSingleton(metadata)
         : toNumber(options.singleton, 0) > 0;
+    const resolvedSingleton =
+      options.singleton !== undefined && options.singleton !== null
+        ? toNumber(options.singleton, 1)
+        : 1;
 
     if (singletonMode) {
       for (let index = 0; index < normalizedQuantity; index += 1) {
@@ -1723,7 +1734,7 @@ function grantItemsToOwnerLocation(
           locationID: numericLocationId,
           flagID: numericFlagId,
           itemName: options.itemName || metadata.name,
-          singleton: 1,
+          singleton: resolvedSingleton,
           customInfo: options.customInfo || "",
           spaceState: options.spaceState || null,
           conditionState: options.conditionState || null,
@@ -2439,11 +2450,13 @@ function buildRemovedItemNotificationState(item) {
     // zero-stack update inside the same container.
     locationID: JUNK_LOCATION_ID,
     quantity:
-      item.singleton === 1
-        ? -1
+      item.singleton === 2
+        ? -2
+        : item.singleton === 1
+          ? -1
         : toNumber(item.stacksize ?? item.quantity, 0),
     stacksize:
-      item.singleton === 1
+      toNumber(item.singleton, 0) > 0
         ? 1
         : toNumber(item.stacksize ?? item.quantity, 0),
   };

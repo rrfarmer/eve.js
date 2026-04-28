@@ -99,6 +99,7 @@ function buildBlueprintInstancePayload(instance) {
     ["ownerID", toInt(instance && instance.ownerID, 0)],
     ["jobID", instance && instance.jobID ? toInt(instance.jobID, 0) : null],
     ["isImpounded", Boolean(instance && instance.isImpounded)],
+    ["original", Boolean(instance && instance.original)],
     ["solarSystemID", toInt(instance && instance.solarSystemID, 0)],
   ]);
 }

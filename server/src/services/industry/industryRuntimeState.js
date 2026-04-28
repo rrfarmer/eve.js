@@ -413,6 +413,7 @@ function buildBlueprintInstance(item) {
     itemID: toInt(item.itemID, 0),
     timeEfficiency: toInt(state.timeEfficiency, 0),
     materialEfficiency: toInt(state.materialEfficiency, 0),
+    original: state.original === true,
     runs: state.original ? -1 : Math.max(0, toInt(state.runsRemaining, 0)),
     quantity: state.original ? -1 : -2,
     locationID: resolvedLocationID,
@@ -816,7 +817,7 @@ function buildCopyOutputBlueprintEntries(job, outputLocationID, outputFlagID) {
       itemType: blueprintTypeID,
       quantity: 1,
       options: {
-        singleton: 1,
+        singleton: 2,
         itemName: null,
       },
       blueprintState: {
@@ -1849,7 +1850,7 @@ function seedBlueprintForOwner(ownerID, locationID, options = {}) {
             itemType: blueprintTypeID,
             quantity: 1,
             options: {
-              singleton: 1,
+              singleton: isOriginal ? 1 : 2,
               itemName: options.itemName || null,
             },
           }],
@@ -1862,7 +1863,7 @@ function seedBlueprintForOwner(ownerID, locationID, options = {}) {
             itemType: blueprintTypeID,
             quantity: 1,
             options: {
-              singleton: 1,
+              singleton: isOriginal ? 1 : 2,
               itemName: options.itemName || null,
             },
           }],
