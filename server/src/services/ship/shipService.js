@@ -44,6 +44,9 @@ const {
   launchDronesForSession,
   scoopDrone,
 } = require(path.join(__dirname, "../drone/droneRuntime"));
+const {
+  jettisonItemsForSession,
+} = require(path.join(__dirname, "./jettisonRuntime"));
 const DBTYPE_I4 = 0x03;
 const DBTYPE_R8 = 0x05;
 const DBTYPE_BOOL = 0x0b;
@@ -666,6 +669,20 @@ class ShipService extends BaseService {
       session,
       args && args.length > 0 ? args[0] : [],
     );
+  }
+
+  Handle_Jettison(args, session, kwargs) {
+    void kwargs;
+    const itemIDs = this._extractShipIds(args && args.length > 0 ? args[0] : null);
+    log.info(`[Ship] Jettison itemIDs=${JSON.stringify(itemIDs)}`);
+    const result = jettisonItemsForSession(session, itemIDs);
+    if (!result || !result.success) {
+      log.warn(
+        `[Ship] Jettison failed for char=${session ? session.characterID : "?"}: ${result ? result.errorMsg : "UNKNOWN_ERROR"}`,
+      );
+      return [[], []];
+    }
+    return [result.jettisonedToCanIDs, []];
   }
 
   Handle_ActivateShip(args, session, kwargs) {

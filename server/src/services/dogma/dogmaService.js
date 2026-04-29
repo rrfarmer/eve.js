@@ -1121,13 +1121,13 @@ class DogmaService extends BaseService {
       : -1;
     const normalizedSingleton =
       singleton === null || singleton === undefined
-        ? (normalizedQuantity === -1 ? 1 : 0)
+        ? (normalizedQuantity === -2 ? 2 : normalizedQuantity === -1 ? 1 : 0)
         : singleton;
     const normalizedStacksize =
       stacksize === null || stacksize === undefined
-        ? (normalizedSingleton === 1
+        ? (normalizedSingleton > 0
           ? 1
-          : (normalizedQuantity === -1 ? 0 : normalizedQuantity))
+          : (normalizedQuantity < 0 ? 0 : normalizedQuantity))
         : stacksize;
     const normalizedCustomInfo =
       customInfo === null || customInfo === undefined

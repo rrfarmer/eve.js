@@ -926,15 +926,18 @@ function getActiveShipRecord(charId) {
 }
 
 function buildInventoryItemRow(item) {
-  const singleton = Number(item && item.singleton) === 1 ? 1 : 0;
-  const normalizedStacksize = singleton === 1
+  const rawSingleton = Number(item && item.singleton) || 0;
+  const singleton = rawSingleton === 2 ? 2 : rawSingleton === 1 ? 1 : 0;
+  const normalizedStacksize = singleton > 0
     ? 1
     : Math.max(0, Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0);
   const normalizedQuantity =
     item && item.quantity !== undefined && item.quantity !== null
       ? item.quantity
-      : singleton === 1
-        ? -1
+      : singleton === 2
+        ? -2
+        : singleton === 1
+          ? -1
         : normalizedStacksize;
   return {
     type: "packedrow",
@@ -1082,13 +1085,19 @@ function buildDogmaInfoInventoryRow(item) {
 }
 
 function buildInventoryDogmaInfoInventoryRow(item) {
-  const singleton = Number(item && item.singleton) === 1 ? 1 : 0;
-  const normalizedStacksize = singleton === 1
+  const rawSingleton = Number(item && item.singleton) || 0;
+  const singleton = rawSingleton === 2 ? 2 : rawSingleton === 1 ? 1 : 0;
+  const normalizedStacksize = singleton > 0
     ? 1
     : Math.max(0, Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0);
-  const normalizedQuantity = singleton === 1
-    ? -1
-    : normalizedStacksize;
+  const normalizedQuantity =
+    item && item.quantity !== undefined && item.quantity !== null
+      ? item.quantity
+      : singleton === 2
+        ? -2
+        : singleton === 1
+          ? -1
+          : normalizedStacksize;
   return {
     type: "object",
     name: "util.Row",

@@ -2447,6 +2447,10 @@ function getStargateWarpExitPoint(entity, stargate, minimumRange = 0) {
   // elastic collision physics will punt the ship at thousands of m/s.
   const minimumOffset = gateRadius + shipRadius + 500;
   const requestedRange = Math.max(minimumOffset, toFiniteNumber(minimumRange, 0));
+  const edgeDistance = requestedRange - gateRadius;
+  log.info(
+    `[WarpLanding] gate=${stargate && stargate.itemID} typeID=${entity && entity.typeID} gateRadius=${gateRadius} shipRadius=${shipRadius} minimumOffset=${minimumOffset} requestedRange=${requestedRange} edgeDistance=${edgeDistance}`,
+  );
   const gatePosition = cloneVector(stargate && stargate.position);
   const fallbackDirection = normalizeVector(
     entity && entity.direction,
@@ -4860,6 +4864,7 @@ function clearSessionStateFromShipEntity(entity) {
   }
 
   entity.session = null;
+  entity.pendingModuleStopNotifications = [];
   entity.characterID = 0;
   entity.pilotCharacterID = 0;
   entity.corporationID = 0;
@@ -9258,6 +9263,20 @@ function finalizePropulsionModuleDeactivationWithoutSession(
     entity,
   );
 
+  const potentialSessionProp = entity.session || null;
+  if (potentialSessionProp) {
+    if (!Array.isArray(entity.pendingModuleStopNotifications)) {
+      entity.pendingModuleStopNotifications = [];
+    }
+    if (entity.pendingModuleStopNotifications.length < 32) {
+      entity.pendingModuleStopNotifications.push({
+        effectState: { ...effectState },
+        stopTimeMs,
+        isPropulsion: true,
+      });
+    }
+  }
+
   return {
     success: true,
     data: {
@@ -9446,6 +9465,20 @@ function finalizeGenericModuleDeactivationWithoutSession(
     options.suppressCompressionSlimBroadcast !== true
   ) {
     scene.broadcastSlimItemChanges([entity]);
+  }
+
+  const potentialSession = entity.session || null;
+  if (potentialSession) {
+    if (!Array.isArray(entity.pendingModuleStopNotifications)) {
+      entity.pendingModuleStopNotifications = [];
+    }
+    if (entity.pendingModuleStopNotifications.length < 32) {
+      entity.pendingModuleStopNotifications.push({
+        effectState: { ...effectState },
+        stopTimeMs,
+        isPropulsion: false,
+      });
+    }
   }
 
   return {
@@ -14551,6 +14584,26 @@ function advanceMovement(entity, scene, deltaSeconds, now) {
           warpState: entity.warpState,
           position: entity.position,
         });
+        const _warpCompleteTargetEntity = entity.targetEntityID
+          ? scene.getEntityByID(entity.targetEntityID)
+          : null;
+        const _warpCompleteTargetRadius = Math.max(
+          0,
+          toFiniteNumber(_warpCompleteTargetEntity && _warpCompleteTargetEntity.radius, 0),
+        );
+        const _warpCompleteDistCenter = _warpCompleteTargetEntity
+          ? distance(entity.position, _warpCompleteTargetEntity.position)
+          : null;
+        const _warpCompleteDistEdge = _warpCompleteDistCenter !== null
+          ? _warpCompleteDistCenter - _warpCompleteTargetRadius
+          : null;
+        log.info(
+          `[WarpComplete] itemID=${entity.itemID} typeID=${entity.typeID} targetEntityID=${entity.targetEntityID || "none"}` +
+          ` serverPos=(${Math.round(entity.position.x)},${Math.round(entity.position.y)},${Math.round(entity.position.z)})` +
+          ` distToTargetCenter=${_warpCompleteDistCenter !== null ? Math.round(_warpCompleteDistCenter) : "n/a"}` +
+          ` distToTargetEdge=${_warpCompleteDistEdge !== null ? Math.round(_warpCompleteDistEdge) : "n/a"}` +
+          ` targetRadius=${_warpCompleteTargetRadius}`,
+        );
         entity.mode = "STOP";
         entity.speedFraction = 0;
         entity.targetPoint = cloneVector(entity.position);
@@ -24253,6 +24306,19 @@ class SolarSystemScene {
       }
     }
     for (const entity of this.dynamicEntities.values()) {
+      if (Array.isArray(entity.pendingModuleStopNotifications) && entity.pendingModuleStopNotifications.length > 0) {
+        const flushSession = entity.session || getOwningSessionForEntity(this, entity);
+        if (flushSession && isReadyForDestiny(flushSession)) {
+          const pendingStops = entity.pendingModuleStopNotifications.splice(0);
+          for (const pending of pendingStops) {
+            if (pending.isPropulsion) {
+              notifyModuleEffectState(flushSession, entity, pending.effectState, false, { whenMs: pending.stopTimeMs });
+            } else {
+              notifyGenericModuleEffectState(flushSession, entity, pending.effectState, false, { whenMs: pending.stopTimeMs });
+            }
+          }
+        }
+      }
       const commandBurstPruneResult = commandBurstRuntime.pruneExpiredCommandBursts(
         entity,
         now,

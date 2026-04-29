@@ -118,8 +118,10 @@ function buildItemPayload(item) {
   const metadata = getItemMetadata(item && item.typeID, item && item.itemName);
   const singleton = toInt(item && item.singleton, 0);
   const quantity =
-    singleton === 1
-      ? -1
+    singleton === 2
+      ? -2
+      : singleton === 1
+        ? -1
       : toInt(item && item.quantity, toInt(item && item.stacksize, 0));
   return {
     itemID: toInt(item && item.itemID, 0),

@@ -514,7 +514,7 @@ function createMovementWarpBuilders(deps = {}) {
   function buildPilotWarpCompletionUpdates(entity, stamp) {
     return [
       ...buildWarpCompletionUpdates(entity, stamp, {
-        includePosition: false,
+        includePosition: true,
       }),
       {
         stamp,
