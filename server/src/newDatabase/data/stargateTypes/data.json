@@ -1,7 +1,10 @@
 {
   "source": {
     "provider": "EVE Static Data JSONL",
-    "generatedAt": "2026-04-09T16:52:02.513Z",
+    "authority": "eve-online-static-data-3316380-jsonl",
+    "sourceDir": "tools/DataSync/source_json",
+    "buildNumber": 3316380,
+    "releaseDate": "2026-04-23T11:33:57Z",
     "jsonlSync": {
       "updatedStargateTypeIDs": [
         16,
@@ -16,7 +19,10 @@
         29625,
         29626,
         29627,
+        29628,
         29629,
+        29630,
+        29631,
         29632,
         29633,
         29634,
@@ -27,19 +33,17 @@
         77921,
         78264,
         78265,
-        78266
+        78266,
+        93250,
+        93251,
+        93252
       ],
-      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-      "syncedAt": "2026-04-09T16:52:02.513Z",
-      "buildNumber": 3294658,
-      "releaseDate": "2026-04-09T11:29:37Z"
-    },
-    "authority": "eve-online-static-data-3294658-jsonl",
-    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-    "buildNumber": 3294658,
-    "releaseDate": "2026-04-09T11:29:37Z"
+      "sourceDir": "tools/DataSync/source_json",
+      "buildNumber": 3316380,
+      "releaseDate": "2026-04-23T11:33:57Z"
+    }
   },
-  "count": 24,
+  "count": 30,
   "stargateTypes": [
     {
       "typeID": 16,
@@ -162,6 +166,16 @@
       "published": false
     },
     {
+      "typeID": 29628,
+      "typeName": "Stargate (Caldari Unused)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 2341,
+      "published": false
+    },
+    {
       "typeID": 29629,
       "typeName": "Stargate (Caldari Region)",
       "groupID": 10,
@@ -169,6 +183,26 @@
       "groupName": "Stargate",
       "raceID": 1,
       "graphicID": 3459,
+      "published": false
+    },
+    {
+      "typeID": 29630,
+      "typeName": "Stargate (Gallente Unused 2)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 2341,
+      "published": false
+    },
+    {
+      "typeID": 29631,
+      "typeName": "Stargate (Gallente Unused 1)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 8,
+      "graphicID": 2341,
       "published": false
     },
     {
@@ -279,6 +313,36 @@
       "groupName": "Stargate",
       "raceID": 16,
       "graphicID": 26215,
+      "published": false
+    },
+    {
+      "typeID": 93250,
+      "typeName": "Damaged Stargate (Caldari System)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 33318,
+      "published": false
+    },
+    {
+      "typeID": 93251,
+      "typeName": "Damaged Stargate (Caldari Region)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 33317,
+      "published": false
+    },
+    {
+      "typeID": 93252,
+      "typeName": "Damaged Stargate (Caldari Constellation)",
+      "groupID": 10,
+      "categoryID": 2,
+      "groupName": "Stargate",
+      "raceID": 1,
+      "graphicID": 33316,
       "published": false
     }
   ]

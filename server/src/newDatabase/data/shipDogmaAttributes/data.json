@@ -1,9 +1,11 @@
 {
   "source": {
     "provider": "EVE Static Data JSONL",
-    "generatedAt": "2026-04-09T16:52:02.513Z",
+    "authority": "eve-online-static-data-3316380-jsonl",
+    "sourceDir": "tools/DataSync/source_json",
+    "buildNumber": 3316380,
+    "releaseDate": "2026-04-23T11:33:57Z",
     "jsonlSync": {
-      "updatedAttributeIDs": [],
       "updatedShipTypeIDs": [
         582,
         583,
@@ -567,15 +569,10 @@
         92283,
         92284
       ],
-      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-      "syncedAt": "2026-04-09T16:52:02.513Z",
-      "buildNumber": 3294658,
-      "releaseDate": "2026-04-09T11:29:37Z"
-    },
-    "authority": "eve-online-static-data-3294658-jsonl",
-    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-    "buildNumber": 3294658,
-    "releaseDate": "2026-04-09T11:29:37Z"
+      "sourceDir": "tools/DataSync/source_json",
+      "buildNumber": 3316380,
+      "releaseDate": "2026-04-23T11:33:57Z"
+    }
   },
   "counts": {
     "shipTypes": 561,
@@ -858,7 +855,7 @@
     "31": {
       "attributeID": 31,
       "attributeName": "maxArmor",
-      "description": "The number of hit points this module can take  ",
+      "description": "The number of hit points this module can take",
       "iconID": 1383,
       "defaultValue": 0,
       "published": false,
@@ -874,7 +871,7 @@
     "32": {
       "attributeID": 32,
       "attributeName": "breakPoint",
-      "description": "The number of hit points when this module goes offline  ",
+      "description": "The number of hit points when this module goes offline",
       "iconID": null,
       "defaultValue": 0,
       "published": false,
@@ -3386,7 +3383,7 @@
     "224": {
       "attributeID": 224,
       "attributeName": "intelligenceSkillTrainingTimeMultiplier",
-      "description": "Scales the time it takes to train skills with Intelligence as the primary attribute. ",
+      "description": "Scales the time it takes to train skills with Intelligence as the primary attribute.",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -4026,7 +4023,7 @@
     "267": {
       "attributeID": 267,
       "attributeName": "Armor EM Damage Resistance",
-      "description": "Multiplies EM damage taken by Armor. ",
+      "description": "Multiplies EM damage taken by Armor.",
       "iconID": 1396,
       "defaultValue": 1,
       "published": true,
@@ -4042,7 +4039,7 @@
     "268": {
       "attributeID": 268,
       "attributeName": "Armor Explosive Damage Resistance",
-      "description": "Multiplies EXPLOSIVE damage taken by Armor. ",
+      "description": "Multiplies EXPLOSIVE damage taken by Armor.",
       "iconID": 1395,
       "defaultValue": 1,
       "published": true,
@@ -4058,7 +4055,7 @@
     "269": {
       "attributeID": 269,
       "attributeName": "Armor Kinetic Damage Resistance",
-      "description": "Multiplies KINETIC damage taken by Armor. ",
+      "description": "Multiplies KINETIC damage taken by Armor.",
       "iconID": 1393,
       "defaultValue": 1,
       "published": true,
@@ -4074,7 +4071,7 @@
     "270": {
       "attributeID": 270,
       "attributeName": "Armor Thermal Damage Resistance",
-      "description": "Multiplies THERMAL damage taken by Armor. ",
+      "description": "Multiplies THERMAL damage taken by Armor.",
       "iconID": 1394,
       "defaultValue": 1,
       "published": true,
@@ -4106,7 +4103,7 @@
     "272": {
       "attributeID": 272,
       "attributeName": "Shield Explosive Damage Resistance",
-      "description": "Multiplies EXPLOSIVE damage taken by Armor. ",
+      "description": "Multiplies EXPLOSIVE damage taken by Armor.",
       "iconID": 1395,
       "defaultValue": 1,
       "published": true,
@@ -4122,7 +4119,7 @@
     "273": {
       "attributeID": 273,
       "attributeName": "Shield Kinetic Damage Resistance",
-      "description": "Multiplies KINETIC damage taken by Armor. ",
+      "description": "Multiplies KINETIC damage taken by Armor.",
       "iconID": 1393,
       "defaultValue": 1,
       "published": true,
@@ -4138,7 +4135,7 @@
     "274": {
       "attributeID": 274,
       "attributeName": "Shield Thermal Damage Resistance",
-      "description": "Multiplies THERMAL damage taken by Shield. ",
+      "description": "Multiplies THERMAL damage taken by Shield.",
       "iconID": 1394,
       "defaultValue": 1,
       "published": true,
@@ -5274,7 +5271,7 @@
     "355": {
       "attributeID": 355,
       "attributeName": "Negotiation Multiplier",
-      "description": "Percentage of pay from agent ",
+      "description": "Percentage of pay from agent",
       "iconID": 0,
       "defaultValue": 1,
       "published": true,
@@ -5354,7 +5351,7 @@
     "362": {
       "attributeID": 362,
       "attributeName": "Social Bonus",
-      "description": "Bonus To standing gain towards non CONCORD npcs  ",
+      "description": "Bonus To standing gain towards non CONCORD npcs",
       "iconID": 0,
       "defaultValue": 100,
       "published": true,
@@ -5370,7 +5367,7 @@
     "363": {
       "attributeID": 363,
       "attributeName": "Amarr Tech",
-      "description": "Production time multiplier when manufacturing amarr tech   ",
+      "description": "Production time multiplier when manufacturing amarr tech",
       "iconID": 0,
       "defaultValue": 100,
       "published": true,
@@ -5386,7 +5383,7 @@
     "364": {
       "attributeID": 364,
       "attributeName": "Minmatar Tech",
-      "description": "Production time multiplier when manufacturing Minmatar tech   ",
+      "description": "Production time multiplier when manufacturing Minmatar tech",
       "iconID": 0,
       "defaultValue": 100,
       "published": true,
@@ -5402,7 +5399,7 @@
     "365": {
       "attributeID": 365,
       "attributeName": "Gallente Tech",
-      "description": "Production time multiplier when manufacturing Gallente tech   ",
+      "description": "Production time multiplier when manufacturing Gallente tech",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -5418,7 +5415,7 @@
     "366": {
       "attributeID": 366,
       "attributeName": "Caldari Tech",
-      "description": "Production time multiplier when manufacturing caldari tech   ",
+      "description": "Production time multiplier when manufacturing caldari tech",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -5642,7 +5639,7 @@
     "380": {
       "attributeID": 380,
       "attributeName": "Maximum Active Factory",
-      "description": "Max active factories that a player can operate ",
+      "description": "Max active factories that a player can operate",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -5690,7 +5687,7 @@
     "385": {
       "attributeID": 385,
       "attributeName": "Production time research speed",
-      "description": "Research speed ",
+      "description": "Research speed",
       "iconID": 0,
       "defaultValue": 1,
       "published": true,
@@ -5882,7 +5879,7 @@
     "399": {
       "attributeID": 399,
       "attributeName": "Prototyping Chance",
-      "description": "Chance of upgrading a module to next tech level ",
+      "description": "Chance of upgrading a module to next tech level",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -6586,7 +6583,7 @@
     "443": {
       "attributeID": 443,
       "attributeName": "Trade premium",
-      "description": "price bonus when selling to npc corps\r\n",
+      "description": "price bonus when selling to npc corps",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -6602,7 +6599,7 @@
     "444": {
       "attributeID": 444,
       "attributeName": "Contraband fencing chance",
-      "description": "Chance of being caught selling contraband on market. ",
+      "description": "Chance of being caught selling contraband on market.",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -6618,7 +6615,7 @@
     "445": {
       "attributeID": 445,
       "attributeName": "smugglingChance",
-      "description": "Chance of being caught Transporting contraband. ",
+      "description": "Chance of being caught Transporting contraband.",
       "iconID": 0,
       "defaultValue": 0,
       "published": false,
@@ -7658,7 +7655,7 @@
     "513": {
       "attributeID": 513,
       "attributeName": "modifyTargetSpeedDuration",
-      "description": "Duration of entities Stasis Web ",
+      "description": "Duration of entities Stasis Web",
       "iconID": 0,
       "defaultValue": 5000,
       "published": false,
@@ -8090,7 +8087,7 @@
     "547": {
       "attributeID": 547,
       "attributeName": "Missile Velocity Bonus",
-      "description": "Autogenerated skill attribute, missileVelocityBonus ",
+      "description": "Autogenerated skill attribute, missileVelocityBonus",
       "iconID": 0,
       "defaultValue": 0,
       "published": true,
@@ -9082,7 +9079,7 @@
     "620": {
       "attributeID": 620,
       "attributeName": "Signature Resolution",
-      "description": "Prefered target signature. The base signature radius at which the turret's tracking speed is rated. ",
+      "description": "Prefered target signature. The base signature radius at which the turret's tracking speed is rated.",
       "iconID": null,
       "defaultValue": 1000,
       "published": false,
@@ -14954,7 +14951,7 @@
     "1031": {
       "attributeID": 1031,
       "attributeName": "Control Tower Size",
-      "description": "numeric classification for tower size\r\n",
+      "description": "numeric classification for tower size",
       "iconID": 0,
       "defaultValue": 1,
       "published": true,
@@ -22746,7 +22743,7 @@
     "1599": {
       "attributeID": 1599,
       "attributeName": "Prerequisite Installed Upgrade",
-      "description": "The typeID of the upgrade that is required for this upgrade to be installed. ",
+      "description": "The typeID of the upgrade that is required for this upgrade to be installed.",
       "iconID": null,
       "defaultValue": 0,
       "published": true,
@@ -22794,7 +22791,7 @@
     "1603": {
       "attributeID": 1603,
       "attributeName": "Daily Upkeep Cost",
-      "description": "[DEPRECATED] The sum of this attribute on the claim markers, Infrastructure hub, and each upgrade is the systems base cost. ",
+      "description": "[DEPRECATED] The sum of this attribute on the claim markers, Infrastructure hub, and each upgrade is the systems base cost.",
       "iconID": null,
       "defaultValue": 0,
       "published": true,
@@ -23962,7 +23959,7 @@
     "1692": {
       "attributeID": 1692,
       "attributeName": "metaGroupID",
-      "description": "Authoring has been moved to FSD.\r\nmeta group of type\r\n\r\n3: Story-line (Cosmos)\r\n4: Faction\r\n5: Officer (rare asteroid NPCs)\r\n6: Deadspace\r\n\r\n",
+      "description": "Authoring has been moved to FSD.\r\nmeta group of type\r\n\r\n3: Story-line (Cosmos)\r\n4: Faction\r\n5: Officer (rare asteroid NPCs)\r\n6: Deadspace",
       "iconID": null,
       "defaultValue": 0,
       "published": false,
@@ -27226,7 +27223,7 @@
     "1933": {
       "attributeID": 1933,
       "attributeName": "Polymer Material Siphon Amount",
-      "description": "Amount of Polymer Materials stolen from active Polymer Reactor Array every cycle. ",
+      "description": "Amount of Polymer Materials stolen from active Polymer Reactor Array every cycle.",
       "iconID": null,
       "defaultValue": 0,
       "published": true,
@@ -28410,7 +28407,7 @@
     "2019": {
       "attributeID": 2019,
       "attributeName": "allowRefills",
-      "description": "When set to 1 this attribute allows Spawn Containers to refill and relock. ",
+      "description": "When set to 1 this attribute allows Spawn Containers to refill and relock.",
       "iconID": null,
       "defaultValue": 0,
       "published": true,
@@ -29210,7 +29207,7 @@
     "2079": {
       "attributeID": 2079,
       "attributeName": "Set Armor EM Damage Resistance",
-      "description": "Sets Em damage taken by Armor. ",
+      "description": "Sets Em damage taken by Armor.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29226,7 +29223,7 @@
     "2080": {
       "attributeID": 2080,
       "attributeName": "Set Armor Explosive Damage Resistance",
-      "description": "Sets Explosive damage taken by Armor. ",
+      "description": "Sets Explosive damage taken by Armor.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29242,7 +29239,7 @@
     "2081": {
       "attributeID": 2081,
       "attributeName": "Set Armor Kinetic Damage Resistance",
-      "description": "Sets Kinetic damage taken by Armor. ",
+      "description": "Sets Kinetic damage taken by Armor.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29258,7 +29255,7 @@
     "2082": {
       "attributeID": 2082,
       "attributeName": "Set Armor Thermal Damage Resistance",
-      "description": "Sets Thermal damage taken by Armor. ",
+      "description": "Sets Thermal damage taken by Armor.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29274,7 +29271,7 @@
     "2083": {
       "attributeID": 2083,
       "attributeName": "Set Shield EM Damage Resistance",
-      "description": "Sets Em damage taken by Shields. ",
+      "description": "Sets Em damage taken by Shields.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29290,7 +29287,7 @@
     "2084": {
       "attributeID": 2084,
       "attributeName": "Set Shield Explosive Damage Resistance",
-      "description": "Sets Explosive damage taken by shields. ",
+      "description": "Sets Explosive damage taken by shields.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29306,7 +29303,7 @@
     "2085": {
       "attributeID": 2085,
       "attributeName": "Set Shield Kinetic Damage Resistance",
-      "description": "Sets kinetic damage taken by Shields. ",
+      "description": "Sets kinetic damage taken by Shields.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29322,7 +29319,7 @@
     "2086": {
       "attributeID": 2086,
       "attributeName": "Set Shield Thermal Damage Resistance",
-      "description": "Sets Thermal damage taken by Shields. ",
+      "description": "Sets Thermal damage taken by Shields.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29338,7 +29335,7 @@
     "2087": {
       "attributeID": 2087,
       "attributeName": "Set Hull EM Damage Resistance",
-      "description": "Sets Em damage taken by Hull. ",
+      "description": "Sets Em damage taken by Hull.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29354,7 +29351,7 @@
     "2088": {
       "attributeID": 2088,
       "attributeName": "Set Hull Explosive Damage Resistance",
-      "description": "Sets Explosive damage taken by Hull. ",
+      "description": "Sets Explosive damage taken by Hull.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29370,7 +29367,7 @@
     "2089": {
       "attributeID": 2089,
       "attributeName": "Set Hull Thermal Damage Resistance",
-      "description": "Sets Thermal damage taken by Hull. ",
+      "description": "Sets Thermal damage taken by Hull.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -29386,7 +29383,7 @@
     "2090": {
       "attributeID": 2090,
       "attributeName": "Set Hull Kinetic Damage Resistance",
-      "description": "Sets Kinetic damage taken by Hull. ",
+      "description": "Sets Kinetic damage taken by Hull.",
       "iconID": null,
       "defaultValue": 1,
       "published": true,
@@ -30970,7 +30967,7 @@
     "2219": {
       "attributeID": 2219,
       "attributeName": "Heavy Fighter Squadrons Limit",
-      "description": "Number of Heavy Fighters the ship can launch.Heavy ",
+      "description": "Number of Heavy Fighters the ship can launch.Heavy",
       "iconID": 2987,
       "defaultValue": 0,
       "published": true,
@@ -35866,7 +35863,7 @@
     "2539": {
       "attributeID": 2539,
       "attributeName": "attributeEquipmentManufactureTimeMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nShip Modules, Ship Rigs, Personal Deployables, Implants, Cargo Containers\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nShip Modules, Ship Rigs, Personal Deployables, Implants, Cargo Containers",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -35882,7 +35879,7 @@
     "2540": {
       "attributeID": 2540,
       "attributeName": "attributeAmmoManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nAmmunition, Charges, Scripts\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nAmmunition, Charges, Scripts",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -35978,7 +35975,7 @@
     "2546": {
       "attributeID": 2546,
       "attributeName": "attributeBasMediumShipManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nT1 Cruisers, T1 Battlecruisers, Industrial Ships,    Mining Barges\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nT1 Cruisers, T1 Battlecruisers, Industrial Ships,    Mining Barges",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -35994,7 +35991,7 @@
     "2547": {
       "attributeID": 2547,
       "attributeName": "attributeBasMediumShipManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nT1 Cruisers, T1 Battlecruisers, Industrial Ships,    Mining Barges\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nT1 Cruisers, T1 Battlecruisers, Industrial Ships,    Mining Barges",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36010,7 +36007,7 @@
     "2548": {
       "attributeID": 2548,
       "attributeName": "attributeBasLargeShipManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nT1 Battleships, T1 Freighters,                                     Industrial Command Ships\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nT1 Battleships, T1 Freighters,                                     Industrial Command Ships",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36026,7 +36023,7 @@
     "2549": {
       "attributeID": 2549,
       "attributeName": "attributeBasLargeShipManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nT1 Battleships, T1 Freighters,                                     Industrial Command Ships\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nT1 Battleships, T1 Freighters,                                     Industrial Command Ships",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36042,7 +36039,7 @@
     "2550": {
       "attributeID": 2550,
       "attributeName": "attributeAdvSmallShipManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Frigates, T2 Destroyers, T3 Destroyers\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Frigates, T2 Destroyers, T3 Destroyers",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36058,7 +36055,7 @@
     "2551": {
       "attributeID": 2551,
       "attributeName": "attributeAdvSmallShipManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nT2 Frigates, T2 Destroyers, T3 Destroyers\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nT2 Frigates, T2 Destroyers, T3 Destroyers",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36074,7 +36071,7 @@
     "2552": {
       "attributeID": 2552,
       "attributeName": "attributeAdvMediumShipManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Cruisers, T2 Battlecruisers, T2 Haulers, Exhumers, T3 Cruisers,T3 Subsystems\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Cruisers, T2 Battlecruisers, T2 Haulers, Exhumers, T3 Cruisers,T3 Subsystems",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36090,7 +36087,7 @@
     "2553": {
       "attributeID": 2553,
       "attributeName": "attributeAdvMediumShipManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nT2 Cruisers, T2 Battlecruisers, T2 Haulers, Exhumers, T3 Cruisers,T3 Subsystems\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nT2 Cruisers, T2 Battlecruisers, T2 Haulers, Exhumers, T3 Cruisers,T3 Subsystems",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36106,7 +36103,7 @@
     "2555": {
       "attributeID": 2555,
       "attributeName": "attributeAdvLargeShipManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Battleships, Jump Freighters\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Battleships, Jump Freighters",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36122,7 +36119,7 @@
     "2556": {
       "attributeID": 2556,
       "attributeName": "attributeAdvLargeShipManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nT2 Battleships, Jump Freighters\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nT2 Battleships, Jump Freighters",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36138,7 +36135,7 @@
     "2557": {
       "attributeID": 2557,
       "attributeName": "attributeAdvCompManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Components, Tools, Data Interfaces, T3 Components\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nT2 Components, Tools, Data Interfaces, T3 Components",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36170,7 +36167,7 @@
     "2559": {
       "attributeID": 2559,
       "attributeName": "attributeBasCapCompManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nCapital Construction Components\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nCapital Construction Components",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36186,7 +36183,7 @@
     "2560": {
       "attributeID": 2560,
       "attributeName": "attributeBasCapCompManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nCapital Construction Components\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nCapital Construction Components",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36202,7 +36199,7 @@
     "2561": {
       "attributeID": 2561,
       "attributeName": "attributeStructureManufactureMaterialMultiplier",
-      "description": "Decrease material requirement for manufacturing the following:\r\nStructure Components, Structure Modules,          Upwell Structures, Starbase Structures, Fuel Blocks\r\n\r\n\r\n\r\n",
+      "description": "Decrease material requirement for manufacturing the following:\r\nStructure Components, Structure Modules,          Upwell Structures, Starbase Structures, Fuel Blocks",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36218,7 +36215,7 @@
     "2562": {
       "attributeID": 2562,
       "attributeName": "attributeStructureManufactureTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nStructure Components, Structure Modules,          Upwell Structures, Starbase Structures, Fuel Blocks\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nStructure Components, Structure Modules,          Upwell Structures, Starbase Structures, Fuel Blocks",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36234,7 +36231,7 @@
     "2563": {
       "attributeID": 2563,
       "attributeName": "attributeInventionCostMultiplier",
-      "description": "Decrease cost requirement for manufacturing the following:\r\nInvention\r\n\r\n\r\n\r\n",
+      "description": "Decrease cost requirement for manufacturing the following:\r\nInvention",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36250,7 +36247,7 @@
     "2564": {
       "attributeID": 2564,
       "attributeName": "attributeInventionTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nInvention\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nInvention",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36266,7 +36263,7 @@
     "2565": {
       "attributeID": 2565,
       "attributeName": "attributeMEResearchCostMultiplier",
-      "description": "Decrease cost requirement for manufacturing the following:\r\nMaterial Efficiency Blueprint Research\r\n\r\n\r\n\r\n",
+      "description": "Decrease cost requirement for manufacturing the following:\r\nMaterial Efficiency Blueprint Research",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36282,7 +36279,7 @@
     "2566": {
       "attributeID": 2566,
       "attributeName": "attributeMEResearchTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nMaterial Efficiency Blueprint Research\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nMaterial Efficiency Blueprint Research",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36298,7 +36295,7 @@
     "2567": {
       "attributeID": 2567,
       "attributeName": "attributeTEResearchCostMultiplier",
-      "description": "Decrease cost requirement for manufacturing the following:\r\nTime Efficiency Blueprint Research\r\n\r\n\r\n\r\n",
+      "description": "Decrease cost requirement for manufacturing the following:\r\nTime Efficiency Blueprint Research",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36314,7 +36311,7 @@
     "2568": {
       "attributeID": 2568,
       "attributeName": "attributeTEResearchTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nTime Efficiency Blueprint Research\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nTime Efficiency Blueprint Research",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36330,7 +36327,7 @@
     "2569": {
       "attributeID": 2569,
       "attributeName": "attributeBPCopyCostMultiplier",
-      "description": "Decrease cost requirement for manufacturing the following:\r\nBlueprint Copying\r\n\r\n\r\n\r\n",
+      "description": "Decrease cost requirement for manufacturing the following:\r\nBlueprint Copying",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -36346,7 +36343,7 @@
     "2570": {
       "attributeID": 2570,
       "attributeName": "attributeBPCopyTimeMultiplier",
-      "description": "Decrease time requirement for manufacturing the following:\r\nBlueprint Copying\r\n\r\n\r\n\r\n",
+      "description": "Decrease time requirement for manufacturing the following:\r\nBlueprint Copying",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -38665,7 +38662,7 @@
     },
     "2727": {
       "attributeID": 2727,
-      "attributeName": "asteroidMaxRadius ",
+      "attributeName": "asteroidMaxRadius",
       "description": "max visual size for asteroids to fit moon chunk",
       "iconID": null,
       "defaultValue": 16255,
@@ -38675,7 +38672,7 @@
       "stackable": true,
       "highIsGood": true,
       "categoryID": 31,
-      "name": "asteroidMaxRadius ",
+      "name": "asteroidMaxRadius",
       "dataType": 5,
       "displayWhenZero": false
     },
@@ -40714,7 +40711,7 @@
     "3050": {
       "attributeID": 3050,
       "attributeName": "AmountOfFleetsPerMatch",
-      "description": "The amount of fleets needed for a single pvp filament match ",
+      "description": "The amount of fleets needed for a single pvp filament match",
       "iconID": null,
       "defaultValue": 2,
       "published": false,
@@ -41066,7 +41063,7 @@
     "3120": {
       "attributeID": 3120,
       "attributeName": "warpBubbleImmuneBonus",
-      "description": "modifies warp bubble immuntiy ",
+      "description": "modifies warp bubble immuntiy",
       "iconID": null,
       "defaultValue": 0,
       "published": false,
@@ -41481,7 +41478,7 @@
     },
     "3171": {
       "attributeID": 3171,
-      "attributeName": " expeditionFrigateBonusMediumDronesDamage_DEPRICATED",
+      "attributeName": "expeditionFrigateBonusMediumDronesDamage_DEPRICATED",
       "description": "",
       "iconID": null,
       "defaultValue": 0,
@@ -41491,7 +41488,7 @@
       "stackable": true,
       "highIsGood": true,
       "categoryID": 37,
-      "name": " expeditionFrigateBonusMediumDronesDamage_DEPRICATED",
+      "name": "expeditionFrigateBonusMediumDronesDamage_DEPRICATED",
       "dataType": 5,
       "displayWhenZero": false
     },
@@ -43753,7 +43750,7 @@
     },
     "5593": {
       "attributeID": 5593,
-      "attributeName": " behaviorTargetRepairImpedanceDuration",
+      "attributeName": "behaviorTargetRepairImpedanceDuration",
       "description": "",
       "iconID": null,
       "defaultValue": 0,
@@ -43763,7 +43760,7 @@
       "stackable": true,
       "highIsGood": true,
       "categoryID": 42,
-      "name": " behaviorTargetRepairImpedanceDuration",
+      "name": "behaviorTargetRepairImpedanceDuration",
       "dataType": 5,
       "displayWhenZero": false
     },
@@ -43785,7 +43782,7 @@
     },
     "5595": {
       "attributeID": 5595,
-      "attributeName": " behaviorTargetInertiaDuration",
+      "attributeName": "behaviorTargetInertiaDuration",
       "description": "",
       "iconID": null,
       "defaultValue": 0,
@@ -43795,7 +43792,7 @@
       "stackable": true,
       "highIsGood": true,
       "categoryID": 42,
-      "name": " behaviorTargetInertiaDuration",
+      "name": "behaviorTargetInertiaDuration",
       "dataType": 5,
       "displayWhenZero": false
     },
@@ -43834,7 +43831,7 @@
     "5602": {
       "attributeID": 5602,
       "attributeName": "captureProximityInteractivesOnly",
-      "description": "to allow capture point proximity sensors to also detect non-interactives (like NPCs/entities) ",
+      "description": "to allow capture point proximity sensors to also detect non-interactives (like NPCs/entities)",
       "iconID": null,
       "defaultValue": 1,
       "published": false,
@@ -44218,7 +44215,7 @@
     "5694": {
       "attributeID": 5694,
       "attributeName": "microJumpBlocked",
-      "description": "While this value is > 0 for a ship, that ship cannot be moved by Micro Jump effects. This includes Micro Jump Drives and Micro Jump Field Generators. ",
+      "description": "While this value is > 0 for a ship, that ship cannot be moved by Micro Jump effects. This includes Micro Jump Drives and Micro Jump Field Generators.",
       "iconID": null,
       "defaultValue": 0,
       "published": false,
@@ -44265,7 +44262,7 @@
     },
     "5705": {
       "attributeID": 5705,
-      "attributeName": " upwellHaulersMediumMissileFittingBonus",
+      "attributeName": "upwellHaulersMediumMissileFittingBonus",
       "description": "",
       "iconID": null,
       "defaultValue": 0,
@@ -44275,7 +44272,7 @@
       "stackable": true,
       "highIsGood": true,
       "categoryID": 37,
-      "name": " upwellHaulersMediumMissileFittingBonus",
+      "name": "upwellHaulersMediumMissileFittingBonus",
       "dataType": 5,
       "displayWhenZero": false
     },
@@ -45066,7 +45063,7 @@
     "5949": {
       "attributeID": 5949,
       "attributeName": "Command Burst Effect Strength Bonus",
-      "description": "This doesn't actually do anything... It's just to show the dbuff % increases in the client which currently doesn't display this and we rely on the module descriptions to inform players. ",
+      "description": "This doesn't actually do anything... It's just to show the dbuff % increases in the client which currently doesn't display this and we rely on the module descriptions to inform players.",
       "iconID": 1444,
       "defaultValue": 0,
       "published": true,
@@ -45242,7 +45239,7 @@
     "5964": {
       "attributeID": 5964,
       "attributeName": "Armor Repairer / Shield Booster Duration and Capacitor Bonus",
-      "description": "Reduces the cycle time and capacitor cost of Shield Booster and Armor Repairer modules for the bastion module. ",
+      "description": "Reduces the cycle time and capacitor cost of Shield Booster and Armor Repairer modules for the bastion module.",
       "iconID": 1392,
       "defaultValue": 0,
       "published": true,
@@ -45466,7 +45463,7 @@
     "5986": {
       "attributeID": 5986,
       "attributeName": "shipMiningBonusYieldOreDestroyerRoleBonus",
-      "description": "Role bonus for the Pioneer and Pioneer Executive Issue for mining yield amount. ",
+      "description": "Role bonus for the Pioneer and Pioneer Executive Issue for mining yield amount.",
       "iconID": null,
       "defaultValue": 0,
       "published": false,

@@ -1,12 +1,17 @@
 {
   "source": {
     "provider": "EVE Static Data JSONL",
-    "generatedAt": "2026-04-09T16:52:02.513Z",
+    "authority": "eve-online-static-data-3316380-jsonl",
+    "sourceDir": "tools/DataSync/source_json",
+    "buildNumber": 3316380,
+    "releaseDate": "2026-04-23T11:33:57Z",
     "jsonlSync": {
       "updatedStationTypeIDs": [
         54,
         56,
         57,
+        58,
+        59,
         1529,
         1530,
         1531,
@@ -17,6 +22,7 @@
         1930,
         1931,
         1932,
+        2071,
         2496,
         2497,
         2498,
@@ -24,6 +30,7 @@
         2500,
         2501,
         2502,
+        3864,
         3865,
         3866,
         3867,
@@ -34,29 +41,41 @@
         3872,
         4023,
         4024,
+        9856,
+        9857,
+        9867,
         9868,
+        9873,
         10795,
+        12242,
+        12294,
+        12295,
+        19757,
+        21642,
+        21644,
+        21645,
+        21646,
+        22296,
+        22297,
+        22298,
         29323,
         29387,
         29388,
         29389,
+        29390,
         34325,
         34326,
         52678,
         59956,
         71361,
         74397,
-        78334
+        78334,
+        92885
       ],
-      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-      "syncedAt": "2026-04-09T16:52:02.513Z",
-      "buildNumber": 3294658,
-      "releaseDate": "2026-04-09T11:29:37Z"
+      "sourceDir": "tools/DataSync/source_json",
+      "buildNumber": 3316380,
+      "releaseDate": "2026-04-23T11:33:57Z"
     },
-    "authority": "eve-online-static-data-3294658-jsonl",
-    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-    "buildNumber": 3294658,
-    "releaseDate": "2026-04-09T11:29:37Z",
     "localExtensions": {
       "preservedFields": [
         "dockEntry",
@@ -64,20 +83,10 @@
         "graphicLocationID",
         "directionalLocatorCategories",
         "undockLocatorCategories"
-      ],
-      "note": "dockEntry/dockOrientation now come from client graphicLocations.fsdbinary via the cached stationGraphicLocators table. JSONL SDE rows do not include station dock transforms.",
-      "clientMapObjects": {
-        "syncedAt": "2026-04-14T12:04:07.563Z",
-        "mapObjectsDbPath": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\client\\EVE\\tq\\bin64\\staticdata\\mapObjects.db",
-        "metadataOutputPath": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\generated\\client-map-object-metadata.json",
-        "addedStationTypeIDs": [],
-        "updatedStationTypeIDs": [
-          92885
-        ]
-      }
+      ]
     }
   },
-  "count": 44,
+  "count": 64,
   "stationTypes": [
     {
       "stationTypeID": 54,
@@ -171,6 +180,34 @@
       "undockLocatorCategories": [
         "undockPoint"
       ]
+    },
+    {
+      "stationTypeID": 58,
+      "typeName": "C-O-1",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": null,
+      "radius": 1000,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 59,
+      "typeName": "C-O-2",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": null,
+      "radius": 1000,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
     },
     {
       "stationTypeID": 1529,
@@ -483,6 +520,20 @@
       ]
     },
     {
+      "stationTypeID": 2071,
+      "typeName": "Station (InterBus)",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 1255,
+      "radius": 17876,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
       "stationTypeID": 2496,
       "typeName": "Minmatar Hub",
       "groupID": 15,
@@ -698,6 +749,20 @@
       "undockLocatorCategories": [
         "undockPoint"
       ]
+    },
+    {
+      "stationTypeID": 3864,
+      "typeName": "Amarr Citadel",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1249,
+      "radius": 30758,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
     },
     {
       "stationTypeID": 3865,
@@ -1010,6 +1075,48 @@
       ]
     },
     {
+      "stationTypeID": 9856,
+      "typeName": "Amarr Class A Starport",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1373,
+      "radius": 24438,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 9857,
+      "typeName": "Amarr Class B Starport",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1249,
+      "radius": 30758,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 9867,
+      "typeName": "Heaven",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 2008,
+      "radius": 47998,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
+    },
+    {
       "stationTypeID": 9868,
       "typeName": "Concord Starbase",
       "groupID": 15,
@@ -1041,6 +1148,20 @@
       ]
     },
     {
+      "stationTypeID": 9873,
+      "typeName": "Dark Amarr Station O",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 1637,
+      "radius": 22587,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
+    },
+    {
       "stationTypeID": 10795,
       "typeName": "Jovian Construct",
       "groupID": 15,
@@ -1070,6 +1191,160 @@
       "undockLocatorCategories": [
         "undockPoint"
       ]
+    },
+    {
+      "stationTypeID": 12242,
+      "typeName": "Station (Conquerable 1)",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2306,
+      "radius": 20304,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 12294,
+      "typeName": "Station (Conquerable 2)",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2307,
+      "radius": 17877,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 12295,
+      "typeName": "Station (Conquerable 3)",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2308,
+      "radius": 33863,
+      "basePrice": 600000,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 19757,
+      "typeName": "Research Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 2758,
+      "radius": 13436,
+      "basePrice": null,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 21642,
+      "typeName": "Caldari Research Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 1,
+      "graphicID": 2784,
+      "radius": 12748,
+      "basePrice": 1683617576,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 21644,
+      "typeName": "Amarr Factory Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 2785,
+      "radius": 19079,
+      "basePrice": 1702171823,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 21645,
+      "typeName": "Gallente Administrative Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 2783,
+      "radius": 27119,
+      "basePrice": 1403018549,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 21646,
+      "typeName": "Minmatar Service Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 2,
+      "graphicID": 2758,
+      "radius": 18000,
+      "basePrice": 1983932072,
+      "volume": 1,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 22296,
+      "typeName": "Blood Raider Logistics Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 2787,
+      "radius": 51263,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 22297,
+      "typeName": "Blood Raider Military Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 2788,
+      "radius": 39136,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
+    },
+    {
+      "stationTypeID": 22298,
+      "typeName": "Blood Raider Trading Outpost",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 4,
+      "graphicID": 2789,
+      "radius": 40731,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
     },
     {
       "stationTypeID": 29323,
@@ -1194,6 +1469,20 @@
       "undockLocatorCategories": [
         "undockPoint"
       ]
+    },
+    {
+      "stationTypeID": 29390,
+      "typeName": "Damaged CONCORD Station",
+      "groupID": 15,
+      "categoryID": 3,
+      "groupName": "Station",
+      "raceID": 8,
+      "graphicID": 3395,
+      "radius": 60518,
+      "basePrice": 600000,
+      "volume": null,
+      "portionSize": 1,
+      "published": false
     },
     {
       "stationTypeID": 34325,
@@ -1429,7 +1718,7 @@
       "raceID": 8,
       "graphicID": 33224,
       "radius": 70000,
-      "basePrice": 0,
+      "basePrice": null,
       "volume": 1,
       "portionSize": 1,
       "published": false,

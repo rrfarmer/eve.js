@@ -2,8 +2,8 @@
   "meta": {
     "version": 1,
     "description": "Cached iconID to res path authority for local store/catalog image seeding.",
-    "updatedAt": "2026-04-09T16:56:00.470Z",
-    "sourceSnapshot": "eve-online-static-data-3294658-jsonl"
+    "updatedAt": "2026-05-01T22:30:21.910Z",
+    "sourceSnapshot": "eve-online-static-data-3316380-jsonl"
   },
   "iconsByID": {
     "0": "res:/ui/texture/icons/7_64_15.png",
@@ -4489,6 +4489,30 @@
     "27386": "res:/ui/texture/icons/inventory/trading_token_regular_128.png",
     "27387": "res:/ui/texture/icons/inventory/Gallente_crate_splashscreen_512.png",
     "27388": "res:/ui/texture/icons/inventory/FabricatorData.png",
-    "27414": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_anger_games_01_128.png"
+    "27414": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_anger_games_01_128.png",
+    "27415": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_racial_ama_logo_01_128.png",
+    "27416": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_racial_ama_logo_01_128.png",
+    "27417": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_gallente_logo_01_128.png",
+    "27418": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_gallente_logo_01_128.png",
+    "27419": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_racial_cal_logo_01_128.png",
+    "27420": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_racial_cal_logo_01_128.png",
+    "27421": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_minmatar_logo_01_128.png",
+    "27422": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_minmatar_logo_01_128.png",
+    "27423": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_jita44_01_128.png",
+    "27424": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_jita44_01_128.png",
+    "27425": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_jita444_01_128.png",
+    "27426": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_jita444_01_128.png",
+    "27427": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_groovy_03_128.png",
+    "27428": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_groovy_03_128.png",
+    "27429": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_gradient_circle_02_128.png",
+    "27430": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_gradient_circle_02_128.png",
+    "27431": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_tactical_10_128.png",
+    "27432": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_tactical_10_128.png",
+    "27433": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_splatter_04_128.png",
+    "27434": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_splatter_04_128.png",
+    "27435": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_racial_gal_08b_128.png",
+    "27436": "res:/UI/Texture/classes/Cosmetics/Ship/patterns/cosm_racial_gal_08b_128.png",
+    "27463": "res:/UI/Asset/mannequin/topmiddle/93589_Female_TopMiddle_ShirtQF01_Types_soerff03.png",
+    "27464": "res:/UI/Asset/mannequin/topmiddle/93590_Male_topMiddle_ShirtQM01_Types_soerfm03.png"
   }
 }

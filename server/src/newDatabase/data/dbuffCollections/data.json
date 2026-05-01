@@ -1,16 +1,14 @@
 {
   "source": {
     "provider": "EVE Static Data JSONL",
-    "authority": "eve-online-static-data-3294658-jsonl",
-    "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-    "generatedAt": "2026-04-09T16:52:07.645Z",
-    "buildNumber": 3294658,
-    "releaseDate": "2026-04-09T11:29:37Z",
+    "authority": "eve-online-static-data-3316380-jsonl",
+    "sourceDir": "tools/DataSync/source_json",
+    "buildNumber": 3316380,
+    "releaseDate": "2026-04-23T11:33:57Z",
     "jsonlSync": {
-      "sourceDir": "C:\\Users\\John\\Documents\\Testing\\EvEJS\\data\\eve-online-static-data-3294658-jsonl",
-      "syncedAt": "2026-04-09T16:52:07.646Z",
-      "buildNumber": 3294658,
-      "releaseDate": "2026-04-09T11:29:37Z"
+      "sourceDir": "tools/DataSync/source_json",
+      "buildNumber": 3316380,
+      "releaseDate": "2026-04-23T11:33:57Z"
     }
   },
   "counts": {
@@ -20,7 +18,7 @@
     "1": {
       "collectionID": 1,
       "aggregateMode": "Maximum",
-      "operation": 4,
+      "operation": null,
       "operationName": "PostMul",
       "developerDescription": "[PROTOTYPE]Test Multi Buff",
       "itemModifiers": [
@@ -64,7 +62,7 @@
     "2": {
       "collectionID": 2,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "[PROTOTYPE]Test Boost Speed",
       "itemModifiers": [
@@ -80,7 +78,7 @@
     "3": {
       "collectionID": 3,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Velocity penalty",
       "itemModifiers": [
@@ -96,7 +94,7 @@
     "4": {
       "collectionID": 4,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Warp penalty",
       "itemModifiers": [
@@ -112,7 +110,7 @@
     "5": {
       "collectionID": 5,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Disallow Cloak",
       "itemModifiers": [
@@ -128,7 +126,7 @@
     "6": {
       "collectionID": 6,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Disallow jump/dock",
       "itemModifiers": [
@@ -147,7 +145,7 @@
     "7": {
       "collectionID": 7,
       "aggregateMode": "Minimum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "QA Anti-targeting debuff",
       "itemModifiers": [
@@ -163,7 +161,7 @@
     "8": {
       "collectionID": 8,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "PANIC: Shield Resistance",
       "itemModifiers": [
@@ -188,7 +186,7 @@
     "9": {
       "collectionID": 9,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "PANIC: Shield Recharge time",
       "itemModifiers": [
@@ -204,7 +202,7 @@
     "10": {
       "collectionID": 10,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Shield Burst: Shield Harmonizing: Shield Resistance",
       "itemModifiers": [
@@ -229,7 +227,7 @@
     "11": {
       "collectionID": 11,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Shield Burst: Active Shielding: Repair Duration/Capacitor",
       "itemModifiers": [],
@@ -266,7 +264,7 @@
     "12": {
       "collectionID": 12,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Shield Burst: Shield Extension: Shield HP",
       "itemModifiers": [
@@ -282,7 +280,7 @@
     "13": {
       "collectionID": 13,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Armor Burst: Armor Energizing: Armor Resistance",
       "itemModifiers": [
@@ -307,7 +305,7 @@
     "14": {
       "collectionID": 14,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Armor Burst: Rapid Repair: Repair Duration/Capacitor",
       "itemModifiers": [],
@@ -344,7 +342,7 @@
     "15": {
       "collectionID": 15,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Armor Burst: Armor Reinforcement: Armor HP",
       "itemModifiers": [
@@ -360,7 +358,7 @@
     "16": {
       "collectionID": 16,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Information Burst: Sensor Optimization: Scan Resolution",
       "itemModifiers": [
@@ -376,7 +374,7 @@
     "17": {
       "collectionID": 17,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Information Burst: Electronic Superiority: EWAR Range and Strength",
       "itemModifiers": [],
@@ -477,7 +475,7 @@
     "18": {
       "collectionID": 18,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Information Burst: Electronic Hardening: Sensor Strength",
       "itemModifiers": [
@@ -502,7 +500,7 @@
     "19": {
       "collectionID": 19,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Information Burst: Electronic Hardening: RSD/RWD Resistance",
       "itemModifiers": [
@@ -521,7 +519,7 @@
     "20": {
       "collectionID": 20,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Skirmish Burst: Evasive Maneuvers: Signature Radius",
       "itemModifiers": [
@@ -537,7 +535,7 @@
     "21": {
       "collectionID": 21,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Skirmish Burst: Interdiction Maneuvers: Tackle Range",
       "itemModifiers": [],
@@ -554,7 +552,7 @@
     "22": {
       "collectionID": 22,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Skirmish Burst: Rapid Deployment: AB/MWD Speed Increase",
       "itemModifiers": [],
@@ -575,7 +573,7 @@
     "23": {
       "collectionID": 23,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Mining Burst: Mining Laser Field Enhancement: Mining Range",
       "itemModifiers": [],
@@ -600,7 +598,7 @@
     "24": {
       "collectionID": 24,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Mining Burst: Mining Laser Optimization: Mining Capacitor/Duration",
       "itemModifiers": [],
@@ -637,7 +635,7 @@
     "25": {
       "collectionID": 25,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Mining Burst: Mining Equipment Preservation: Crystal Volatility",
       "itemModifiers": [],
@@ -654,7 +652,7 @@
     "26": {
       "collectionID": 26,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Information Burst: Sensor Optimization: Targeting Range",
       "itemModifiers": [
@@ -670,7 +668,7 @@
     "27": {
       "collectionID": 27,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Stasis Webification Burst",
       "itemModifiers": [
@@ -686,7 +684,7 @@
     "28": {
       "collectionID": 28,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Turret Max Range",
       "itemModifiers": [],
@@ -703,7 +701,7 @@
     "29": {
       "collectionID": 29,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Turret Falloff Range",
       "itemModifiers": [],
@@ -720,7 +718,7 @@
     "30": {
       "collectionID": 30,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Turret Tracking",
       "itemModifiers": [],
@@ -737,7 +735,7 @@
     "31": {
       "collectionID": 31,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Missile Velocity",
       "itemModifiers": [],
@@ -754,7 +752,7 @@
     "32": {
       "collectionID": 32,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Missile Duration",
       "itemModifiers": [],
@@ -771,7 +769,7 @@
     "33": {
       "collectionID": 33,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Missile Explosion Velocity",
       "itemModifiers": [],
@@ -788,7 +786,7 @@
     "34": {
       "collectionID": 34,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weapon Disruption Burst: Missile Explosion Radius",
       "itemModifiers": [],
@@ -805,7 +803,7 @@
     "35": {
       "collectionID": 35,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sensor Dampening Burst: Scan Resolution penalty",
       "itemModifiers": [
@@ -821,7 +819,7 @@
     "36": {
       "collectionID": 36,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sensor Dampening Burst: Max Target Range",
       "itemModifiers": [
@@ -837,7 +835,7 @@
     "37": {
       "collectionID": 37,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Target Illumination Burst",
       "itemModifiers": [
@@ -853,7 +851,7 @@
     "38": {
       "collectionID": 38,
       "aggregateMode": "Minimum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "ECM Burst",
       "itemModifiers": [
@@ -869,7 +867,7 @@
     "39": {
       "collectionID": 39,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Avatar Effect Generator : Capacitor Recharge bonus",
       "itemModifiers": [
@@ -885,7 +883,7 @@
     "40": {
       "collectionID": 40,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Avatar Effect Generator : Kinetic resistance bonus",
       "itemModifiers": [
@@ -907,7 +905,7 @@
     "41": {
       "collectionID": 41,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Avatar Effect Generator : EM resistance penalty",
       "itemModifiers": [
@@ -929,7 +927,7 @@
     "42": {
       "collectionID": 42,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Erebus Effect Generator : Armor HP bonus",
       "itemModifiers": [
@@ -945,7 +943,7 @@
     "43": {
       "collectionID": 43,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Erebus Effect Generator : Explosive resistance bonus",
       "itemModifiers": [
@@ -967,7 +965,7 @@
     "44": {
       "collectionID": 44,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Erebus Effect Generator : Thermal resistance penalty",
       "itemModifiers": [
@@ -989,7 +987,7 @@
     "45": {
       "collectionID": 45,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Ragnarok Effect Generator : Signature Radius bonus",
       "itemModifiers": [
@@ -1005,7 +1003,7 @@
     "46": {
       "collectionID": 46,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Ragnarok Effect Generator : Thermal resistance bonus",
       "itemModifiers": [
@@ -1027,7 +1025,7 @@
     "47": {
       "collectionID": 47,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Ragnarok Effect Generator : Explosive resistance penaly",
       "itemModifiers": [
@@ -1049,7 +1047,7 @@
     "48": {
       "collectionID": 48,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Leviathan Effect Generator : Shield HP bonus",
       "itemModifiers": [
@@ -1065,7 +1063,7 @@
     "49": {
       "collectionID": 49,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Leviathan Effect Generator : EM resistance bonus",
       "itemModifiers": [
@@ -1087,7 +1085,7 @@
     "50": {
       "collectionID": 50,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Leviathan Effect Generator : Kinetic resistance penalty",
       "itemModifiers": [
@@ -1109,7 +1107,7 @@
     "51": {
       "collectionID": 51,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Avatar Effect Generator : Velocity penalty",
       "itemModifiers": [
@@ -1125,7 +1123,7 @@
     "52": {
       "collectionID": 52,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Erebus Effect Generator : Shield RR penalty",
       "itemModifiers": [],
@@ -1142,7 +1140,7 @@
     "53": {
       "collectionID": 53,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Leviathan Effect Generator : Armor RR penalty",
       "itemModifiers": [],
@@ -1159,7 +1157,7 @@
     "54": {
       "collectionID": 54,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Ragnarok Effect Generator : Laser and Hybrid Optimal penalty",
       "itemModifiers": [],
@@ -1180,7 +1178,7 @@
     "55": {
       "collectionID": 55,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "PANIC: Scan Resolution penalty",
       "itemModifiers": [
@@ -1196,7 +1194,7 @@
     "56": {
       "collectionID": 56,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "PANIC: Mass increase",
       "itemModifiers": [
@@ -1212,7 +1210,7 @@
     "57": {
       "collectionID": 57,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Disallow tether",
       "itemModifiers": [
@@ -1228,7 +1226,7 @@
     "58": {
       "collectionID": 58,
       "aggregateMode": "Minimum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "PANIC: Drone damage penalty",
       "itemModifiers": [
@@ -1244,7 +1242,7 @@
     "59": {
       "collectionID": 59,
       "aggregateMode": "Maximum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "PANIC: Disallow weapons",
       "itemModifiers": [],
@@ -1269,7 +1267,7 @@
     "60": {
       "collectionID": 60,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Skirmish Burst: Evasive Maneuvers: Agility",
       "itemModifiers": [
@@ -1285,7 +1283,7 @@
     "61": {
       "collectionID": 61,
       "aggregateMode": "Maximum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "PANIC: Disallow entosis",
       "itemModifiers": [],
@@ -1302,7 +1300,7 @@
     "79": {
       "collectionID": 79,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_bioluminescence_cloud",
       "itemModifiers": [
@@ -1318,7 +1316,7 @@
     "80": {
       "collectionID": 80,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_caustic_cloud_inertia",
       "itemModifiers": [
@@ -1334,7 +1332,7 @@
     "81": {
       "collectionID": 81,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_caustic_cloud_velocity",
       "itemModifiers": [
@@ -1350,7 +1348,7 @@
     "84": {
       "collectionID": 84,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_trig_platform_tracking_speed",
       "itemModifiers": [
@@ -1371,7 +1369,7 @@
     "88": {
       "collectionID": 88,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_filament_cloud_shield_booster_shield_bonus",
       "itemModifiers": [
@@ -1392,7 +1390,7 @@
     "89": {
       "collectionID": 89,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_filament_cloud_shield_booster_duration",
       "itemModifiers": [
@@ -1413,7 +1411,7 @@
     "90": {
       "collectionID": 90,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_electric_storm_EM_resistance_penalty",
       "itemModifiers": [
@@ -1435,7 +1433,7 @@
     "92": {
       "collectionID": 92,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_electric_storm_capacitor_recharge_bonus",
       "itemModifiers": [
@@ -1451,7 +1449,7 @@
     "93": {
       "collectionID": 93,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_xenon_gas_explosive_resistance_penalty",
       "itemModifiers": [
@@ -1473,7 +1471,7 @@
     "94": {
       "collectionID": 94,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_xenon_gas_shield_hp_bonus",
       "itemModifiers": [
@@ -1489,7 +1487,7 @@
     "95": {
       "collectionID": 95,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_infernal_thermal_resistance_penalty",
       "itemModifiers": [
@@ -1511,7 +1509,7 @@
     "96": {
       "collectionID": 96,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_infernal_armor_hp_bonus",
       "itemModifiers": [
@@ -1527,7 +1525,7 @@
     "97": {
       "collectionID": 97,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_darkness_turret_range_penalty",
       "itemModifiers": [
@@ -1555,7 +1553,7 @@
     "98": {
       "collectionID": 98,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_darkness_velocity_bonus",
       "itemModifiers": [
@@ -1571,7 +1569,7 @@
     "99": {
       "collectionID": 99,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_caustic_toxin_kinetic_resistance_penalty",
       "itemModifiers": [
@@ -1593,7 +1591,7 @@
     "100": {
       "collectionID": 100,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Weather_caustic_toxin_scan_resolution_bonus",
       "itemModifiers": [
@@ -1609,7 +1607,7 @@
     "101": {
       "collectionID": 101,
       "aggregateMode": "Minimum",
-      "operation": 4,
+      "operation": null,
       "operationName": "PostMul",
       "developerDescription": "Industrial Core Mining Drone Signal Interference",
       "itemModifiers": [],
@@ -1630,7 +1628,7 @@
     "2103": {
       "collectionID": 2103,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Damage Bonus",
       "itemModifiers": [],
@@ -1667,7 +1665,7 @@
     "2104": {
       "collectionID": 2104,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Wreck Warp Scramble",
       "itemModifiers": [
@@ -1683,7 +1681,7 @@
     "2106": {
       "collectionID": 2106,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "ESS: Disables MJDs + MWDs",
       "itemModifiers": [],
@@ -1704,7 +1702,7 @@
     "2108": {
       "collectionID": 2108,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Webifier Range Bonus",
       "itemModifiers": [],
@@ -1721,7 +1719,7 @@
     "2109": {
       "collectionID": 2109,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Module Heat Damage Reduction",
       "itemModifiers": [],
@@ -1737,7 +1735,7 @@
     "2110": {
       "collectionID": 2110,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Webifier Strength Bonus",
       "itemModifiers": [],
@@ -1754,7 +1752,7 @@
     "2111": {
       "collectionID": 2111,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Thermal and Kinetic Missile Damage Bonuus",
       "itemModifiers": [],
@@ -1775,7 +1773,7 @@
     "2112": {
       "collectionID": 2112,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Remote Assistance/Repair Impedance",
       "itemModifiers": [
@@ -1794,7 +1792,7 @@
     "2113": {
       "collectionID": 2113,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Stabilized cloak to prevent decloak bursts",
       "itemModifiers": [
@@ -1810,7 +1808,7 @@
     "2140": {
       "collectionID": 2140,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Overheat Bonus - No EWAR",
       "itemModifiers": [],
@@ -1850,7 +1848,7 @@
     "2141": {
       "collectionID": 2141,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Link-with-ship damage resistance bonus",
       "itemModifiers": [
@@ -1899,7 +1897,7 @@
     "2142": {
       "collectionID": 2142,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Small Energy Turret Damage Bonus",
       "itemModifiers": [],
@@ -1916,7 +1914,7 @@
     "2143": {
       "collectionID": 2143,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Nos and Neut Drain Bonus",
       "itemModifiers": [],
@@ -1937,7 +1935,7 @@
     "2144": {
       "collectionID": 2144,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Turret Damage Bonus",
       "itemModifiers": [],
@@ -1954,7 +1952,7 @@
     "2145": {
       "collectionID": 2145,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Missile Damage Bonus",
       "itemModifiers": [],
@@ -1983,7 +1981,7 @@
     "2146": {
       "collectionID": 2146,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Afterburner Speed Bonus",
       "itemModifiers": [],
@@ -2000,7 +1998,7 @@
     "2147": {
       "collectionID": 2147,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusVelocity",
       "itemModifiers": [
@@ -2016,7 +2014,7 @@
     "2148": {
       "collectionID": 2148,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusInertia",
       "itemModifiers": [
@@ -2032,7 +2030,7 @@
     "2149": {
       "collectionID": 2149,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusCapShieldRecharge",
       "itemModifiers": [
@@ -2051,7 +2049,7 @@
     "2150": {
       "collectionID": 2150,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusModuleCycle",
       "itemModifiers": [],
@@ -2073,7 +2071,7 @@
     "2151": {
       "collectionID": 2151,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusTracking",
       "itemModifiers": [],
@@ -2094,7 +2092,7 @@
     "2152": {
       "collectionID": 2152,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Proving HP Addition",
       "itemModifiers": [
@@ -2110,7 +2108,7 @@
     "2153": {
       "collectionID": 2153,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Turret Tracking",
       "itemModifiers": [],
@@ -2127,7 +2125,7 @@
     "2154": {
       "collectionID": 2154,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Turret Falloff",
       "itemModifiers": [],
@@ -2144,7 +2142,7 @@
     "2155": {
       "collectionID": 2155,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "[AIR] Mining amount penelty",
       "itemModifiers": [],
@@ -2161,7 +2159,7 @@
     "2158": {
       "collectionID": 2158,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Turret Optimal",
       "itemModifiers": [],
@@ -2178,7 +2176,7 @@
     "2159": {
       "collectionID": 2159,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Turret Cap Use",
       "itemModifiers": [],
@@ -2195,7 +2193,7 @@
     "2160": {
       "collectionID": 2160,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving HP All",
       "itemModifiers": [
@@ -2217,7 +2215,7 @@
     "2161": {
       "collectionID": 2161,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Velocity Bonus",
       "itemModifiers": [
@@ -2233,7 +2231,7 @@
     "2162": {
       "collectionID": 2162,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Inertia Penalty",
       "itemModifiers": [
@@ -2249,7 +2247,7 @@
     "2163": {
       "collectionID": 2163,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Capacitor Bonus",
       "itemModifiers": [
@@ -2265,7 +2263,7 @@
     "2164": {
       "collectionID": 2164,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Armor/Shield HP Bonus",
       "itemModifiers": [
@@ -2284,7 +2282,7 @@
     "2165": {
       "collectionID": 2165,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Missile Flight Time Bonus",
       "itemModifiers": [],
@@ -2301,7 +2299,7 @@
     "2166": {
       "collectionID": 2166,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Mass Increase",
       "itemModifiers": [
@@ -2317,7 +2315,7 @@
     "2167": {
       "collectionID": 2167,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusCapRecharge",
       "itemModifiers": [
@@ -2333,7 +2331,7 @@
     "2168": {
       "collectionID": 2168,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusSigRadius",
       "itemModifiers": [
@@ -2349,7 +2347,7 @@
     "2169": {
       "collectionID": 2169,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "SpacetimeNexusTurretMissileDamage",
       "itemModifiers": [],
@@ -2382,7 +2380,7 @@
     "2171": {
       "collectionID": 2171,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Sensor Strength Bonus",
       "itemModifiers": [
@@ -2407,7 +2405,7 @@
     "2172": {
       "collectionID": 2172,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Signature Radius Bonus",
       "itemModifiers": [
@@ -2423,7 +2421,7 @@
     "2174": {
       "collectionID": 2174,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "AOE_Beacon_proving_tachyon_signatureradius_cloud",
       "itemModifiers": [
@@ -2439,7 +2437,7 @@
     "2176": {
       "collectionID": 2176,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Proving Armor HP Addition",
       "itemModifiers": [
@@ -2455,7 +2453,7 @@
     "2177": {
       "collectionID": 2177,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Proving Shield HP Addition",
       "itemModifiers": [
@@ -2471,7 +2469,7 @@
     "2178": {
       "collectionID": 2178,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Kinetic Missile Damage Bonuus",
       "itemModifiers": [],
@@ -2488,7 +2486,7 @@
     "2179": {
       "collectionID": 2179,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Small Hybrid Turret Damage Bonus",
       "itemModifiers": [],
@@ -2505,7 +2503,7 @@
     "2180": {
       "collectionID": 2180,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving Small Hybrid Turret Optimal Bonus",
       "itemModifiers": [],
@@ -2522,7 +2520,7 @@
     "2184": {
       "collectionID": 2184,
       "aggregateMode": "Maximum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "Proving Nos Override",
       "itemModifiers": [
@@ -2538,7 +2536,7 @@
     "2185": {
       "collectionID": 2185,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Tethering Restricted By Security",
       "itemModifiers": [
@@ -2554,7 +2552,7 @@
     "2186": {
       "collectionID": 2186,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving AB/MWD Speed Increase",
       "itemModifiers": [],
@@ -2575,7 +2573,7 @@
     "2187": {
       "collectionID": 2187,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Proving AB/MWD Cap Need Reduction",
       "itemModifiers": [],
@@ -2596,7 +2594,7 @@
     "2201": {
       "collectionID": 2201,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Remote Repair Impedance",
       "itemModifiers": [
@@ -2612,7 +2610,7 @@
     "2405": {
       "collectionID": 2405,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Insurgency Suppression Bonus: Interdiction Range",
       "itemModifiers": [],
@@ -2634,7 +2632,7 @@
     "2414": {
       "collectionID": 2414,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "CDCloudVelocity",
       "itemModifiers": [
@@ -2650,7 +2648,7 @@
     "2415": {
       "collectionID": 2415,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "CDCloudInertia",
       "itemModifiers": [
@@ -2666,7 +2664,7 @@
     "2416": {
       "collectionID": 2416,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "CDCloudCapShieldRecharge",
       "itemModifiers": [
@@ -2685,7 +2683,7 @@
     "2417": {
       "collectionID": 2417,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "CDCloudModuleCycle",
       "itemModifiers": [
@@ -2707,7 +2705,7 @@
     "2418": {
       "collectionID": 2418,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "CDCloudTracking",
       "itemModifiers": [],
@@ -2728,7 +2726,7 @@
     "2419": {
       "collectionID": 2419,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Anti-Tachyon Cloud Velocity Penalty",
       "itemModifiers": [
@@ -2744,7 +2742,7 @@
     "2420": {
       "collectionID": 2420,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Anti-Tachyon Cloud Inertia Penalty",
       "itemModifiers": [
@@ -2760,7 +2758,7 @@
     "2421": {
       "collectionID": 2421,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Anti-Tachyon Cloud Signature Radius  Bonus",
       "itemModifiers": [
@@ -2776,7 +2774,7 @@
     "2426": {
       "collectionID": 2426,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Disable MJDs",
       "itemModifiers": [],
@@ -2793,7 +2791,7 @@
     "2427": {
       "collectionID": 2427,
       "aggregateMode": "Minimum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "Set Speed Limit",
       "itemModifiers": [
@@ -2809,7 +2807,7 @@
     "2428": {
       "collectionID": 2428,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "MJFG Blocked",
       "itemModifiers": [
@@ -2825,7 +2823,7 @@
     "2429": {
       "collectionID": 2429,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Disable Tractor Beam Repeating Activation",
       "itemModifiers": [],
@@ -2842,7 +2840,7 @@
     "2433": {
       "collectionID": 2433,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Shield HP Bonus",
       "itemModifiers": [
@@ -2858,7 +2856,7 @@
     "2434": {
       "collectionID": 2434,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Capacitor Capacity Bonus",
       "itemModifiers": [
@@ -2874,7 +2872,7 @@
     "2435": {
       "collectionID": 2435,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Armor HP Bonus",
       "itemModifiers": [
@@ -2890,7 +2888,7 @@
     "2436": {
       "collectionID": 2436,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Overheating Bonus - Includes Ewar",
       "itemModifiers": [],
@@ -2945,7 +2943,7 @@
     "2437": {
       "collectionID": 2437,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Capacitor Recharge Bonus",
       "itemModifiers": [
@@ -2961,7 +2959,7 @@
     "2438": {
       "collectionID": 2438,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Targeting and DScan Range Bonus",
       "itemModifiers": [
@@ -2980,7 +2978,7 @@
     "2439": {
       "collectionID": 2439,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Scan Resolution Bonus",
       "itemModifiers": [
@@ -2996,7 +2994,7 @@
     "2440": {
       "collectionID": 2440,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Sov System Modifier Warp Speed Addition",
       "itemModifiers": [
@@ -3012,7 +3010,7 @@
     "2441": {
       "collectionID": 2441,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Shield Booster Bonus",
       "itemModifiers": [],
@@ -3033,7 +3031,7 @@
     "2442": {
       "collectionID": 2442,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sov System Modifier Armor Repairer Bonus",
       "itemModifiers": [],
@@ -3054,7 +3052,7 @@
     "2464": {
       "collectionID": 2464,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Expedition Burst: Probe Strength ",
       "itemModifiers": [],
@@ -3071,7 +3069,7 @@
     "2465": {
       "collectionID": 2465,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Expedition Burst: Directional Scanner, Hacking and Salvager Range",
       "itemModifiers": [
@@ -3096,7 +3094,7 @@
     "2466": {
       "collectionID": 2466,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Expedition Burst: Maximum Scan Deviation Modifier",
       "itemModifiers": [],
@@ -3113,7 +3111,7 @@
     "2468": {
       "collectionID": 2468,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Expedition Burst: Virus Coherence",
       "itemModifiers": [],
@@ -3130,7 +3128,7 @@
     "2473": {
       "collectionID": 2473,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Disable Smart Bomb Activation",
       "itemModifiers": [],
@@ -3147,7 +3145,7 @@
     "2474": {
       "collectionID": 2474,
       "aggregateMode": "Maximum",
-      "operation": 8,
+      "operation": null,
       "operationName": "PostAssignment",
       "developerDescription": "Mining Burst: Enhanced Mining Scanner",
       "itemModifiers": [
@@ -3163,7 +3161,7 @@
     "2480": {
       "collectionID": 2480,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Connected to PhaseStabilizer",
       "itemModifiers": [
@@ -3179,7 +3177,7 @@
     "2481": {
       "collectionID": 2481,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Expedition Burst: Salvager duration bonus",
       "itemModifiers": [],
@@ -3196,7 +3194,7 @@
     "2482": {
       "collectionID": 2482,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 1 - Warp Speed",
       "itemModifiers": [
@@ -3212,7 +3210,7 @@
     "2483": {
       "collectionID": 2483,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 2 - Heat Damage Reduction",
       "itemModifiers": [],
@@ -3228,7 +3226,7 @@
     "2484": {
       "collectionID": 2484,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 3 - Structure Hitpoint Bonus",
       "itemModifiers": [
@@ -3244,7 +3242,7 @@
     "2485": {
       "collectionID": 2485,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 4 - Web Resistance",
       "itemModifiers": [
@@ -3260,7 +3258,7 @@
     "2486": {
       "collectionID": 2486,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 5 - Max Velocity",
       "itemModifiers": [
@@ -3276,7 +3274,7 @@
     "2487": {
       "collectionID": 2487,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 6 - Warp Speed",
       "itemModifiers": [
@@ -3292,7 +3290,7 @@
     "2488": {
       "collectionID": 2488,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 7 - Probe Strength",
       "itemModifiers": [],
@@ -3309,7 +3307,7 @@
     "2489": {
       "collectionID": 2489,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 8 - Warp Speed",
       "itemModifiers": [
@@ -3325,7 +3323,7 @@
     "2490": {
       "collectionID": 2490,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 9 - Salvager Cycle Time",
       "itemModifiers": [],
@@ -3342,7 +3340,7 @@
     "2491": {
       "collectionID": 2491,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 10 - Salvager Cycle Time",
       "itemModifiers": [],
@@ -3359,7 +3357,7 @@
     "2492": {
       "collectionID": 2492,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 11 - Salvager Cycle Time",
       "itemModifiers": [],
@@ -3376,7 +3374,7 @@
     "2493": {
       "collectionID": 2493,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 12 - Salvager Cycle Time",
       "itemModifiers": [],
@@ -3393,7 +3391,7 @@
     "2494": {
       "collectionID": 2494,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 13 - Salvager Cycle Time",
       "itemModifiers": [],
@@ -3410,7 +3408,7 @@
     "2495": {
       "collectionID": 2495,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 14 - Salvager Cycle Time",
       "itemModifiers": [],
@@ -3427,7 +3425,7 @@
     "2496": {
       "collectionID": 2496,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 15 - Warp Speed Bonus",
       "itemModifiers": [
@@ -3443,7 +3441,7 @@
     "2497": {
       "collectionID": 2497,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 16 - Shield and Armor Hitpoint Bonus",
       "itemModifiers": [
@@ -3462,7 +3460,7 @@
     "2498": {
       "collectionID": 2498,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 17 - Molea Cemetery",
       "itemModifiers": [],
@@ -3479,7 +3477,7 @@
     "2499": {
       "collectionID": 2499,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 18 - Probe Strength",
       "itemModifiers": [],
@@ -3496,7 +3494,7 @@
     "2500": {
       "collectionID": 2500,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 19 - Maximum Velocity",
       "itemModifiers": [
@@ -3512,7 +3510,7 @@
     "2501": {
       "collectionID": 2501,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Landmark Bonus 20 - Probe Strength Bonus",
       "itemModifiers": [],
@@ -3529,7 +3527,7 @@
     "2502": {
       "collectionID": 2502,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 1 - Gamma",
       "itemModifiers": [
@@ -3545,7 +3543,7 @@
     "2503": {
       "collectionID": 2503,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 2 - Plasma",
       "itemModifiers": [],
@@ -3561,7 +3559,7 @@
     "2504": {
       "collectionID": 2504,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 3 - Exotic",
       "itemModifiers": [
@@ -3577,7 +3575,7 @@
     "2505": {
       "collectionID": 2505,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 4 - Electric",
       "itemModifiers": [
@@ -3593,7 +3591,7 @@
     "2506": {
       "collectionID": 2506,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Sov Modifier Bonus 1 - Gamma Neut Resistances",
       "itemModifiers": [
@@ -3609,7 +3607,7 @@
     "2507": {
       "collectionID": 2507,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Sov Modifier Bonus 2 - Plasma",
       "itemModifiers": [],
@@ -3625,7 +3623,7 @@
     "2508": {
       "collectionID": 2508,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Sov Modifier Bonus 3 - exotic",
       "itemModifiers": [
@@ -3641,7 +3639,7 @@
     "2509": {
       "collectionID": 2509,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Sov Modifier Bonus 4 - Electric",
       "itemModifiers": [
@@ -3657,7 +3655,7 @@
     "2510": {
       "collectionID": 2510,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Wormhole Bonus 1 - Black Hole",
       "itemModifiers": [
@@ -3673,7 +3671,7 @@
     "2511": {
       "collectionID": 2511,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Wormhole Bonus 2 - Red Giant",
       "itemModifiers": [],
@@ -3689,7 +3687,7 @@
     "2512": {
       "collectionID": 2512,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Wormhole Bonus 3 - Wolf Rayet",
       "itemModifiers": [],
@@ -3706,7 +3704,7 @@
     "2513": {
       "collectionID": 2513,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Wormhole Bonus 4 - Pulsar",
       "itemModifiers": [
@@ -3722,7 +3720,7 @@
     "2514": {
       "collectionID": 2514,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Wormhole Bonus 5 - Cataclysmic",
       "itemModifiers": [
@@ -3738,7 +3736,7 @@
     "2515": {
       "collectionID": 2515,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Wormhole Bonus 6 - Magnetar",
       "itemModifiers": [
@@ -3757,7 +3755,7 @@
     "2516": {
       "collectionID": 2516,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Mining Burst: Mining Crit Chance",
       "itemModifiers": [],
@@ -3778,7 +3776,7 @@
     "2517": {
       "collectionID": 2517,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Mining Burst: Mining Residue Chance Reduction",
       "itemModifiers": [],
@@ -3803,7 +3801,7 @@
     "2518": {
       "collectionID": 2518,
       "aggregateMode": "Minimum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Sisters of EVE Metaliminal Storm Bonus 5 - Winter Nexus Storm",
       "itemModifiers": [
@@ -3825,7 +3823,7 @@
     "2519": {
       "collectionID": 2519,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 21",
       "itemModifiers": [],
@@ -3837,7 +3835,7 @@
     "2520": {
       "collectionID": 2520,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 22",
       "itemModifiers": [],
@@ -3849,7 +3847,7 @@
     "2521": {
       "collectionID": 2521,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 23",
       "itemModifiers": [],
@@ -3861,7 +3859,7 @@
     "2522": {
       "collectionID": 2522,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 24",
       "itemModifiers": [],
@@ -3873,7 +3871,7 @@
     "2523": {
       "collectionID": 2523,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 25",
       "itemModifiers": [],
@@ -3885,7 +3883,7 @@
     "2524": {
       "collectionID": 2524,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 27",
       "itemModifiers": [],
@@ -3897,7 +3895,7 @@
     "2525": {
       "collectionID": 2525,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 28",
       "itemModifiers": [],
@@ -3909,7 +3907,7 @@
     "2526": {
       "collectionID": 2526,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 26",
       "itemModifiers": [],
@@ -3921,7 +3919,7 @@
     "2527": {
       "collectionID": 2527,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 29",
       "itemModifiers": [],
@@ -3933,7 +3931,7 @@
     "2528": {
       "collectionID": 2528,
       "aggregateMode": "Maximum",
-      "operation": 7,
+      "operation": null,
       "operationName": "PreAssignment",
       "developerDescription": "Sisters of EVE Landmark Bonus 30",
       "itemModifiers": [],
@@ -3945,7 +3943,7 @@
     "2529": {
       "collectionID": 2529,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Gallente Elections Warp Speed Bonus",
       "itemModifiers": [
@@ -3961,7 +3959,7 @@
     "2530": {
       "collectionID": 2530,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Hybrid Turret Tracking",
       "itemModifiers": [],
@@ -3990,7 +3988,7 @@
     "2533": {
       "collectionID": 2533,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Gallente Elections Local Armor Repair",
       "itemModifiers": [],
@@ -4011,7 +4009,7 @@
     "2534": {
       "collectionID": 2534,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Triglavian System Effect - Maximum Locked Targets Percentage",
       "itemModifiers": [
@@ -4027,7 +4025,7 @@
     "2535": {
       "collectionID": 2535,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Triglavian System Effect - Warp Speed Multiplier Percentage",
       "itemModifiers": [
@@ -4043,7 +4041,7 @@
     "2536": {
       "collectionID": 2536,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Horde Mode - Smart Bomb Blocker",
       "itemModifiers": [],
@@ -4060,7 +4058,7 @@
     "2537": {
       "collectionID": 2537,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Horde Mode - Micro Jump Field Generator Blocker",
       "itemModifiers": [],
@@ -4077,7 +4075,7 @@
     "2538": {
       "collectionID": 2538,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Triglavian System Effect - Remote Armor Repair Percentage",
       "itemModifiers": [],
@@ -4098,7 +4096,7 @@
     "2539": {
       "collectionID": 2539,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Triglavian System Effect - Remote Shield Boost Percentage",
       "itemModifiers": [],
@@ -4119,7 +4117,7 @@
     "2548": {
       "collectionID": 2548,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Heat Damage Reduction",
       "itemModifiers": [],
@@ -4135,7 +4133,7 @@
     "2549": {
       "collectionID": 2549,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Overload Bonus",
       "itemModifiers": [],
@@ -4190,7 +4188,7 @@
     "2550": {
       "collectionID": 2550,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Signature Radius Reduction",
       "itemModifiers": [
@@ -4206,7 +4204,7 @@
     "2551": {
       "collectionID": 2551,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Capacitor Capacity Bonus",
       "itemModifiers": [
@@ -4222,7 +4220,7 @@
     "2552": {
       "collectionID": 2552,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Ship Velocity Bonus",
       "itemModifiers": [
@@ -4238,7 +4236,7 @@
     "2553": {
       "collectionID": 2553,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Tracking Speed Bonus",
       "itemModifiers": [],
@@ -4255,7 +4253,7 @@
     "2554": {
       "collectionID": 2554,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Missile Explosion Radius Reduction",
       "itemModifiers": [],
@@ -4272,7 +4270,7 @@
     "2555": {
       "collectionID": 2555,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Scan Resolution Bonus",
       "itemModifiers": [
@@ -4288,7 +4286,7 @@
     "2556": {
       "collectionID": 2556,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Local Armor Repair Amount Bonus",
       "itemModifiers": [],
@@ -4309,7 +4307,7 @@
     "2557": {
       "collectionID": 2557,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Local Shield Boost Amount Bonus",
       "itemModifiers": [],
@@ -4330,7 +4328,7 @@
     "2558": {
       "collectionID": 2558,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Remote Armor Repair Amount Bonus",
       "itemModifiers": [],
@@ -4351,7 +4349,7 @@
     "2559": {
       "collectionID": 2559,
       "aggregateMode": "Maximum",
-      "operation": 6,
+      "operation": null,
       "operationName": "PostPercent",
       "developerDescription": "Horde Mode - Remote Shield Boost Amount Bonus",
       "itemModifiers": [],
@@ -4372,7 +4370,7 @@
     "2560": {
       "collectionID": 2560,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Horde Mode - Warp Drive Blocker",
       "itemModifiers": [
@@ -4388,7 +4386,7 @@
     "2561": {
       "collectionID": 2561,
       "aggregateMode": "Maximum",
-      "operation": 2,
+      "operation": null,
       "operationName": "ModAdd",
       "developerDescription": "Horde Mode - Cloaking Devices Blocker",
       "itemModifiers": [

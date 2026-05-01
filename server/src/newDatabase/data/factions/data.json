@@ -1,7 +1,8 @@
 {
   "_meta": {
-    "source": "data/eve-online-static-data-3294658-jsonl/factions.jsonl",
-    "generatedAt": "2026-04-09T16:52:07.681Z",
+    "source": "tools/DataSync/source_json/factions.jsonl",
+    "buildNumber": 3316380,
+    "releaseDate": "2026-04-23T11:33:57Z",
     "count": 27
   },
   "records": {
@@ -370,7 +371,7 @@
       "description": "Unknown",
       "flatLogo": null,
       "flatLogoWithName": null,
-      "iconID": null,
+      "iconID": 0,
       "militiaCorporationID": null,
       "solarSystemID": 30005286,
       "sizeFactor": 0,

@@ -1,4 +1,3 @@
-const fs = require("fs");
 const path = require("path");
 
 const database = require(path.join(__dirname, "../../newDatabase"));
@@ -20,6 +19,8 @@ const CORPORATIONS_TABLE = "corporations";
 const ALLIANCES_TABLE = "alliances";
 const CHARACTERS_TABLE = "characters";
 const STATIONS_TABLE = "stations";
+const NPC_CORPORATION_AUTHORITY_TABLE = "npcCorporationAuthority";
+const NPC_CHARACTER_AUTHORITY_TABLE = "npcCharacterAuthority";
 const CUSTOM_CORPORATION_ID_START = 98000000;
 const CUSTOM_ALLIANCE_ID_START = 99000000;
 const NPC_CORPORATION_SEED_VERSION = 1;
@@ -35,13 +36,8 @@ const DEFAULT_CUSTOM_CORPORATION_LOGO = Object.freeze({
   color3: null,
   typeface: null,
 });
-const DATA_DIRECTORY_PATH = path.join(__dirname, "../../../../data");
-
 let npcCorporationCache = null;
 let npcCharacterCache = null;
-let cachedStaticJsonlDirectoryPath = null;
-let cachedNpcCorporationSourcePath = null;
-let cachedNpcCharacterSourcePath = null;
 let corporationsBootstrapComplete = false;
 let alliancesBootstrapComplete = false;
 let corporationMembersIndexCache = null;
@@ -200,85 +196,38 @@ function normalizeAllianceTable(payload = {}) {
   };
 }
 
-function parseJsonlFile(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
+function readAuthorityRecordMap(tableName, idKey) {
+  const payload = readTableView(tableName, {
+    records: [],
+    recordsByID: {},
+  });
+  const records = new Map();
 
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch (error) {
-        return null;
+  if (payload.recordsByID && typeof payload.recordsByID === "object") {
+    for (const [recordID, record] of Object.entries(payload.recordsByID)) {
+      const numericID = normalizePositiveInteger(
+        record && (record[idKey] || record._key || recordID),
+        0,
+      );
+      if (numericID) {
+        records.set(numericID, record);
       }
-    })
-    .filter(Boolean);
-}
-
-function resolveLatestStaticJsonlDirectoryPath() {
-  if (cachedStaticJsonlDirectoryPath !== null) {
-    return cachedStaticJsonlDirectoryPath;
+    }
   }
 
-  try {
-    const directoryEntries = fs.readdirSync(DATA_DIRECTORY_PATH, {
-      withFileTypes: true,
-    });
-    const candidateDirectory = directoryEntries
-      .filter((entry) =>
-        entry &&
-        entry.isDirectory() &&
-        /^eve-online-static-data-\d+-jsonl$/i.test(entry.name),
-      )
-      .map((entry) => ({
-        name: entry.name,
-        fullPath: path.join(DATA_DIRECTORY_PATH, entry.name),
-      }))
-      .sort((left, right) => right.name.localeCompare(left.name))[0];
-
-    cachedStaticJsonlDirectoryPath = candidateDirectory
-      ? candidateDirectory.fullPath
-      : "";
-  } catch (_error) {
-    cachedStaticJsonlDirectoryPath = "";
+  if (Array.isArray(payload.records)) {
+    for (const record of payload.records) {
+      const numericID = normalizePositiveInteger(
+        record && (record[idKey] || record._key),
+        0,
+      );
+      if (numericID && !records.has(numericID)) {
+        records.set(numericID, record);
+      }
+    }
   }
 
-  return cachedStaticJsonlDirectoryPath;
-}
-
-function resolveNpcCorporationSourcePath() {
-  if (cachedNpcCorporationSourcePath !== null) {
-    return cachedNpcCorporationSourcePath;
-  }
-
-  const directoryPath = resolveLatestStaticJsonlDirectoryPath();
-  const candidatePath = directoryPath
-    ? path.join(directoryPath, "npcCorporations.jsonl")
-    : "";
-  cachedNpcCorporationSourcePath = fs.existsSync(candidatePath)
-    ? candidatePath
-    : "";
-  return cachedNpcCorporationSourcePath;
-}
-
-function resolveNpcCharacterSourcePath() {
-  if (cachedNpcCharacterSourcePath !== null) {
-    return cachedNpcCharacterSourcePath;
-  }
-
-  const directoryPath = resolveLatestStaticJsonlDirectoryPath();
-  const candidatePath = directoryPath
-    ? path.join(directoryPath, "npcCharacters.jsonl")
-    : "";
-  cachedNpcCharacterSourcePath = fs.existsSync(candidatePath)
-    ? candidatePath
-    : "";
-  return cachedNpcCharacterSourcePath;
+  return records;
 }
 
 function loadNpcCorporations() {
@@ -286,11 +235,9 @@ function loadNpcCorporations() {
     return npcCorporationCache;
   }
 
-  npcCorporationCache = new Map(
-    parseJsonlFile(resolveNpcCorporationSourcePath()).map((entry) => [
-      normalizePositiveInteger(entry._key, 0),
-      entry,
-    ]),
+  npcCorporationCache = readAuthorityRecordMap(
+    NPC_CORPORATION_AUTHORITY_TABLE,
+    "corporationID",
   );
   return npcCorporationCache;
 }
@@ -300,11 +247,9 @@ function loadNpcCharacters() {
     return npcCharacterCache;
   }
 
-  npcCharacterCache = new Map(
-    parseJsonlFile(resolveNpcCharacterSourcePath()).map((entry) => [
-      normalizePositiveInteger(entry._key, 0),
-      entry,
-    ]),
+  npcCharacterCache = readAuthorityRecordMap(
+    NPC_CHARACTER_AUTHORITY_TABLE,
+    "characterID",
   );
   return npcCharacterCache;
 }
@@ -557,9 +502,28 @@ function ensureCorporationsInitialized() {
 
   for (const [corporationID, rawRecord] of loadNpcCorporations().entries()) {
     const recordKey = String(corporationID);
-    if (!table.records[recordKey] || table.records[recordKey].isNPC !== true) {
-      table.records[recordKey] = buildNpcCorporationRecord(rawRecord);
+    const nextNpcRecord = buildNpcCorporationRecord(rawRecord);
+    const currentRecord = table.records[recordKey];
+    if (!currentRecord || currentRecord.isNPC !== true) {
+      table.records[recordKey] = nextNpcRecord;
       mutated = true;
+    } else {
+      const mergedRecord = normalizeCorporationLogo({
+        ...currentRecord,
+        ...nextNpcRecord,
+        createdAt: currentRecord.createdAt || nextNpcRecord.createdAt,
+        shape1: currentRecord.shape1 ?? nextNpcRecord.shape1,
+        shape2: currentRecord.shape2 ?? nextNpcRecord.shape2,
+        shape3: currentRecord.shape3 ?? nextNpcRecord.shape3,
+        color1: currentRecord.color1 ?? nextNpcRecord.color1,
+        color2: currentRecord.color2 ?? nextNpcRecord.color2,
+        color3: currentRecord.color3 ?? nextNpcRecord.color3,
+        typeface: currentRecord.typeface ?? nextNpcRecord.typeface,
+      });
+      if (JSON.stringify(currentRecord) !== JSON.stringify(mergedRecord)) {
+        table.records[recordKey] = mergedRecord;
+        mutated = true;
+      }
     }
   }
 
