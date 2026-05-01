@@ -71,6 +71,17 @@ It is used for refreshing client reference/code snapshots for development work.
 
 If you are just trying to set up EvEJS and play, you do not need it.
 
+### `scripts\DataSync\sync-jsonl-local-static-data.js`
+
+This is a maintainer utility for refreshing generated project static data from
+the official EVE Online JSONL SDE.
+
+Guide:
+
+```text
+doc\SDE_JSONL_SYNC.md
+```
+
 ## The Simple Rule
 
 If you are not sure what to use:
@@ -84,4 +95,5 @@ If you are not sure what to use:
 - [SETUP.md](SETUP.md)
 - [LAUNCHERS.md](LAUNCHERS.md)
 - [MARKET_SETUP.md](MARKET_SETUP.md)
+- [SDE_JSONL_SYNC.md](SDE_JSONL_SYNC.md)
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
