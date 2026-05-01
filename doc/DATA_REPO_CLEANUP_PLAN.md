@@ -20,24 +20,38 @@ the repository quickly.
 
 ## First Cleanup Pass
 
-This pass does two things:
+The first pass does two things:
 
 1. Ignore local mutable `data.json` files for clearly live/runtime tables.
 2. Untrack already-committed live/runtime `data.json`, `data.json.bak`, and
    `data.json.tmp-*` files without deleting the local working copies.
 
-This pass intentionally keeps static authority and generator-owned data
-trackable until we have a bootstrap/data-pack workflow.
+The second pass adds:
+
+1. Ignore and untrack SDE-generated `data.json` files that can be rebuilt by
+   `scripts/DataSync/sync-jsonl-local-static-data.js`.
+2. Ignore and untrack chat JSON state under `server/src/_secondary/data/chat`.
+
+These passes intentionally keep authored authority data trackable until we have
+a manifest/bootstrap/data-pack workflow.
 
 ## Still Trackable For Now
 
 Examples:
 
-- SDE/generated static authority tables: `itemTypes`, `typeDogma`,
-  `solarSystems`, `stations`, `certificates`, `mapNames`
 - authored authority tables: `npcProfiles`, `npcSpawnGroups`,
   `npcStartupRules`, `missionAuthority`, `dungeonAuthority`
 - table helper files such as `index.js`
+
+## Ignored Generated Data
+
+SDE-derived outputs are now ignored and should be refreshed through:
+
+```powershell
+node scripts\DataSync\sync-jsonl-local-static-data.js --source tools\DataSync\source_json --apply
+```
+
+Use `--tables <list>` for narrow updates.
 
 ## Future Work
 

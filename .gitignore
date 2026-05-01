@@ -4,7 +4,8 @@ tools/ConfigEditor/assets/
 server/src/_secondary/image/generated/Character
 /server/logs
 server/tidi_probe.log
-/server/src/_secondary/data/chat
+/server/src/_secondary/data/chat/*.json
+/server/src/_secondary/data/chat/backlog/
 /tools/ClientCodeGrabber/Latest
 /server/src/logs
 /tools/DataSync/source_json
@@ -82,4 +83,34 @@ server/tidi_probe.log
 /server/src/newDatabase/data/structureTetherRestrictions/data.json
 /server/src/newDatabase/data/structures/data.json
 /server/src/newDatabase/data/wormholeRuntimeState/data.json
-server/src/newDatabase/data/dungeonRuntimeState/data.json
+
+# Generated SDE-derived project data. These files are reproducible through
+# scripts/DataSync/sync-jsonl-local-static-data.js and should be refreshed by
+# tool runs rather than hand-edited in Git.
+/server/src/newDatabase/data/asteroidBelts/data.json
+/server/src/newDatabase/data/celestials/data.json
+/server/src/newDatabase/data/certificates/data.json
+/server/src/newDatabase/data/characterCreationBloodlines/data.json
+/server/src/newDatabase/data/characterCreationRaces/data.json
+/server/src/newDatabase/data/dbuffCollections/data.json
+/server/src/newDatabase/data/factions/data.json
+/server/src/newDatabase/data/industryBlueprints/data.json
+/server/src/newDatabase/data/industryFacilities/data.json
+/server/src/newDatabase/data/itemIcons/data.json
+/server/src/newDatabase/data/itemTypes/data.json
+/server/src/newDatabase/data/mapNames/data.json
+/server/src/newDatabase/data/movementAttributes/data.json
+/server/src/newDatabase/data/npcCharacterAuthority/data.json
+/server/src/newDatabase/data/npcCorporationAuthority/data.json
+/server/src/newDatabase/data/reprocessingStatic/data.json
+/server/src/newDatabase/data/shipCosmeticsCatalog/data.json
+/server/src/newDatabase/data/shipDogmaAttributes/data.json
+/server/src/newDatabase/data/shipTypes/data.json
+/server/src/newDatabase/data/skillTypes/data.json
+/server/src/newDatabase/data/solarSystems/data.json
+/server/src/newDatabase/data/sovereigntyStatic/data.json
+/server/src/newDatabase/data/stargates/data.json
+/server/src/newDatabase/data/stargateTypes/data.json
+/server/src/newDatabase/data/stations/data.json
+/server/src/newDatabase/data/stationTypes/data.json
+/server/src/newDatabase/data/typeDogma/data.json
