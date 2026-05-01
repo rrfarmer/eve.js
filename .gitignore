@@ -82,3 +82,4 @@ server/tidi_probe.log
 /server/src/newDatabase/data/structureTetherRestrictions/data.json
 /server/src/newDatabase/data/structures/data.json
 /server/src/newDatabase/data/wormholeRuntimeState/data.json
+server/src/newDatabase/data/dungeonRuntimeState/data.json
