@@ -17,6 +17,10 @@ const { isDeepStrictEqual } = require("util");
 const pc = require("picocolors");
 
 const log = require("../utils/logger");
+const {
+  buildRuntimeTableDefault,
+  isRuntimeTable,
+} = require("./runtimeTableDefaults");
 
 // ── Config ──────────────────────────────────────────────────────────
 const DATA_DIR = process.env.EVEJS_NEWDB_DATA_DIR
@@ -292,6 +296,20 @@ function loadTable(table) {
   throw parsedMain.error;
 }
 
+function ensureRuntimeTableFile(table) {
+  if (!isRuntimeTable(table)) {
+    return false;
+  }
+
+  const filePath = dataFilePath(table);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  if (!fs.existsSync(filePath)) {
+    const payload = buildRuntimeTableDefault(table);
+    fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  }
+  return true;
+}
+
 /**
  * Preload every table directory under data/ into memory.
  * Called once at startup before the TCP server accepts connections.
@@ -486,8 +504,11 @@ process.on("exit", () => {
 function ensureCached(table) {
   if (!(table in cache)) {
     const tableDir = path.join(DATA_DIR, table);
-    if (!fs.existsSync(tableDir)) {
-      return false;
+    const tableFile = dataFilePath(table);
+    if (!fs.existsSync(tableDir) || !fs.existsSync(tableFile)) {
+      if (!ensureRuntimeTableFile(table)) {
+        return false;
+      }
     }
     loadTable(table);
   }

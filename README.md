@@ -14,7 +14,11 @@ EVE.js is an easy-to-use server emulator for Eve Online. We are functional again
 
 ## **Quick server startup:**
 1. Install [Node.js LTS](https://nodejs.org/en/download)
-2. Run `QuickstartServer.bat` inside the root project directory.
+2. Run `npm ci`
+3. Run `npm --prefix server ci`
+4. Run `npm run db:bootstrap:apply`
+5. Run `npm run datasync:sde -- --download --apply`
+6. Run `QuickstartServer.bat` inside the root project directory.
 *Please keep in mind, that just quickly starts the server. To get the market to work, you will need to follow the direction below.*
 
 ## **Market setup**
@@ -30,6 +34,8 @@ EVE.js is an easy-to-use server emulator for Eve Online. We are functional again
 - [Market seeder guide](doc/MARKET_SEEDER.md)
 - [Troubleshooting](doc/TROUBLESHOOTING.md)
 - [Tools and admin basics](doc/TOOLS.md)
+- [Runtime database bootstrap](doc/RUNTIME_DB_BOOTSTRAP.md)
+- [EVE SDE JSONL sync](doc/SDE_JSONL_SYNC.md)
 - [Feature audit](doc/IMPLEMENTED_FEATURE_STATUS.txt)
 
 ## **Good To Know**

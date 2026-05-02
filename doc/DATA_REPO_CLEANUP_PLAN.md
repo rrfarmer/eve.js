@@ -55,9 +55,10 @@ Use `--tables <list>` for narrow updates.
 
 ## Future Work
 
-1. Add a table manifest that classifies each table as runtime, generated static,
-   authored static, or baseline seed.
-2. Add a bootstrap command for new-server setup.
+1. Expand the table manifest so it classifies each table as runtime, generated
+   static, authored static, or baseline seed.
+2. Keep extending `npm run db:bootstrap:apply` as new runtime tables are
+   added.
 3. Move default live database state to a local ignored folder such as
    `server/var/newDatabase/data`.
 4. Update tests so they always use a temporary `EVEJS_NEWDB_DATA_DIR` under
@@ -76,3 +77,17 @@ The long-term goal is:
 - live runtime/player state is local and ignored
 - new server setup is explicit, repeatable, and does not depend on committing
   mutable JSON files
+
+## Current New Server Commands
+
+Create missing runtime table baselines:
+
+```powershell
+npm run db:bootstrap:apply
+```
+
+Generate SDE-derived static data:
+
+```powershell
+npm run datasync:sde -- --download --apply
+```

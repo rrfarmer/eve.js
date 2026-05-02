@@ -18,6 +18,7 @@ server/tidi_probe.log
 /server/src/newDatabase/data/**/data.json.bak
 /server/src/newDatabase/data/**/data.json.tmp-*
 /server/src/newDatabase/data/accounts/data.json
+/server/src/newDatabase/data/accessGroups/data.json
 /server/src/newDatabase/data/alliances/data.json
 /server/src/newDatabase/data/bookmarkFolders/data.json
 /server/src/newDatabase/data/bookmarkGroups/data.json
@@ -70,6 +71,7 @@ server/tidi_probe.log
 /server/src/newDatabase/data/rafflesRuntime/data.json
 /server/src/newDatabase/data/reprocessingFacilityState/data.json
 /server/src/newDatabase/data/savedFittings/data.json
+/server/src/newDatabase/data/sharedBookmarkFolders/data.json
 /server/src/newDatabase/data/shipCosmetics/data.json
 /server/src/newDatabase/data/shipLogoFittings/data.json
 /server/src/newDatabase/data/skillPlans/data.json
