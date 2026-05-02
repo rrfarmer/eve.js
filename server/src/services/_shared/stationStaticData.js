@@ -17,6 +17,10 @@ const {
   getSessionStructureID,
 } = require(path.join(__dirname, "../structure/structureLocation"));
 const {
+  STRUCTURE_SERVICE_ID,
+  STRUCTURE_SERVICE_STATE,
+} = require(path.join(__dirname, "../structure/structureConstants"));
+const {
   getOwnerLookupRecord,
 } = require(path.join(__dirname, "../corporation/corporationState"));
 const {
@@ -146,6 +150,16 @@ const STATION_SERVICES = [
     stationServiceItemID: 0,
   },
 ];
+
+const STATION_SERVICE_TO_STRUCTURE_SERVICE = Object.freeze({
+  16: STRUCTURE_SERVICE_ID.OFFICES,
+  512: STRUCTURE_SERVICE_ID.MEDICAL,
+  4096: STRUCTURE_SERVICE_ID.REPAIR,
+  8192: STRUCTURE_SERVICE_ID.REPROCESSING,
+  16384: STRUCTURE_SERVICE_ID.MARKET,
+  65536: STRUCTURE_SERVICE_ID.FITTING,
+  1048576: STRUCTURE_SERVICE_ID.INSURANCE,
+});
 
 let cachedStandingsRestrictions = null;
 
@@ -369,8 +383,25 @@ function getStationServiceStates(session = null, overrideStationID = null) {
     stationID: station.stationID,
     serviceID: service.serviceID,
     stationServiceItemID: service.stationServiceItemID,
-    isEnabled: 1,
+    isEnabled: isStationServiceEnabled(station, service.serviceID) ? 1 : 0,
   }));
+}
+
+function isStationServiceEnabled(station, stationServiceID) {
+  if (!station || !station.isStructure) {
+    return true;
+  }
+  const structureServiceID =
+    STATION_SERVICE_TO_STRUCTURE_SERVICE[Number(stationServiceID) || 0];
+  if (!structureServiceID) {
+    return false;
+  }
+  return (
+    Number(
+      station.serviceStates &&
+        station.serviceStates[String(structureServiceID)],
+    ) === STRUCTURE_SERVICE_STATE.ONLINE
+  );
 }
 
 function getStationServiceAccessRule(serviceID, ownerID = null) {
@@ -415,10 +446,14 @@ function getRentableItems(session = null, overrideStationID = null) {
 
 function buildStationServiceMask(session = null, overrideStationID = null) {
   const station = getStationRecord(session, overrideStationID);
-  if (station && station.isStructure && station.serviceStates) {
-    return Object.entries(station.serviceStates).reduce((mask, [serviceID, stateID]) => (
-      Number(stateID) === 1 ? mask | Number(serviceID) : mask
-    ), 0);
+  if (station && station.isStructure) {
+    return STATION_SERVICES.reduce(
+      (mask, service) =>
+        isStationServiceEnabled(station, service.serviceID)
+          ? mask | Number(service.serviceID)
+          : mask,
+      0,
+    );
   }
 
   return STATION_SERVICES.reduce(
@@ -440,5 +475,6 @@ module.exports = {
   getStationManagementServiceCostModifiers,
   getRentableItems,
   buildStationServiceMask,
+  isStationServiceEnabled,
   currentFileTime,
 };

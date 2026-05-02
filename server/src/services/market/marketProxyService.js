@@ -83,6 +83,12 @@ const { getStationRecord } = require(path.join(
   __dirname,
   "../_shared/stationStaticData",
 ));
+const {
+  STRUCTURE_SERVICE_ID,
+} = require(path.join(__dirname, "../structure/structureConstants"));
+const {
+  requireStructureServiceAtLocation,
+} = require(path.join(__dirname, "../structure/structureServiceAccess"));
 
 const ROWSET_NAME = "eve.common.script.sys.rowset.Rowset";
 
@@ -221,6 +227,17 @@ function buildSignedLong(value, fallback = 0n) {
     type: "long",
     value: normalizeBigInt(value, fallback),
   };
+}
+
+function ensureMarketServiceAvailable(session, stationID) {
+  return requireStructureServiceAtLocation(
+    session,
+    stationID,
+    STRUCTURE_SERVICE_ID.MARKET,
+    {
+      message: "The Market service is not available at this structure.",
+    },
+  );
 }
 
 function isoTimestampToFileTimeBigInt(rawValue = null) {
@@ -2262,6 +2279,7 @@ async function executeBuyRequest({
   ensureValidDuration(normalizedDuration);
   ensureValidMinVolume(normalizedQuantity, normalizedMinVolume);
   const marketContext = buildCharacterMarketContext(session, characterID, stationID);
+  ensureMarketServiceAvailable(session, stationID);
 
   if (normalizedDuration > 0) {
     validateExpectedBrokerFeePercentage(expectedBrokerFee, marketContext);
@@ -2503,6 +2521,7 @@ async function executeSellEntry({
   ensureValidPrice(price);
   ensureValidDuration(normalizedDuration);
   const marketContext = buildCharacterMarketContext(session, characterID, stationID);
+  ensureMarketServiceAvailable(session, stationID);
   if (normalizedDuration > 0) {
     validateExpectedBrokerFeePercentage(expectedBrokerFee, marketContext);
   }
@@ -2886,6 +2905,7 @@ class MarketProxyService extends BaseService {
         info: "Station market data is only available while docked in a station.",
       });
     }
+    ensureMarketServiceAvailable(session, stationID);
 
     log.debug(`[MarketProxy] GetStationAsks station=${stationID}`);
     try {
@@ -3642,6 +3662,7 @@ class MarketProxyService extends BaseService {
       const stationID = normalizePositiveInteger(orderRow && orderRow.station_id, 0);
       const typeLabel = getMarketTypeLabel(orderRow && orderRow.type_id);
       const marketContext = buildCharacterMarketContext(session, ownerID, stationID);
+      ensureMarketServiceAvailable(session, stationID);
       ensureRemoteOrderModificationAllowed(session, stationID, marketContext);
       if (!(remainingVolume > 0) || Math.abs(newPrice - oldPrice) < 0.0001) {
         return null;
@@ -3830,6 +3851,7 @@ module.exports = MarketProxyService;
 module.exports.__testHooks = {
   buildOrderRowset,
   consumeInventoryItemQuantity,
+  ensureMarketServiceAvailable,
   marshalObjectToPlainObject,
   normalizeInteger,
   normalizeNumericValue,

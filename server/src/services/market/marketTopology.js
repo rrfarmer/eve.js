@@ -1,6 +1,10 @@
 const path = require("path");
 
 const worldData = require(path.join(__dirname, "../../space/worldData"));
+const structureState = require(path.join(
+  __dirname,
+  "../structure/structureState",
+));
 
 const RANGE_STATION = -1;
 const RANGE_SOLAR_SYSTEM = 0;
@@ -60,7 +64,11 @@ function ensureAdjacency() {
 }
 
 function getStation(stationID) {
-  return worldData.getStationByID(normalizePositiveInteger(stationID, 0));
+  const numericStationID = normalizePositiveInteger(stationID, 0);
+  return (
+    worldData.getStationByID(numericStationID) ||
+    structureState.getStructureByID(numericStationID, { refresh: false })
+  );
 }
 
 function getSolarSystem(solarSystemID) {
@@ -68,23 +76,25 @@ function getSolarSystem(solarSystemID) {
 }
 
 function getStationSolarSystemID(stationID) {
-  return normalizePositiveInteger(
-    getStation(stationID) && getStation(stationID).solarSystemID,
-    0,
-  );
+  const station = getStation(stationID);
+  return normalizePositiveInteger(station && station.solarSystemID, 0);
 }
 
 function getStationConstellationID(stationID) {
-  return normalizePositiveInteger(
-    getStation(stationID) && getStation(stationID).constellationID,
-    0,
+  const station = getStation(stationID);
+  const solarSystemID = normalizePositiveInteger(station && station.solarSystemID, 0);
+  return (
+    normalizePositiveInteger(station && station.constellationID, 0) ||
+    getSolarSystemConstellationID(solarSystemID)
   );
 }
 
 function getStationRegionID(stationID) {
-  return normalizePositiveInteger(
-    getStation(stationID) && getStation(stationID).regionID,
-    0,
+  const station = getStation(stationID);
+  const solarSystemID = normalizePositiveInteger(station && station.solarSystemID, 0);
+  return (
+    normalizePositiveInteger(station && station.regionID, 0) ||
+    getSolarSystemRegionID(solarSystemID)
   );
 }
 
