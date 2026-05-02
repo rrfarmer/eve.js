@@ -1,0 +1,799 @@
+{
+  "version": 1,
+  "source": "repo-authored",
+  "note": "Repo-authored Phase 3 universe spawn policy for persistent non-transient dungeon families. Combat anomalies and probe-only combat signatures are seeded through separate parity-oriented pools, while wormhole mechanics stay on their dedicated runtime.",
+  "families": {
+    "combat": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameExcludesAny": [
+          "jove observatory",
+          "unidentified wormhole",
+          "sentinel hive",
+          "barbican hive",
+          "vidette hive",
+          "conflux hive",
+          "redoubt hive",
+          "reckoning: labyrinth complex",
+          "reckoning: nexus point",
+          "crisis: field rescue",
+          "crisis: deathless research outpost",
+          "vigilance point",
+          "deepflow rift"
+        ]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 120,
+          "difficultyRange": [1, 4]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 132,
+          "difficultyRange": [2, 5]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 220,
+          "difficultyRange": [3, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 196,
+          "difficultyRange": [3, 5]
+        }
+      }
+    },
+    "combat_anomaly": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["anomaly"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 360,
+          "difficultyRange": [1, 3]
+        },
+        "lowsec": {
+          "slotsPerSystem": 2,
+          "systemStride": 1,
+          "targetSystems": 196,
+          "difficultyRange": [1, 4]
+        },
+        "nullsec": {
+          "slotsPerSystem": 3,
+          "systemStride": 1,
+          "targetSystems": 1280,
+          "difficultyRange": [1, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 2,
+          "systemStride": 1,
+          "targetSystems": 720,
+          "difficultyRange": [2, 5]
+        }
+      }
+    },
+    "drifter_observatory": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["knownSpaceJoveObservatorySystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["jove observatory"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_unidentified_wormhole": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["knownSpaceUnidentifiedWormholeSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["unidentified wormhole"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_space_sentinel_hive": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceSentinelSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["sentinel hive"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        }
+      }
+    },
+    "drifter_space_barbican_hive": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceBarbicanSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["barbican hive"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        }
+      }
+    },
+    "drifter_space_vidette_hive": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceVidetteSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["vidette hive"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        }
+      }
+    },
+    "drifter_space_conflux_hive": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceConfluxSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["conflux hive"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        }
+      }
+    },
+    "drifter_space_redoubt_hive": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceRedoubtSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["redoubt hive"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 5]
+        }
+      }
+    },
+    "drifter_space_reckoning_labyrinth": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["reckoning: labyrinth complex"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 10]
+        }
+      }
+    },
+    "drifter_space_reckoning_nexus": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["drifterSpaceSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["reckoning: nexus point"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 10]
+        }
+      }
+    },
+    "drifter_occupied_tabbetzur_field_rescue": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["tabbetzurSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["crisis: field rescue"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 10]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_occupied_tabbetzur_deathless_research_outpost": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "systemAuthorityKeys": ["tabbetzurSystemIDs"],
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["crisis: deathless research outpost"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "difficultyRange": [0, 10]
+        },
+        "nullsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_vigilance_point": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["vigilance point"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "regionIDs": [10000070],
+          "difficultyRange": [0, 10]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_observatory_infiltration": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "siteFamilies": ["relic"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["observatory infiltration"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 32,
+          "difficultyRange": [0, 10]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "regionIDs": [10000070],
+          "difficultyRange": [0, 10]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_deepflow_rift_pochven": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["deepflow rift"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "regionIDs": [10000070],
+          "difficultyRange": [0, 10]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "drifter_deepflow_rift_knownspace": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "siteFamilies": ["combat"],
+        "siteKinds": ["signature"],
+        "nameIncludesAny": ["deepflow rift"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 36,
+          "difficultyRange": [0, 10]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 32,
+          "difficultyRange": [0, 10]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 96,
+          "excludeRegionIDs": [10000070],
+          "difficultyRange": [0, 10]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "data": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 36,
+          "difficultyRange": [0, 3]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 32,
+          "difficultyRange": [1, 4]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 104,
+          "difficultyRange": [2, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 96,
+          "difficultyRange": [2, 5]
+        }
+      }
+    },
+    "relic": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "templateFilters": {
+        "nameExcludesAny": ["observatory infiltration"]
+      },
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 26,
+          "difficultyRange": [1, 4]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 124,
+          "difficultyRange": [2, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 96,
+          "difficultyRange": [2, 5]
+        }
+      }
+    },
+    "ore": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 78,
+          "difficultyRange": [0, 2]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 40,
+          "difficultyRange": [1, 4]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 136,
+          "difficultyRange": [2, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        }
+      }
+    },
+    "gas": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 1440,
+      "siteOrigin": "universe_dungeon",
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 16,
+          "difficultyRange": [1, 3]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 72,
+          "difficultyRange": [2, 5]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 164,
+          "difficultyRange": [2, 5]
+        }
+      }
+    },
+    "ghost": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 2880,
+      "siteOrigin": "universe_dungeon",
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 4,
+          "difficultyRange": [0, 3]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 4,
+          "difficultyRange": [0, 3]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 12,
+          "difficultyRange": [0, 3]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 10,
+          "difficultyRange": [0, 3]
+        }
+      }
+    },
+    "combat_hacking": {
+      "enabled": true,
+      "persistent": true,
+      "siteLifetimeMinutes": 2880,
+      "siteOrigin": "universe_dungeon",
+      "bands": {
+        "highsec": {
+          "slotsPerSystem": 0,
+          "systemStride": 1,
+          "difficultyRange": [0, 0]
+        },
+        "lowsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 3,
+          "difficultyRange": [0, 4]
+        },
+        "nullsec": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 12,
+          "difficultyRange": [0, 4]
+        },
+        "wormhole": {
+          "slotsPerSystem": 1,
+          "systemStride": 1,
+          "targetSystems": 16,
+          "difficultyRange": [0, 4]
+        }
+      }
+    }
+  }
+}
