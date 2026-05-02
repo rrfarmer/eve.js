@@ -1,5 +1,8 @@
 {
   "scripts": {
+    "db:bootstrap": "node scripts/DataSync/bootstrap-newdb-runtime-data.js",
+    "db:bootstrap:apply": "node scripts/DataSync/bootstrap-newdb-runtime-data.js --apply",
+    "db:bootstrap:dry-run": "node scripts/DataSync/bootstrap-newdb-runtime-data.js --dry-run",
     "datasync:sde": "node scripts/DataSync/sync-jsonl-local-static-data.js"
   },
   "dependencies": {

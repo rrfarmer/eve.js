@@ -40,7 +40,41 @@ You usually only need to do this:
 - the first time you set the project up
 - after pulling down a major update
 
-### 3. Run the setup wizard
+### 3. Generate local data
+
+Some local database files are generated locally instead of committed to Git.
+Before the first server run, create the runtime table baseline:
+
+```powershell
+npm run db:bootstrap:apply
+```
+
+Then generate static data from the official EVE JSONL SDE:
+
+```powershell
+npm run datasync:sde -- --download --apply
+```
+
+That downloads the official SDE into:
+
+```text
+tools\DataSync\source_json
+```
+
+Then it writes generated project data under:
+
+```text
+server\src\newDatabase\data
+```
+
+Those generated and runtime files are intentionally ignored by Git.
+
+For more detail, see:
+
+- [SDE_JSONL_SYNC.md](SDE_JSONL_SYNC.md)
+- [RUNTIME_DB_BOOTSTRAP.md](RUNTIME_DB_BOOTSTRAP.md)
+
+### 4. Run the setup wizard
 
 Double-click:
 
@@ -58,7 +92,7 @@ The wizard will:
 
 If Windows asks for permission during certificate or patching steps, allow it.
 
-### 4. Start the server and game
+### 5. Start the server and game
 
 Double-click:
 
@@ -112,6 +146,8 @@ Start here:
 1. Install Node.js `LTS`
 2. Run `npm ci`
 3. Run `npm --prefix server ci`
-4. Run `tools\ClientSETUP\StartClientSetup.bat`
-5. Run `StartServer.bat`
-6. Choose `2`
+4. Run `npm run db:bootstrap:apply`
+5. Run `npm run datasync:sde -- --download --apply`
+6. Run `tools\ClientSETUP\StartClientSetup.bat`
+7. Run `StartServer.bat`
+8. Choose `2`

@@ -7,6 +7,12 @@ The utility is not part of normal server runtime. It is a maintainer tool that
 reads SDE JSONL source files, generates project JSON tables, and writes those
 tables only when explicitly run with `--apply`.
 
+This utility does not create live/runtime database baselines. For those, run:
+
+```powershell
+npm run db:bootstrap:apply
+```
+
 ## Location
 
 ```text
