@@ -114,3 +114,5 @@ server/tidi_probe.log
 /server/src/newDatabase/data/stations/data.json
 /server/src/newDatabase/data/stationTypes/data.json
 /server/src/newDatabase/data/typeDogma/data.json
+tools/universe-site-seed/last-run.log
+/tools/universe-site-seed/target
