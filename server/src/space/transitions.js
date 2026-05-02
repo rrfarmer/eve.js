@@ -1202,11 +1202,13 @@ function undockSession(session) {
       skipLegacyStationNormalization: true,
       broadcast: true,
       emitSimClockRebase: false,
+      postAttachVisibilityReconcile: true,
+      postAttachVisibilityReconcileReason: "undock",
     });
-  queuePostSpaceAttachFittingHydration(session, moveResult.data.itemID, {
-    inventoryBootstrapPending: false,
-    hydrationProfile: "undock",
-  });
+    queuePostSpaceAttachFittingHydration(session, moveResult.data.itemID, {
+      inventoryBootstrapPending: false,
+      hydrationProfile: "undock",
+    });
     flushCharacterSessionNotificationPlan(session, applyResult.notificationPlan);
     queuePendingSessionEffects(session, {
       previousLocalChannelID,

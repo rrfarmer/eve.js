@@ -1,0 +1,2072 @@
+{
+  "source": {
+    "provider": "EVE Static Data JSONL",
+    "authority": "eve-online-static-data-3316380-jsonl",
+    "sourceDir": "tools/DataSync/source_json",
+    "generatedAt": "2026-04-30T00:00:00.000Z",
+    "buildNumber": 3316380,
+    "releaseDate": "2026-04-23T11:33:57Z",
+    "sourceTables": [
+      "planetSchematics.jsonl"
+    ]
+  },
+  "count": 68,
+  "schematics": [
+    {
+      "schematicID": 65,
+      "name": "Superconductors",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2389,
+          "quantity": 40
+        },
+        {
+          "typeID": 3645,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9838,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 66,
+      "name": "Coolant",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2390,
+          "quantity": 40
+        },
+        {
+          "typeID": 3645,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9832,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 67,
+      "name": "Rocket Fuel",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2389,
+          "quantity": 40
+        },
+        {
+          "typeID": 2390,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9830,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 68,
+      "name": "Synthetic Oil",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2390,
+          "quantity": 40
+        },
+        {
+          "typeID": 3683,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3691,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 69,
+      "name": "Oxides",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2392,
+          "quantity": 40
+        },
+        {
+          "typeID": 3683,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2317,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 70,
+      "name": "Silicate Glass",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2392,
+          "quantity": 40
+        },
+        {
+          "typeID": 9828,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3697,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 71,
+      "name": "Transmitter",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2389,
+          "quantity": 40
+        },
+        {
+          "typeID": 2401,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9840,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 72,
+      "name": "Water-Cooled CPU",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2398,
+          "quantity": 40
+        },
+        {
+          "typeID": 3645,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2328,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 73,
+      "name": "Mechanical Parts",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2398,
+          "quantity": 40
+        },
+        {
+          "typeID": 2399,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3689,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 74,
+      "name": "Construction Blocks",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2398,
+          "quantity": 40
+        },
+        {
+          "typeID": 2400,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3828,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 75,
+      "name": "Enriched Uranium",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2399,
+          "quantity": 40
+        },
+        {
+          "typeID": 2400,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 44,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 76,
+      "name": "Consumer Electronics",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2400,
+          "quantity": 40
+        },
+        {
+          "typeID": 2401,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9836,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 77,
+      "name": "Miniature Electronics",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2401,
+          "quantity": 40
+        },
+        {
+          "typeID": 9828,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9842,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 78,
+      "name": "Nanites",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2393,
+          "quantity": 40
+        },
+        {
+          "typeID": 2398,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2463,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 79,
+      "name": "Biocells",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2396,
+          "quantity": 40
+        },
+        {
+          "typeID": 2399,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2329,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 80,
+      "name": "Microfiber Shielding",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2397,
+          "quantity": 40
+        },
+        {
+          "typeID": 9828,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2327,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 81,
+      "name": "Viral Agent",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2393,
+          "quantity": 40
+        },
+        {
+          "typeID": 3779,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3775,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 82,
+      "name": "Fertilizer",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2393,
+          "quantity": 40
+        },
+        {
+          "typeID": 2395,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3693,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 83,
+      "name": "Genetically Enhanced Livestock",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2395,
+          "quantity": 40
+        },
+        {
+          "typeID": 3779,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 15317,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 84,
+      "name": "Livestock",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2395,
+          "quantity": 40
+        },
+        {
+          "typeID": 2396,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3725,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 85,
+      "name": "Polytextiles",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2396,
+          "quantity": 40
+        },
+        {
+          "typeID": 2397,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3695,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 86,
+      "name": "Test Cultures",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2393,
+          "quantity": 40
+        },
+        {
+          "typeID": 3645,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2319,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 87,
+      "name": "Supertensile Plastics",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3683,
+          "quantity": 40
+        },
+        {
+          "typeID": 3779,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2312,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 88,
+      "name": "Polyaramids",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2392,
+          "quantity": 40
+        },
+        {
+          "typeID": 2397,
+          "quantity": 40
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2321,
+          "quantity": 5
+        }
+      ]
+    },
+    {
+      "schematicID": 89,
+      "name": "Ukomi Superconductor",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3691,
+          "quantity": 10
+        },
+        {
+          "typeID": 9838,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 17136,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 90,
+      "name": "Condensates",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2317,
+          "quantity": 10
+        },
+        {
+          "typeID": 9832,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2344,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 91,
+      "name": "Camera Drones",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3697,
+          "quantity": 10
+        },
+        {
+          "typeID": 9830,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2345,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 92,
+      "name": "Synthetic Synapses",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2312,
+          "quantity": 10
+        },
+        {
+          "typeID": 2319,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2346,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 94,
+      "name": "High-Tech Transmitter",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2321,
+          "quantity": 10
+        },
+        {
+          "typeID": 9840,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 17898,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 95,
+      "name": "Gel-Matrix Biopaste",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2317,
+          "quantity": 10
+        },
+        {
+          "typeID": 2329,
+          "quantity": 10
+        },
+        {
+          "typeID": 9838,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2348,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 96,
+      "name": "Supercomputers",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2328,
+          "quantity": 10
+        },
+        {
+          "typeID": 9832,
+          "quantity": 10
+        },
+        {
+          "typeID": 9836,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2349,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 97,
+      "name": "Robotics",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3689,
+          "quantity": 10
+        },
+        {
+          "typeID": 9836,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9848,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 98,
+      "name": "Smartfab Units",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3828,
+          "quantity": 10
+        },
+        {
+          "typeID": 9842,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2351,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 99,
+      "name": "Nuclear Reactors",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 44,
+          "quantity": 10
+        },
+        {
+          "typeID": 2327,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2352,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 100,
+      "name": "Guidance Systems",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2328,
+          "quantity": 10
+        },
+        {
+          "typeID": 9840,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9834,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 102,
+      "name": "Neocoms",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2329,
+          "quantity": 10
+        },
+        {
+          "typeID": 3697,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2354,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 103,
+      "name": "Planetary Vehicles",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2312,
+          "quantity": 10
+        },
+        {
+          "typeID": 3689,
+          "quantity": 10
+        },
+        {
+          "typeID": 9842,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9846,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 104,
+      "name": "Biotech Research Reports",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2463,
+          "quantity": 10
+        },
+        {
+          "typeID": 3725,
+          "quantity": 10
+        },
+        {
+          "typeID": 3828,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2358,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 105,
+      "name": "Vaccines",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3725,
+          "quantity": 10
+        },
+        {
+          "typeID": 3775,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 28974,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 106,
+      "name": "Industrial Explosives",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3693,
+          "quantity": 10
+        },
+        {
+          "typeID": 3695,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2360,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 107,
+      "name": "Hermetic Membranes",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2321,
+          "quantity": 10
+        },
+        {
+          "typeID": 15317,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2361,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 108,
+      "name": "Transcranial Microcontroller",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2329,
+          "quantity": 10
+        },
+        {
+          "typeID": 2463,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 12836,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 109,
+      "name": "Data Chips",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2312,
+          "quantity": 10
+        },
+        {
+          "typeID": 2327,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 17392,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 110,
+      "name": "Hazmat Detection Systems",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 3695,
+          "quantity": 10
+        },
+        {
+          "typeID": 3775,
+          "quantity": 10
+        },
+        {
+          "typeID": 9840,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2366,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 111,
+      "name": "Cryoprotectant Solution",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2470,
+        2472,
+        2474,
+        2480,
+        2484,
+        2485,
+        2491,
+        2494
+      ],
+      "inputs": [
+        {
+          "typeID": 2319,
+          "quantity": 10
+        },
+        {
+          "typeID": 3691,
+          "quantity": 10
+        },
+        {
+          "typeID": 3693,
+          "quantity": 10
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2367,
+          "quantity": 3
+        }
+      ]
+    },
+    {
+      "schematicID": 112,
+      "name": "Organic Mortar Applicators",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2344,
+          "quantity": 6
+        },
+        {
+          "typeID": 2393,
+          "quantity": 40
+        },
+        {
+          "typeID": 9848,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2870,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 113,
+      "name": "Sterile Conduits",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2351,
+          "quantity": 6
+        },
+        {
+          "typeID": 3645,
+          "quantity": 40
+        },
+        {
+          "typeID": 28974,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2875,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 114,
+      "name": "Nano-Factory",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2360,
+          "quantity": 6
+        },
+        {
+          "typeID": 2398,
+          "quantity": 40
+        },
+        {
+          "typeID": 17136,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2869,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 115,
+      "name": "Self-Harmonizing Power Core",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2345,
+          "quantity": 6
+        },
+        {
+          "typeID": 2352,
+          "quantity": 6
+        },
+        {
+          "typeID": 2361,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2872,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 116,
+      "name": "Recursive Computing Module",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2346,
+          "quantity": 6
+        },
+        {
+          "typeID": 9834,
+          "quantity": 6
+        },
+        {
+          "typeID": 12836,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2871,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 117,
+      "name": "Broadcast Node",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2354,
+          "quantity": 6
+        },
+        {
+          "typeID": 17392,
+          "quantity": 6
+        },
+        {
+          "typeID": 17898,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2867,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 118,
+      "name": "Integrity Response Drones",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2348,
+          "quantity": 6
+        },
+        {
+          "typeID": 2366,
+          "quantity": 6
+        },
+        {
+          "typeID": 9846,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2868,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 119,
+      "name": "Wetware Mainframe",
+      "cycleTime": 3600,
+      "pinTypeIDs": [
+        2475,
+        2482
+      ],
+      "inputs": [
+        {
+          "typeID": 2349,
+          "quantity": 6
+        },
+        {
+          "typeID": 2358,
+          "quantity": 6
+        },
+        {
+          "typeID": 2367,
+          "quantity": 6
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2876,
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "schematicID": 121,
+      "name": "Water",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2268,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3645,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 122,
+      "name": "Plasmoids",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2308,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2389,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 123,
+      "name": "Electrolytes",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2309,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2390,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 124,
+      "name": "Oxygen",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2310,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3683,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 125,
+      "name": "Oxidizing Compound",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2311,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2392,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 126,
+      "name": "Reactive Metals",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2267,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2398,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 127,
+      "name": "Precious Metals",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2270,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2399,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 128,
+      "name": "Toxic Metals",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2272,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2400,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 129,
+      "name": "Chiral Structures",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2306,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2401,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 130,
+      "name": "Silicon",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2307,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 9828,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 131,
+      "name": "Bacteria",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2073,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2393,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 132,
+      "name": "Biomass",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2286,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 3779,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 133,
+      "name": "Proteins",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2287,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2395,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 134,
+      "name": "Biofuels",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2288,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2396,
+          "quantity": 20
+        }
+      ]
+    },
+    {
+      "schematicID": 135,
+      "name": "Industrial Fibers",
+      "cycleTime": 1800,
+      "pinTypeIDs": [
+        2469,
+        2471,
+        2473,
+        2481,
+        2483,
+        2490,
+        2492,
+        2493
+      ],
+      "inputs": [
+        {
+          "typeID": 2305,
+          "quantity": 3000
+        }
+      ],
+      "outputs": [
+        {
+          "typeID": 2397,
+          "quantity": 20
+        }
+      ]
+    }
+  ]
+}

@@ -35,8 +35,10 @@ const {
   findItemById,
   findShipItemById,
   getItemMetadata,
+  grantItemToCharacterLocation,
   moveItemToLocation,
   removeInventoryItem,
+  takeItemTypeFromCharacterLocation,
   transferItemToOwnerLocation,
   mergeItemStacks,
 } = require(path.join(__dirname, "./itemStore"));
@@ -118,6 +120,24 @@ const {
   buildList,
   unwrapMarshalValue,
 } = require(path.join(__dirname, "../_shared/serviceHelpers"));
+const {
+  JOURNAL_ENTRY_TYPE,
+  adjustCharacterBalance,
+  buildNotEnoughMoneyUserErrorValues,
+  getCharacterWallet,
+} = require(path.join(__dirname, "../account/walletState"));
+const planetCostCalculator = require(path.join(
+  __dirname,
+  "../planet/planetCostCalculator",
+));
+const planetRuntimeStore = require(path.join(
+  __dirname,
+  "../planet/planetRuntimeStore",
+));
+const planetOrbitalState = require(path.join(
+  __dirname,
+  "../planet/planetOrbitalState",
+));
 const fleetRuntime = require(path.join(__dirname, "../fleets/fleetRuntime"));
 
 const inventoryDebugPath = path.join(
@@ -173,6 +193,8 @@ const SHIP_BAY_FLAGS = new Set([
   ITEM_FLAGS.DRONE_BAY,
   ITEM_FLAGS.FIGHTER_BAY,
   ITEM_FLAGS.SHIP_HANGAR,
+  ITEM_FLAGS.SPECIALIZED_COMMAND_CENTER_HOLD,
+  ITEM_FLAGS.COLONY_RESOURCES_HOLD,
   ...FIGHTER_TUBE_FLAGS,
   ...MINING_SHIP_BAY_FLAGS,
 ]);
@@ -1055,6 +1077,125 @@ class InvBrokerService extends BaseService {
 
     const normalizedValue = Math.trunc(numericValue);
     return normalizedValue > 0 ? normalizedValue : null;
+  }
+
+  _normalizeCommodityDict(value) {
+    const rawValue = unwrapMarshalValue(value);
+    if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
+      return {};
+    }
+
+    const commodities = {};
+    for (const [rawKey, rawQuantity] of Object.entries(rawValue)) {
+      const key = this._normalizeInventoryId(rawKey, 0);
+      const quantity = this._normalizeQuantityArg(rawQuantity);
+      if (key > 0 && quantity > 0) {
+        commodities[String(key)] = (commodities[String(key)] || 0) + quantity;
+      }
+    }
+    return commodities;
+  }
+
+  _buildPIImportCommoditiesFromItems(importData, customsOfficeID, characterID) {
+    const importItemQuantities = this._normalizeCommodityDict(importData);
+    const commodities = {};
+    const items = [];
+    for (const [rawItemID, quantity] of Object.entries(importItemQuantities)) {
+      const itemID = this._normalizeInventoryId(rawItemID, 0);
+      const item = findItemById(itemID);
+      if (
+        !item ||
+        this._normalizeInventoryId(item.ownerID, 0) !== characterID ||
+        this._normalizeInventoryId(item.locationID, 0) !== customsOfficeID ||
+        this._normalizeInventoryId(item.flagID, 0) !== ITEM_FLAGS.HANGAR
+      ) {
+        throwWrappedUserError("CannotImportCommoditiesNotFound");
+      }
+
+      const availableQuantity = this._normalizeInventoryId(
+        item.singleton === 1 ? 1 : item.stacksize ?? item.quantity,
+        0,
+      );
+      if (availableQuantity < quantity) {
+        throwWrappedUserError("CannotImportCommoditiesNotFound");
+      }
+
+      const typeID = this._normalizeInventoryId(item.typeID, 0);
+      commodities[String(typeID)] = (commodities[String(typeID)] || 0) + quantity;
+      items.push({ itemID, typeID, quantity });
+    }
+    return { commodities, items };
+  }
+
+  _throwNotEnoughMoney(requiredAmount, currentBalance) {
+    throwWrappedUserError(
+      "NotEnoughMoney",
+      buildNotEnoughMoneyUserErrorValues(requiredAmount, currentBalance),
+    );
+  }
+
+  _ensurePIWalletCanCover(characterID, amount) {
+    const normalizedAmount = Number(amount) || 0;
+    if (!(normalizedAmount > 0)) {
+      return;
+    }
+
+    const wallet = getCharacterWallet(characterID);
+    if (!wallet) {
+      throwWrappedUserError("CustomNotify", {
+        notify: "Cannot charge PI wallet: character wallet not found.",
+      });
+    }
+    if (wallet.balance < normalizedAmount) {
+      this._throwNotEnoughMoney(normalizedAmount, wallet.balance);
+    }
+  }
+
+  _debitPIWallet(characterID, amount, entryTypeID, referenceID, description) {
+    const normalizedAmount = Number(amount) || 0;
+    if (!(normalizedAmount > 0)) {
+      return null;
+    }
+
+    const wallet = getCharacterWallet(characterID);
+    if (!wallet) {
+      throwWrappedUserError("CustomNotify", {
+        notify: "Cannot charge PI wallet: character wallet not found.",
+      });
+    }
+
+    const debitResult = adjustCharacterBalance(characterID, -normalizedAmount, {
+      entryTypeID,
+      referenceID,
+      ownerID1: characterID,
+      ownerID2: referenceID,
+      description,
+    });
+    if (!debitResult.success) {
+      if (debitResult.errorMsg === "INSUFFICIENT_FUNDS") {
+        this._throwNotEnoughMoney(normalizedAmount, wallet.balance);
+      }
+      throwWrappedUserError("CustomNotify", {
+        notify: `Cannot charge PI wallet: ${debitResult.errorMsg || "wallet debit failed"}.`,
+      });
+    }
+    return debitResult;
+  }
+
+  _refundPIWalletDebits(characterID, debitResults = [], description = "PI tax refund") {
+    for (const debitResult of debitResults.filter(Boolean)) {
+      const amount = Math.abs(Number(debitResult.delta) || 0);
+      if (!(amount > 0)) {
+        continue;
+      }
+      adjustCharacterBalance(characterID, amount, {
+        entryTypeID: debitResult.journalEntry && debitResult.journalEntry.entryTypeID,
+        referenceID: debitResult.journalEntry && debitResult.journalEntry.referenceID,
+        ownerID1: characterID,
+        ownerID2: debitResult.journalEntry && debitResult.journalEntry.ownerID2,
+        description,
+      });
+    }
   }
 
   _extractFitFittingEntryPairs(value) {
@@ -3125,6 +3266,147 @@ class InvBrokerService extends BaseService {
       });
     }
     return result;
+  }
+
+  Handle_ImportExportWithPlanet(args, session) {
+    const boundContext = this._getBoundContext(session);
+    const customsOfficeID = this._normalizeInventoryId(
+      boundContext && (boundContext.inventoryID ?? boundContext.locationID),
+      0,
+    );
+    const characterID = this._getCharacterId(session);
+    const spaceportPinID = this._normalizeInventoryId(
+      unwrapMarshalValue(args && args.length > 0 ? args[0] : 0),
+      0,
+    );
+    const importData = args && args.length > 1 ? args[1] : {};
+    const exportData = args && args.length > 2 ? args[2] : {};
+    const clientTaxRate = Number(unwrapMarshalValue(args && args.length > 3 ? args[3] : null));
+    const currentTaxRate = planetOrbitalState.getTaxRate(customsOfficeID);
+
+    this._traceInventory("ImportExportWithPlanet", session, {
+      customsOfficeID,
+      spaceportPinID,
+      clientTaxRate,
+    });
+
+    if (customsOfficeID <= 0 || spaceportPinID <= 0) {
+      throwWrappedUserError("CannotImportEndpointNotFound");
+    }
+
+    if (
+      !Number.isFinite(clientTaxRate) ||
+      Math.abs(clientTaxRate - currentTaxRate) > 0.000001
+    ) {
+      throwWrappedUserError("TaxChanged");
+    }
+
+    const colony = planetRuntimeStore.getColonyByPin(characterID, spaceportPinID);
+    if (!colony) {
+      throwWrappedUserError("CannotImportEndpointNotFound");
+    }
+
+    const importInfo = this._buildPIImportCommoditiesFromItems(
+      importData,
+      customsOfficeID,
+      characterID,
+    );
+    const exportCommodities = this._normalizeCommodityDict(exportData);
+    const preview = planetRuntimeStore.previewSpaceportImportExport({
+      planetID: colony.planetID,
+      ownerID: characterID,
+      spaceportPinID,
+      importCommodities: importInfo.commodities,
+      exportCommodities,
+    });
+    if (!preview.success) {
+      throwWrappedUserError(preview.errorMsg || "CannotImportEndpointNotFound");
+    }
+
+    const importTax = planetCostCalculator.calculateImportTax(
+      preview.spaceportPin && preview.spaceportPin.typeID,
+      preview.importCommodities,
+      currentTaxRate,
+    );
+    const exportTax = planetCostCalculator.calculateExportTax(
+      preview.spaceportPin && preview.spaceportPin.typeID,
+      preview.exportCommodities,
+      currentTaxRate,
+    );
+    this._ensurePIWalletCanCover(characterID, importTax + exportTax);
+
+    const debits = [];
+    debits.push(this._debitPIWallet(
+      characterID,
+      importTax,
+      JOURNAL_ENTRY_TYPE.PLANETARY_IMPORT_TAX,
+      colony.planetID,
+      "Planetary import tax",
+    ));
+    debits.push(this._debitPIWallet(
+      characterID,
+      exportTax,
+      JOURNAL_ENTRY_TYPE.PLANETARY_EXPORT_TAX,
+      colony.planetID,
+      "Planetary export tax",
+    ));
+
+    try {
+      const result = planetRuntimeStore.applySpaceportImportExport({
+        planetID: colony.planetID,
+        ownerID: characterID,
+        spaceportPinID,
+        importCommodities: importInfo.commodities,
+        exportCommodities,
+      });
+      if (!result.success) {
+        throwWrappedUserError(result.errorMsg || "CannotImportEndpointNotFound");
+      }
+
+      const inventoryChanges = [];
+      for (const [typeID, quantity] of Object.entries(preview.importCommodities)) {
+        const takeResult = takeItemTypeFromCharacterLocation(
+          characterID,
+          customsOfficeID,
+          ITEM_FLAGS.HANGAR,
+          typeID,
+          quantity,
+        );
+        if (!takeResult.success) {
+          throwWrappedUserError("CannotImportCommoditiesNotFound");
+        }
+        inventoryChanges.push(...((takeResult.data && takeResult.data.changes) || []));
+      }
+
+      for (const [typeID, quantity] of Object.entries(preview.exportCommodities)) {
+        const grantResult = grantItemToCharacterLocation(
+          characterID,
+          customsOfficeID,
+          ITEM_FLAGS.HANGAR,
+          typeID,
+          quantity,
+          { singleton: 0 },
+        );
+        if (!grantResult.success) {
+          throwWrappedUserError("CannotExportCommodities");
+        }
+        inventoryChanges.push(...((grantResult.data && grantResult.data.changes) || []));
+      }
+
+      this._emitInventoryMoveChanges(session, inventoryChanges);
+      if (session && typeof session.sendNotification === "function") {
+        session.sendNotification("OnRefreshPins", "clientID", [[spaceportPinID]]);
+        session.sendNotification("OnMajorPlanetStateUpdate", "clientID", [colony.planetID, false]);
+      }
+      return null;
+    } catch (error) {
+      this._refundPIWalletDebits(
+        characterID,
+        debits,
+        "Planetary import/export tax refund",
+      );
+      throw error;
+    }
   }
 
   Handle_GetItem(args, session) {

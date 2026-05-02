@@ -243,10 +243,15 @@ def decompile_pyc(output_dir, entries, workers=4, verbose=True):
     # Find uncompyle6 executable
     uncompyle6_cmd = shutil.which("uncompyle6")
     if not uncompyle6_cmd:
+        import sysconfig
+        from pathlib import Path as _Path
+        user_scripts = _Path(sysconfig.get_path("scripts", "nt_user"))
         # Try common locations
         for candidate in [
             sys.executable.replace("python.exe", "Scripts\\uncompyle6.exe"),
             sys.executable.replace("python.exe", "Scripts\\uncompyle6"),
+            str(user_scripts / "uncompyle6.exe"),
+            str(user_scripts / "uncompyle6"),
         ]:
             if os.path.exists(candidate):
                 uncompyle6_cmd = candidate

@@ -801,7 +801,18 @@ function updateMineableState(scene, entity, nextState, options = {}) {
     if (typeof scene.clearAllTargetingForEntity === "function") {
       scene.clearAllTargetingForEntity(entity, {
         reason: "target",
+        nowMs: options.nowMs,
       });
+    }
+    try {
+      const droneRuntime = require(path.join(__dirname, "../drone/droneRuntime"));
+      if (droneRuntime && typeof droneRuntime.idleMiningDronesTargeting === "function") {
+        droneRuntime.idleMiningDronesTargeting(scene, normalizedState.entityID, {
+          excludeDroneID: options.sourceDroneID,
+        });
+      }
+    } catch (_) {
+      // Drone runtime may be unavailable during isolated mining-state tests.
     }
     if (
       typeof scene.removeStaticEntity === "function" &&

@@ -47,6 +47,9 @@ const {
 const {
   jettisonItemsForSession,
 } = require(path.join(__dirname, "./jettisonRuntime"));
+const {
+  launchOrbitalsFromShip,
+} = require(path.join(__dirname, "./orbitalLaunchRuntime"));
 const DBTYPE_I4 = 0x03;
 const DBTYPE_R8 = 0x05;
 const DBTYPE_BOOL = 0x0b;
@@ -683,6 +686,42 @@ class ShipService extends BaseService {
       return [[], []];
     }
     return [result.jettisonedToCanIDs, []];
+  }
+
+  Handle_LaunchFromShip(args, session, kwargs) {
+    void kwargs;
+    const rawItemIDs = args && args.length > 0 ? args[0] : [];
+    const result = launchOrbitalsFromShip(session, rawItemIDs);
+    if (!result || !result.success) {
+      log.warn(
+        `[Ship] LaunchFromShip failed for char=${session ? session.characterID : "?"}: ${result ? result.errorMsg : "UNKNOWN_ERROR"}`,
+      );
+      return [[], (result && result.errors) || []];
+    }
+    return [result.launchedItemIDs || [], result.errors || []];
+  }
+
+  Handle_Drop(args, session, kwargs) {
+    void kwargs;
+    const rawLaunchRequests = args && args.length > 0 ? args[0] : [];
+    const whoseBehalfID = args && args.length > 1 ? this._extractShipId(args[1]) : 0;
+    const ignoreWarning = Boolean(args && args.length > 2 ? args[2] : false);
+    log.info(
+      `[Ship] Drop launchRequests=${JSON.stringify(rawLaunchRequests, (k, v) => (typeof v === "bigint" ? v.toString() : v))} whoseBehalfID=${whoseBehalfID || "default"} ignoreWarning=${ignoreWarning}`,
+    );
+
+    const result = launchOrbitalsFromShip(session, rawLaunchRequests, {
+      ownerID: whoseBehalfID,
+      ignoreWarning,
+    });
+    if (!result || !result.success) {
+      log.warn(
+        `[Ship] Drop failed for char=${session ? session.characterID : "?"}: ${result ? result.errorMsg : "UNKNOWN_ERROR"}`,
+      );
+    }
+    return result && result.response && result.response.type === "dict"
+      ? result.response
+      : { type: "dict", entries: [] };
   }
 
   Handle_ActivateShip(args, session, kwargs) {

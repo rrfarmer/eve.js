@@ -1051,8 +1051,12 @@ class App(tk.Tk):
         t0 = time.time()
         unc = shutil.which("uncompyle6")
         if not unc:
+            import sysconfig
+            user_scripts = Path(sysconfig.get_path("scripts", "nt_user"))
             for cand in [str(Path(sys.executable).parent/"Scripts"/"uncompyle6.exe"),
-                         str(Path(sys.executable).parent/"Scripts"/"uncompyle6")]:
+                         str(Path(sys.executable).parent/"Scripts"/"uncompyle6"),
+                         str(user_scripts/"uncompyle6.exe"),
+                         str(user_scripts/"uncompyle6")]:
                 if os.path.exists(cand): unc = cand; break
         if not unc:
             self._put(type="phase_err", i=2, d="uncompyle6 missing  (pip install uncompyle6)")

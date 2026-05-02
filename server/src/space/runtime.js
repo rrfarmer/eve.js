@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const path = require("path");
 const { performance } = require("perf_hooks");
 const rotatingLog = require(path.join(__dirname, "../utils/rotatingLog"));
+const syncLedger = require(path.join(__dirname, "../network/syncLedger"));
 
 const config = require(path.join(__dirname, "../config"));
 const log = require(path.join(__dirname, "../utils/logger"));
@@ -25,6 +26,7 @@ const {
 const {
   resolveItemByTypeID,
 } = require(path.join(__dirname, "../services/inventory/itemTypeRegistry"));
+const planetOrbitalState = require(path.join(__dirname, "../services/planet/planetOrbitalState"));
 const {
   getAppliedSkinMaterialSetID,
 } = require(path.join(__dirname, "../services/ship/shipCosmeticsState"));
@@ -728,6 +730,93 @@ function toInt(value, fallback = 0) {
 function roundNumber(value, decimals = 1) {
   const factor = 10 ** decimals;
   return Math.round(toFiniteNumber(value, 0) * factor) / factor;
+}
+
+const VISIBILITY_JOURNAL_MAX_ENTRIES = 200;
+const VISIBILITY_JOURNAL_MAX_IDS = 64;
+
+function summarizeVisibilityIDs(values) {
+  const seen = new Set();
+  const ids = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const id = toInt(value, 0);
+    if (id <= 0 || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    ids.push(id);
+  }
+  return {
+    count: ids.length,
+    ids: ids.slice(0, VISIBILITY_JOURNAL_MAX_IDS),
+    omitted: Math.max(0, ids.length - VISIBILITY_JOURNAL_MAX_IDS),
+  };
+}
+
+function summarizeVisibilityEntities(entities) {
+  return summarizeVisibilityIDs(
+    (Array.isArray(entities) ? entities : [])
+      .map((entity) => entity && entity.itemID),
+  );
+}
+
+function normalizeVisibilityJournalDetails(details = {}) {
+  const normalized = { ...details };
+  const idKeys = [
+    "addedEntityIDs",
+    "entityIDs",
+    "removedEntityIDs",
+    "desiredVisibleEntityIDs",
+    "dynamicEntityIDs",
+    "staticEntityIDs",
+    "removedStaticEntityIDs",
+    "addedStaticEntityIDs",
+  ];
+  for (const key of idKeys) {
+    if (Array.isArray(normalized[key])) {
+      normalized[key] = summarizeVisibilityIDs(normalized[key]);
+    }
+  }
+  if (Array.isArray(normalized.entities)) {
+    normalized.entities = summarizeVisibilityEntities(normalized.entities);
+  }
+  return normalized;
+}
+
+function recordVisibilityJournal(session, event, details = {}) {
+  if (!session || !session._space) {
+    return null;
+  }
+  const normalizedDetails = normalizeVisibilityJournalDetails(details);
+  const atMs = Date.now();
+  const nowMs = toFiniteNumber(normalizedDetails.nowMs, atMs);
+  const record = {
+    seq: toInt(session._space.visibilityJournalSeq, 0) + 1,
+    event,
+    atMs,
+    nowMs,
+    destinyStamp: getCurrentDestinyStamp(nowMs),
+    systemID: toInt(session._space.systemID, 0),
+    shipID: toInt(session._space.shipID, 0),
+    characterID: toInt(session.characterID || session.charID, 0),
+    ...normalizedDetails,
+  };
+  session._space.visibilityJournalSeq = record.seq;
+  if (!Array.isArray(session._space.visibilityJournal)) {
+    session._space.visibilityJournal = [];
+  }
+  session._space.visibilityJournal.push(record);
+  if (session._space.visibilityJournal.length > VISIBILITY_JOURNAL_MAX_ENTRIES) {
+    session._space.visibilityJournal.splice(
+      0,
+      session._space.visibilityJournal.length - VISIBILITY_JOURNAL_MAX_ENTRIES,
+    );
+  }
+  syncLedger.recordSyncLedgerEvent(session, `visibility.${event}`, {
+    kind: "visibility",
+    ...record,
+  });
+  return record;
 }
 
 function advancePassiveRechargeRatio(currentRatio, deltaSeconds, rechargeSeconds) {
@@ -4755,7 +4844,8 @@ function isInventoryBackedDynamicEntity(entity) {
       entity.kind === "container" ||
       entity.kind === "wreck" ||
       entity.kind === "drone" ||
-      entity.kind === "fighter"
+      entity.kind === "fighter" ||
+      entity.kind === "orbital"
     ),
   );
 }
@@ -4806,6 +4896,11 @@ function refreshInventoryBackedEntityPresentationFields(entity) {
   }
   if (entity.kind === "fighter") {
     hydrateFighterEntityFromInventoryItem(entity, itemRecord);
+  }
+  if (entity.kind === "orbital") {
+    planetOrbitalState.hydrateOrbitalEntityFromInventoryItem(entity, itemRecord, {
+      solarSystemID: entity.systemID,
+    });
   }
   return entity;
 }
@@ -5628,6 +5723,47 @@ function isReadyForDestiny(session) {
   );
 }
 
+function canSessionReceiveEntityDependentDestinyUpdate(scene, session, entity) {
+  if (!scene || !session || !session._space || !entity) {
+    return false;
+  }
+  const entityID = toInt(entity && entity.itemID, 0);
+  if (entityID <= 0) {
+    return false;
+  }
+  if (toInt(session._space.shipID, 0) === entityID) {
+    return true;
+  }
+  if (entity.session && sessionMatchesIdentity(session, entity.session)) {
+    return true;
+  }
+  if (scene.staticEntitiesByID instanceof Map && scene.staticEntitiesByID.has(entityID)) {
+    if (!isBubbleScopedStaticEntity(entity)) {
+      return session._space.initialStateSent === true;
+    }
+    return Boolean(
+      session._space.visibleBubbleScopedStaticEntityIDs instanceof Set &&
+      session._space.visibleBubbleScopedStaticEntityIDs.has(entityID)
+    );
+  }
+  return Boolean(
+    session._space.visibleDynamicEntityIDs instanceof Set &&
+    session._space.visibleDynamicEntityIDs.has(entityID)
+  );
+}
+
+function recordDependentNotificationSkip(scene, session, source, entity, details = {}) {
+  if (!scene || !session || !session._space || !entity) {
+    return;
+  }
+  recordVisibilityJournal(session, "dependent.skip", {
+    source,
+    reason: "entity-not-materialized",
+    entityIDs: [toInt(entity && entity.itemID, 0)],
+    ...details,
+  });
+}
+
 function shouldBypassTickPresentationBatchForDeferredOwnerMissileAcquire(
   scene,
   ownerSession,
@@ -5728,6 +5864,10 @@ function buildStructureObserverSpaceState(
       baseState.freshlyVisibleDynamicEntityReleaseStampByID instanceof Map
         ? new Map(baseState.freshlyVisibleDynamicEntityReleaseStampByID)
         : new Map(),
+    visibilityJournal: Array.isArray(baseState.visibilityJournal)
+      ? baseState.visibilityJournal.slice(-VISIBILITY_JOURNAL_MAX_ENTRIES)
+      : [],
+    visibilityJournalSeq: toInt(baseState.visibilityJournalSeq, 0),
     pilotWarpQuietUntilStamp: toInt(baseState.pilotWarpQuietUntilStamp, 0),
     pilotWarpVisibilityHandoff: baseState.pilotWarpVisibilityHandoff || null,
     clockOffsetMs: toFiniteNumber(baseState.clockOffsetMs, 0),
@@ -10804,6 +10944,18 @@ function broadcastDamageStateChange(scene, entity, whenMs = null, options = {}) 
   }
 
   for (const session of recipientSessions) {
+    if (!canSessionReceiveEntityDependentDestinyUpdate(scene, session, entity)) {
+      recordDependentNotificationSkip(
+        scene,
+        session,
+        "broadcastDamageStateChange",
+        entity,
+        {
+          rawBaseStamp,
+        },
+      );
+      continue;
+    }
     const visibleStamp = scene.getCurrentVisibleDestinyStampForSession(
       session,
       rawBaseStamp,
@@ -13491,6 +13643,9 @@ function getRuntimeInventoryEntityKind(item) {
   if (toInt(item.categoryID, 0) === getFighterCategoryID()) {
     return "fighter";
   }
+  if (toInt(item.categoryID, 0) === planetOrbitalState.CATEGORY_ORBITAL) {
+    return "orbital";
+  }
 
   const metadata = getItemMetadata(item.typeID, item.itemName);
   const groupName = String(metadata && metadata.groupName || "").trim().toLowerCase();
@@ -13707,6 +13862,11 @@ function buildRuntimeInventoryEntity(item, systemID, nowMs) {
     entity.activeModuleEffects = new Map();
     entity.moduleReactivationLocks = new Map();
     hydrateFighterEntityFromInventoryItem(entity, item);
+  }
+  if (kind === "orbital") {
+    planetOrbitalState.hydrateOrbitalEntityFromInventoryItem(entity, item, {
+      solarSystemID: systemID,
+    });
   }
 
   return entity;
@@ -16466,6 +16626,13 @@ class SolarSystemScene {
         for (const entityID of removedIDs) {
           freshIDs.delete(entityID);
         }
+        recordVisibilityJournal(session, "warp.source.dynamic-remove", {
+          nowMs: now,
+          stamp: sessionStamp,
+          removedEntityIDs: removedIDs,
+          sourceClusterKey: handoff.sourceClusterKey,
+          liveClusterKey,
+        });
       }
       const removedStaticIDs = [...currentStaticIDs].filter((entityID) => entityID > 0);
       if (removedStaticIDs.length > 0) {
@@ -16476,6 +16643,13 @@ class SolarSystemScene {
           ),
         );
         session._space.visibleBubbleScopedStaticEntityIDs = new Set();
+        recordVisibilityJournal(session, "warp.source.static-remove", {
+          nowMs: now,
+          stamp: sessionStamp,
+          removedStaticEntityIDs: removedStaticIDs,
+          sourceClusterKey: handoff.sourceClusterKey,
+          liveClusterKey,
+        });
       }
       handoff.sourceRemoved = true;
     }
@@ -16530,6 +16704,13 @@ class SolarSystemScene {
       session._space.visibleBubbleScopedStaticEntityIDs = new Set(
         destinationStaticEntities.map((visibleEntity) => visibleEntity.itemID),
       );
+      recordVisibilityJournal(session, "warp.destination.static-add", {
+        nowMs: now,
+        stamp: sessionStamp,
+        addedStaticEntityIDs: destinationStaticEntities.map((entity) => entity.itemID),
+        destinationClusterKey: handoff.destinationClusterKey,
+        liveClusterKey,
+      });
       handoff.destinationStaticJoined = true;
     }
 
@@ -16562,6 +16743,14 @@ class SolarSystemScene {
         for (const visibleEntity of destinationDelta.addedEntities) {
           freshIDs.add(visibleEntity.itemID);
         }
+        recordVisibilityJournal(session, "warp.destination.dynamic-add", {
+          nowMs: now,
+          stamp: sessionStamp,
+          addedEntityIDs: destinationDelta.addedEntities.map((entity) => entity.itemID),
+          desiredVisibleEntityIDs: [...destinationDelta.desiredIDs],
+          destinationClusterKey: handoff.destinationClusterKey,
+          liveClusterKey,
+        });
       }
       handoff.destinationJoined = true;
     }
@@ -17353,6 +17542,7 @@ class SolarSystemScene {
     sourceState.lockedTargets.delete(normalizedTargetID);
     this.stopTargetedModuleEffects(sourceEntity, normalizedTargetID, {
       reason: options.reason ?? "target",
+      nowMs: options.nowMs,
     });
     const targetEntity = this.getEntityByID(normalizedTargetID);
     if (targetEntity) {
@@ -17520,6 +17710,7 @@ class SolarSystemScene {
       sourceState.lockedTargets.delete(targetID);
       this.stopTargetedModuleEffects(sourceEntity, targetID, {
         reason: options.activeReason ?? "target",
+        nowMs: options.nowMs,
       });
       const targetEntity = this.getEntityByID(targetID);
       if (!targetEntity) {
@@ -17590,6 +17781,7 @@ class SolarSystemScene {
         notifySelf,
         notifyTarget,
         reason: options.activeReason ?? "target",
+        nowMs: options.nowMs,
       })) {
         clearedTargetIDs.push(normalizedTargetID);
       }
@@ -17615,6 +17807,7 @@ class SolarSystemScene {
       notifyTarget: options.notifyTarget !== false,
       activeReason: reason === TARGET_LOSS_REASON_EXPLODING ? TARGET_LOSS_REASON_EXPLODING : null,
       pendingReason: reason,
+      nowMs: options.nowMs,
     });
 
     const normalizedEntityID = toInt(entity.itemID, 0);
@@ -17643,6 +17836,7 @@ class SolarSystemScene {
           notifySelf: true,
           notifyTarget: false,
           reason: activeReason,
+          nowMs: options.nowMs,
         });
         continue;
       }
@@ -17651,6 +17845,7 @@ class SolarSystemScene {
       // points at them, even if the targeting map already drifted earlier.
       this.stopTargetedModuleEffects(sourceEntity, normalizedEntityID, {
         reason: activeReason,
+        nowMs: options.nowMs,
       });
     }
 
@@ -20270,9 +20465,22 @@ class SolarSystemScene {
     }
 
     const refreshedEntities = refreshEntitiesForSlimPayload(entities);
+    const visibleEntities = refreshedEntities.filter((entity) => (
+      entity && canSessionReceiveEntityDependentDestinyUpdate(this, session, entity)
+    ));
+    const skippedEntities = refreshedEntities.filter((entity) => (
+      entity && !canSessionReceiveEntityDependentDestinyUpdate(this, session, entity)
+    ));
+    for (const skippedEntity of skippedEntities) {
+      recordDependentNotificationSkip(
+        this,
+        session,
+        "sendSlimItemChangesToSession",
+        skippedEntity,
+      );
+    }
     const stamp = this.getNextDestinyStamp();
-    const updates = refreshedEntities
-      .filter(Boolean)
+    const updates = visibleEntities
       .map((entity) => ({
         stamp,
         payload: destiny.buildOnSlimItemChangePayload(
@@ -20296,15 +20504,30 @@ class SolarSystemScene {
         stamp: null,
       };
     }
-    if (
-      visibilityEntity &&
-      !isSessionViewingOwnVisibilityEntity(session, visibilityEntity) &&
-      !this.canSessionSeeDynamicEntity(session, visibilityEntity)
-    ) {
-      return {
-        delivered: false,
-        stamp: null,
-      };
+    if (visibilityEntity) {
+      const canSeeVisibilityEntity =
+        isSessionViewingOwnVisibilityEntity(session, visibilityEntity) ||
+        this.canSessionSeeDynamicEntity(session, visibilityEntity);
+      const hasMaterializedVisibilityEntity =
+        canSessionReceiveEntityDependentDestinyUpdate(
+          this,
+          session,
+          visibilityEntity,
+        );
+      if (!hasMaterializedVisibilityEntity) {
+        if (canSeeVisibilityEntity) {
+          recordDependentNotificationSkip(
+            this,
+            session,
+            "sendSpecialFxToSession",
+            visibilityEntity,
+          );
+        }
+        return {
+          delivered: false,
+          stamp: null,
+        };
+      }
     }
 
     const stampOverride =
@@ -20529,12 +20752,27 @@ class SolarSystemScene {
       ) {
         continue;
       }
-      if (
-        visibilityEntity &&
-        !isSessionViewingOwnVisibilityEntity(session, visibilityEntity) &&
-        !this.canSessionSeeDynamicEntity(session, visibilityEntity)
-      ) {
-        continue;
+      if (visibilityEntity) {
+        const canSeeVisibilityEntity =
+          isSessionViewingOwnVisibilityEntity(session, visibilityEntity) ||
+          this.canSessionSeeDynamicEntity(session, visibilityEntity);
+        const hasMaterializedVisibilityEntity =
+          canSessionReceiveEntityDependentDestinyUpdate(
+            this,
+            session,
+            visibilityEntity,
+          );
+        if (!hasMaterializedVisibilityEntity) {
+          if (canSeeVisibilityEntity) {
+            recordDependentNotificationSkip(
+              this,
+              session,
+              "broadcastSpecialFx",
+              visibilityEntity,
+            );
+          }
+          continue;
+        }
       }
 
       const useImmediateVisibleStamp =
@@ -21569,11 +21807,20 @@ class SolarSystemScene {
       return [];
     }
 
-    this.sendAddBallsToSession(session, acquiredEntities, {
+    const sendResult = this.sendAddBallsToSession(session, acquiredEntities, {
       freshAcquire: true,
       nowMs: now,
       bypassTickPresentationBatch:
         options.bypassTickPresentationBatch === true,
+    });
+    recordVisibilityJournal(session, "dynamic.add", {
+      nowMs: now,
+      stamp:
+        sendResult && sendResult.stamp !== undefined && sendResult.stamp !== null
+          ? (toInt(sendResult.stamp, 0) >>> 0)
+          : null,
+      addedEntityIDs: acquiredEntities.map((entity) => entity.itemID),
+      source: "acquireDynamicEntitiesForSession",
     });
     for (const entity of acquiredEntities) {
       currentIDs.add(entity.itemID);
@@ -21796,6 +22043,21 @@ class SolarSystemScene {
     }
 
     if (removedIDs.length > 0 || addedEntities.length > 0) {
+      recordVisibilityJournal(session, "dynamic.sync", {
+        nowMs: now,
+        stamp: stampOverride,
+        addStamp:
+          addPresentation && addPresentation.updates && addPresentation.updates[0]
+            ? (toInt(addPresentation.updates[0].stamp, 0) >>> 0)
+            : null,
+        removeStamp:
+          removeUpdates && removeUpdates[0]
+            ? (toInt(removeUpdates[0].stamp, 0) >>> 0)
+            : null,
+        addedEntityIDs: addedEntities.map((entity) => entity.itemID),
+        removedEntityIDs: removedIDs,
+        desiredVisibleEntityIDs: [...desiredIDs],
+      });
       logBubbleDebug("bubble.visibility_sync", {
         systemID: this.systemID,
         sessionCharacterID: toInt(session.charID, 0),
@@ -21893,6 +22155,24 @@ class SolarSystemScene {
       );
     }
 
+    if (delta.removedIDs.length > 0 || delta.addedEntities.length > 0) {
+      recordVisibilityJournal(session, "static.sync", {
+        nowMs: now,
+        stamp: stampOverride,
+        addStamp:
+          addPresentation && addPresentation.updates && addPresentation.updates[0]
+            ? (toInt(addPresentation.updates[0].stamp, 0) >>> 0)
+            : null,
+        removeStamp:
+          removeUpdates && removeUpdates[0]
+            ? (toInt(removeUpdates[0].stamp, 0) >>> 0)
+            : null,
+        addedStaticEntityIDs: delta.addedEntities.map((entity) => entity.itemID),
+        removedStaticEntityIDs: delta.removedIDs,
+        desiredVisibleEntityIDs: [...delta.desiredIDs],
+      });
+    }
+
     session._space.visibleBubbleScopedStaticEntityIDs = delta.desiredIDs;
   }
 
@@ -21904,6 +22184,45 @@ class SolarSystemScene {
       this.syncDynamicVisibilityForSession(session, now, options);
       this.syncStaticVisibilityForSession(session, now, options);
     }
+  }
+
+  runPostAttachVisibilityReconciliation(
+    session,
+    now = this.getCurrentSimTimeMs(),
+    options = {},
+  ) {
+    if (
+      !session ||
+      !session._space ||
+      session._space.postAttachVisibilityReconcile !== true
+    ) {
+      return false;
+    }
+
+    session._space.postAttachVisibilityReconcile = false;
+    const stampOverride =
+      options.stampOverride === undefined || options.stampOverride === null
+        ? null
+        : (toInt(options.stampOverride, 0) >>> 0);
+    const reason =
+      typeof session._space.postAttachVisibilityReconcileReason === "string"
+        ? session._space.postAttachVisibilityReconcileReason
+        : null;
+    recordVisibilityJournal(session, "attach.reconcile", {
+      nowMs: now,
+      stamp: stampOverride,
+      source:
+        typeof options.source === "string"
+          ? options.source
+          : "postAttachVisibilityReconciliation",
+      reason,
+      shipID: toInt(session._space.shipID, 0),
+    });
+    this.syncDynamicVisibilityForAllSessions(now, {
+      stampOverride,
+      bypassPilotWarpQuietWindow: true,
+    });
+    return true;
   }
 
   buildModeUpdates(entity, stampOverride = null) {
@@ -22045,6 +22364,14 @@ class SolarSystemScene {
       visibleBubbleScopedStaticEntityIDs: new Set(),
       freshlyVisibleDynamicEntityIDs: new Set(),
       freshlyVisibleDynamicEntityReleaseStampByID: new Map(),
+      visibilityJournal: [],
+      visibilityJournalSeq: 0,
+      postAttachVisibilityReconcile:
+        options.postAttachVisibilityReconcile === true,
+      postAttachVisibilityReconcileReason:
+        typeof options.postAttachVisibilityReconcileReason === "string"
+          ? options.postAttachVisibilityReconcileReason
+          : null,
       pilotWarpQuietUntilStamp: 0,
       pilotWarpVisibilityHandoff: null,
       clockOffsetMs: 0,
@@ -22124,6 +22451,8 @@ class SolarSystemScene {
       options: {
         beyonceBound: options.beyonceBound === true,
         pendingUndockMovement: options.pendingUndockMovement === true,
+        postAttachVisibilityReconcile:
+          options.postAttachVisibilityReconcile === true,
         spawnStopped: options.spawnStopped === true,
         broadcast: options.broadcast !== false,
         emitSimClockRebase: options.emitSimClockRebase !== false,
@@ -22232,6 +22561,14 @@ class SolarSystemScene {
       visibleBubbleScopedStaticEntityIDs: new Set(),
       freshlyVisibleDynamicEntityIDs: new Set(),
       freshlyVisibleDynamicEntityReleaseStampByID: new Map(),
+      visibilityJournal: [],
+      visibilityJournalSeq: 0,
+      postAttachVisibilityReconcile:
+        options.postAttachVisibilityReconcile === true,
+      postAttachVisibilityReconcileReason:
+        typeof options.postAttachVisibilityReconcileReason === "string"
+          ? options.postAttachVisibilityReconcileReason
+          : null,
       pilotWarpQuietUntilStamp: 0,
       pilotWarpVisibilityHandoff: null,
       clockOffsetMs: 0,
@@ -22310,6 +22647,8 @@ class SolarSystemScene {
       options: {
         beyonceBound: options.beyonceBound === true,
         pendingUndockMovement: options.pendingUndockMovement === true,
+        postAttachVisibilityReconcile:
+          options.postAttachVisibilityReconcile === true,
         spawnStopped: options.spawnStopped === true,
         broadcast: options.broadcast !== false,
         emitSimClockRebase: options.emitSimClockRebase !== false,
@@ -22730,6 +23069,17 @@ class SolarSystemScene {
           .map((entity) => entity.itemID),
       );
       session._space.freshlyVisibleDynamicEntityIDs = new Set();
+      recordVisibilityJournal(session, "bootstrap.visible-set", {
+        nowMs: rawCurrentSimTimeMs,
+        stamp: addBallsStamp,
+        dynamicEntityIDs: dynamicEntities.map((entity) => entity.itemID),
+        staticEntityIDs: visibleEntities
+          .filter((entity) => (
+            isBubbleScopedStaticEntity(entity) &&
+            !isDedicatedSiteStaticVisibilityEntity(entity)
+          ))
+          .map((entity) => entity.itemID),
+      });
     };
 
     const bootstrapBaseRawStamp = this.getCurrentDestinyStamp(rawCurrentSimTimeMs);
@@ -22951,6 +23301,10 @@ class SolarSystemScene {
       nowMs: rawCurrentSimTimeMs,
       forceReplayFx: true,
     });
+    this.runPostAttachVisibilityReconciliation(session, rawCurrentSimTimeMs, {
+      stampOverride: modeStamp,
+      source: "ensureInitialBallpark",
+    });
     this.flushDirectDestinyNotificationBatchIfIdle();
     return true;
   }
@@ -23004,6 +23358,15 @@ class SolarSystemScene {
             ? (toInt(sendResult.stamp, 0) >>> 0)
             : null,
         entities: visibleEntities,
+      });
+      recordVisibilityJournal(session, "broadcast.add", {
+        nowMs: rawSimTimeMs,
+        stamp:
+          sendResult && sendResult.stamp !== null && sendResult.stamp !== undefined
+            ? (toInt(sendResult.stamp, 0) >>> 0)
+            : null,
+        addedEntityIDs: visibleEntities.map((entity) => entity.itemID),
+        source: "broadcastAddBalls",
       });
       if (session._space) {
         const currentIDs =
@@ -23357,6 +23720,15 @@ class SolarSystemScene {
       } else {
         this.sendDestinyUpdates(session, preparedUpdates, false, sendOptions);
       }
+      recordVisibilityJournal(session, "broadcast.remove", {
+        nowMs: rawNowMs,
+        stamp,
+        removedEntityIDs: [normalizedEntityID],
+        wasMarkedVisible,
+        forcedVisible,
+        canStillSeeEntity: Boolean(canStillSeeEntity),
+        source: "broadcastRemoveBall",
+      });
       if (visibleEntityIDs instanceof Set) {
         visibleEntityIDs.delete(normalizedEntityID);
       }
@@ -23456,6 +23828,13 @@ class SolarSystemScene {
           }),
         );
       }
+
+      recordVisibilityJournal(session, "broadcast.static-remove", {
+        nowMs: rawNowMs,
+        stamp,
+        removedStaticEntityIDs: [normalizedEntityID],
+        source: "broadcastRemoveStaticEntity",
+      });
 
       if (session._space) {
         if (session._space.visibleDynamicEntityIDs instanceof Set) {
@@ -24748,6 +25127,18 @@ class SolarSystemScene {
                 );
                 if (!cycleResult.success) {
                   cycleStopReason = cycleResult.stopReason || "mining";
+                } else if (
+                  cycleResult.data &&
+                  cycleResult.data.depleted === true
+                ) {
+                  const moduleID = toInt(effectState && effectState.moduleID, 0);
+                  if (
+                    !(entity.activeModuleEffects instanceof Map) ||
+                    !entity.activeModuleEffects.has(moduleID)
+                  ) {
+                    continue;
+                  }
+                  cycleStopReason = "target";
                 }
               } else {
                 cycleStopReason = "mining";

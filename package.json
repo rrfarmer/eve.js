@@ -1,1 +1,8 @@
-{}
+{
+  "scripts": {
+    "datasync:sde": "node scripts/DataSync/sync-jsonl-local-static-data.js"
+  },
+  "dependencies": {
+    "yaml": "^2.8.3"
+  }
+}

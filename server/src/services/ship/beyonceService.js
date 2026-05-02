@@ -24,6 +24,7 @@ const {
   getCynoJammerOnlineSimTime,
 } = require(path.join(__dirname, "../sovereignty/sovSuppressionState"));
 const fleetRuntime = require(path.join(__dirname, "../fleets/fleetRuntime"));
+const planetRuntimeStore = require(path.join(__dirname, "../planet/planetRuntimeStore"));
 const bookmarkStore = require(path.join(__dirname, "../character/bookmarkStore"));
 const sharedBookmarkStore = require(path.join(__dirname, "../character/sharedBookmarkStore"));
 const bookmarkNotifications = require(path.join(__dirname, "../character/bookmarkNotifications"));
@@ -677,11 +678,31 @@ class BeyonceService extends BaseService {
           errorMsg: "SCAN_TARGET_NOT_FOUND",
         };
       }
+    } else if (warpType === "launch" && numericTarget > 0) {
+      const launch = planetRuntimeStore.getLaunch(
+        numericTarget,
+        session && session.characterID,
+      );
+      if (launch) {
+        const launchItemID = normalizeNumber(launch.itemID || launch.launchID, 0);
+        if (launchItemID > 0) {
+          result = spaceRuntime.warpToEntity(session, launchItemID, { minimumRange });
+        }
+        if (!result || !result.success) {
+          result = spaceRuntime.warpToPoint(session, {
+            x: normalizeNumber(launch.x, 0),
+            y: normalizeNumber(launch.y, 0),
+            z: normalizeNumber(launch.z, 0),
+          }, {
+            minimumRange,
+            stopDistance: minimumRange,
+          });
+        }
+      } else {
+        result = spaceRuntime.warpToEntity(session, numericTarget, { minimumRange });
+      }
     } else if (
-      (warpType === "item" ||
-        warpType === "launch" ||
-        warpType === "char" ||
-        !warpType) &&
+      (warpType === "item" || warpType === "char" || !warpType) &&
       numericTarget > 0
     ) {
       const scene = spaceRuntime.getSceneForSession(session);

@@ -107,6 +107,35 @@ function flattenDestinyUpdates(notifications = []) {
   return updates;
 }
 
+function setPresentedDestinyLane(session, stamp, rawDispatchStamp, options = {}) {
+  if (!session || !session._space) {
+    return;
+  }
+  const normalizedStamp = Math.trunc(Number(stamp) || 0) >>> 0;
+  const normalizedRawDispatchStamp = Math.trunc(Number(rawDispatchStamp) || 0) >>> 0;
+  session._space.lastSentDestinyStamp = normalizedStamp;
+  session._space.lastSentDestinyRawDispatchStamp = normalizedRawDispatchStamp;
+  if (Object.prototype.hasOwnProperty.call(options, "wasOwnerCritical")) {
+    session._space.lastSentDestinyWasOwnerCritical =
+      options.wasOwnerCritical === true;
+  }
+  if (Object.prototype.hasOwnProperty.call(options, "onlyStaleProjectedOwnerMissileLane")) {
+    session._space.lastSentDestinyOnlyStaleProjectedOwnerMissileLane =
+      options.onlyStaleProjectedOwnerMissileLane === true;
+  }
+  const authorityState = session._space.destinyAuthorityState || {};
+  authorityState.lastPresentedStamp = normalizedStamp;
+  authorityState.lastRawDispatchStamp = normalizedRawDispatchStamp;
+  if (Object.prototype.hasOwnProperty.call(options, "wasOwnerCritical")) {
+    authorityState.lastSentWasOwnerCritical = options.wasOwnerCritical === true;
+  }
+  if (Object.prototype.hasOwnProperty.call(options, "onlyStaleProjectedOwnerMissileLane")) {
+    authorityState.lastSentOnlyStaleProjectedOwnerMissileLane =
+      options.onlyStaleProjectedOwnerMissileLane === true;
+  }
+  session._space.destinyAuthorityState = authorityState;
+}
+
 function assertObserverMovementStampWithinSceneTickWindow(observerUpdate, currentStamp) {
   assert.ok(observerUpdate, "expected an observer movement update");
   assert.equal(
@@ -3260,6 +3289,128 @@ test("owner movement sends do not backstep beneath a farther-ahead lane already 
     ownerUpdates.every((entry) => entry.stamp >= sameRawPublishedLane),
     true,
     "expected skipped owner monotonic restamp not to let owner movement land underneath a farther-ahead lane already published in the same raw dispatch",
+  );
+});
+
+test("approach command keeps FollowBall and SetSpeedFraction on the presented owner lane", () => {
+  const ownerSession = createFakeSession(
+    1,
+    140000001,
+    { x: 0, y: 0, z: 0 },
+  );
+  const targetSession = createFakeSession(
+    2,
+    140000002,
+    { x: 1500, y: 0, z: 0 },
+  );
+
+  const ownerEntity = attachAndBootstrap(ownerSession);
+  const targetEntity = attachAndBootstrap(targetSession);
+  const scene = spaceRuntime.getSceneForSession(ownerSession);
+  assert.ok(scene, "expected owner scene to exist");
+
+  ownerEntity.speedFraction = 0;
+  ownerSession.notifications.length = 0;
+  targetSession.notifications.length = 0;
+
+  const currentRawDispatchStamp = scene.getCurrentDestinyStamp();
+  const currentSessionStamp = scene.getCurrentSessionDestinyStamp(ownerSession);
+  const priorRawDispatchStamp =
+    currentRawDispatchStamp > 0 ? ((currentRawDispatchStamp - 1) >>> 0) : 0;
+  const recentlyPresentedLane = (
+    currentSessionStamp + OWNER_MISSILE_CLIENT_LANE_LEAD
+  ) >>> 0;
+  setPresentedDestinyLane(
+    ownerSession,
+    recentlyPresentedLane,
+    priorRawDispatchStamp,
+    { wasOwnerCritical: false },
+  );
+
+  assert.equal(
+    scene.followShipEntity(ownerEntity, targetEntity.itemID, 50),
+    true,
+  );
+  scene.flushDirectDestinyNotificationBatch();
+
+  const ownerUpdates = flattenDestinyUpdates(ownerSession.notifications)
+    .filter((entry) => (
+      entry.name === "FollowBall" ||
+      entry.name === "SetSpeedFraction"
+    ));
+  assert.deepEqual(
+    ownerUpdates.map((entry) => entry.name),
+    ["FollowBall", "SetSpeedFraction"],
+  );
+  assert.equal(
+    ownerUpdates.every((entry) => entry.stamp >= recentlyPresentedLane),
+    true,
+    "expected approach owner movement not to backstep behind the lane already presented to the client",
+  );
+  assert.equal(
+    new Set(ownerUpdates.map((entry) => entry.stamp)).size,
+    1,
+    "expected FollowBall and SetSpeedFraction from one approach command to remain on the same Destiny stamp",
+  );
+});
+
+test("bootstrap acquire does not backstep behind the lane already presented to the session", () => {
+  const observerSession = createFakeSession(
+    1,
+    140000001,
+    { x: 0, y: 0, z: 0 },
+  );
+
+  attachAndBootstrap(observerSession);
+  const scene = spaceRuntime.getSceneForSession(observerSession);
+  assert.ok(scene, "expected observer scene to exist");
+
+  const acquiredEntity = spaceRuntime._testing.buildRuntimeShipEntityForTesting({
+    itemID: 990001001,
+    typeID: 606,
+    position: { x: 500, y: 0, z: 0 },
+  }, TEST_SYSTEM_ID);
+  scene.spawnDynamicEntity(acquiredEntity, { broadcast: false });
+
+  observerSession.notifications.length = 0;
+  observerSession._syncLedgerEvents = [];
+
+  const currentRawDispatchStamp = scene.getCurrentDestinyStamp();
+  const currentSessionStamp = scene.getCurrentSessionDestinyStamp(observerSession);
+  const alreadyPresentedLane = (
+    currentSessionStamp + OWNER_MISSILE_CLIENT_LANE_LEAD + 1
+  ) >>> 0;
+  setPresentedDestinyLane(
+    observerSession,
+    alreadyPresentedLane,
+    currentRawDispatchStamp,
+    { wasOwnerCritical: false },
+  );
+
+  const sendResult = scene.sendAddBallsToSession(
+    observerSession,
+    [acquiredEntity],
+    {
+      freshAcquire: true,
+      nowMs: scene.getCurrentSimTimeMs(),
+    },
+  );
+  scene.flushDirectDestinyNotificationBatch();
+
+  assert.equal(sendResult.delivered, true, "expected bootstrap acquire send to be accepted");
+  const addUpdates = flattenDestinyUpdates(observerSession.notifications)
+    .filter((entry) => entry.name === "AddBalls2");
+  assert.equal(addUpdates.length, 1, "expected one AddBalls2 bootstrap acquire update");
+  assert.equal(
+    addUpdates[0].stamp >= alreadyPresentedLane,
+    true,
+    "expected bootstrap acquire not to be ceiled behind the lane already presented to the client",
+  );
+  assert.equal(
+    (observerSession._syncLedgerEvents || [])
+      .some((entry) => entry.event === "destiny.group.rejected"),
+    false,
+    "expected bootstrap acquire not to hit the final backstep rejection guard",
   );
 });
 

@@ -8,6 +8,11 @@ const {
 const {
   DESTINY_CONTRACTS,
 } = require("../authority/destinyContracts");
+const {
+  extractEntityIDsFromPayload,
+  recordSyncLedgerEvent,
+  summarizeDestinyUpdates,
+} = require("../../../network/syncLedger");
 
 function createMovementDestinyDispatch(deps = {}) {
   const {
@@ -272,6 +277,124 @@ function createMovementDestinyDispatch(deps = {}) {
     });
   }
 
+  function recordDestinyLedger(session, event, details = {}) {
+    return recordSyncLedgerEvent(session, event, {
+      kind: "destiny",
+      ...details,
+    });
+  }
+
+  function ensureDestinyLifecycleLedger(session) {
+    if (!session || typeof session !== "object") {
+      return null;
+    }
+    if (!session._syncLedgerDestinyLifecycle) {
+      session._syncLedgerDestinyLifecycle = {
+        lastNotificationStamp: 0,
+        addStampByEntityID: new Map(),
+      };
+    }
+    return session._syncLedgerDestinyLifecycle;
+  }
+
+  function validateDestinyNotificationGroup(
+    session,
+    groupStamp,
+    updates,
+    context = {},
+  ) {
+    const lifecycle = ensureDestinyLifecycleLedger(session);
+    const normalizedGroupStamp = toInt(groupStamp, 0) >>> 0;
+    const updateStamps = [...new Set(
+      (Array.isArray(updates) ? updates : [])
+        .map((update) => toInt(update && update.stamp, 0) >>> 0),
+    )];
+    const violations = [];
+
+    if (updateStamps.length > 1) {
+      violations.push({
+        rule: "single-destiny-stamp-per-notification",
+        stamps: updateStamps,
+      });
+    }
+    if (updateStamps.length === 1 && updateStamps[0] !== normalizedGroupStamp) {
+      violations.push({
+        rule: "group-stamp-matches-update-stamp",
+        groupStamp: normalizedGroupStamp,
+        updateStamp: updateStamps[0],
+      });
+    }
+    if (
+      lifecycle &&
+      lifecycle.lastNotificationStamp > 0 &&
+      normalizedGroupStamp < lifecycle.lastNotificationStamp
+    ) {
+      violations.push({
+        rule: "monotonic-destiny-notification-stamp",
+        previousStamp: lifecycle.lastNotificationStamp,
+        groupStamp: normalizedGroupStamp,
+      });
+    }
+
+    for (const update of Array.isArray(updates) ? updates : []) {
+      const payload = update && Array.isArray(update.payload)
+        ? update.payload
+        : null;
+      if (!payload || typeof payload[0] !== "string") {
+        continue;
+      }
+      const payloadName = payload[0];
+      const entityIDs = extractEntityIDsFromPayload(payload);
+      if (payloadName === "SetState" && lifecycle) {
+        lifecycle.addStampByEntityID.clear();
+      }
+      if (payloadName === "AddBalls2" && lifecycle) {
+        for (const entityID of entityIDs) {
+          lifecycle.addStampByEntityID.set(
+            toInt(entityID, 0) >>> 0,
+            normalizedGroupStamp,
+          );
+        }
+      }
+      if (payloadName === "RemoveBalls" && lifecycle) {
+        for (const entityID of entityIDs) {
+          const normalizedEntityID = toInt(entityID, 0) >>> 0;
+          const lastAddStamp = toInt(
+            lifecycle.addStampByEntityID.get(normalizedEntityID),
+            0,
+          ) >>> 0;
+          if (lastAddStamp > 0 && normalizedGroupStamp <= lastAddStamp) {
+            violations.push({
+              rule: "remove-after-addballs",
+              entityID: normalizedEntityID,
+              addStamp: lastAddStamp,
+              removeStamp: normalizedGroupStamp,
+            });
+          }
+          lifecycle.addStampByEntityID.delete(normalizedEntityID);
+        }
+      }
+    }
+
+    if (lifecycle) {
+      lifecycle.lastNotificationStamp = Math.max(
+        lifecycle.lastNotificationStamp,
+        normalizedGroupStamp,
+      ) >>> 0;
+    }
+
+    if (violations.length > 0) {
+      recordDestinyLedger(session, "destiny.invariant.violation", {
+        ...context,
+        stamp: normalizedGroupStamp,
+        violations,
+        updates: summarizeDestinyUpdates(updates),
+      });
+    }
+
+    return violations;
+  }
+
   function flushCollectedDestinyGroups(runtime, session, collectedGroups) {
     if (
       !session ||
@@ -316,6 +439,24 @@ function createMovementDestinyDispatch(deps = {}) {
       if (currentUpdates.length === 0 || currentStamp === null) {
         return;
       }
+      const updateSummary = summarizeDestinyUpdates(currentUpdates);
+      const violations = validateDestinyNotificationGroup(
+        session,
+        currentStamp,
+        currentUpdates,
+        {
+          waitForBubble: currentWaitForBubble,
+          containsSetState: currentGroupContainsSetState,
+          phase: "flush-collected",
+        },
+      );
+      recordDestinyLedger(session, "destiny.group.flushed", {
+        stamp: toInt(currentStamp, 0) >>> 0,
+        waitForBubble: currentWaitForBubble,
+        containsSetState: currentGroupContainsSetState,
+        violationCount: violations.length,
+        updates: updateSummary,
+      });
       logDestinyDispatch(session, currentUpdates, currentWaitForBubble);
       session.sendNotification(
         "DoDestinyUpdate",
@@ -488,6 +629,17 @@ function createMovementDestinyDispatch(deps = {}) {
       order: batch.nextOrder++,
       updates: groupDetails.updates,
       contract: groupDetails.contract,
+    });
+    recordDestinyLedger(session, "destiny.group.queued", {
+      stamp: toInt(groupDetails.stamp, 0) >>> 0,
+      waitForBubble: groupDetails.waitForBubble === true,
+      contract:
+        typeof groupDetails.contract === "string"
+          ? groupDetails.contract
+          : "",
+      rawDispatchStamp: groupRawDispatchStamp,
+      queueSize: queued.groups.length,
+      updates: summarizeDestinyUpdates(groupDetails.updates),
     });
     scheduleDirectDestinyNotificationFlush(runtime, batch);
     return queued.groups.length;
@@ -1050,6 +1202,15 @@ function createMovementDestinyDispatch(deps = {}) {
               restampSteps: authorityTraceDetails
                 ? authorityTraceDetails.restampSteps
                 : [],
+            });
+            recordDestinyLedger(session, "destiny.group.rejected", {
+              reason: "final-stamp-behind-last-sent",
+              attemptedStamp: authorityStamp >>> 0,
+              previousLastSentDestinyStamp:
+                authorityFlags.previousLastSentDestinyStamp,
+              originalStamp: authorityOriginalStamp,
+              contract: authorityJourney.contract,
+              updates: summarizeDestinyUpdates(authorityUpdates),
             });
             firstGroup = false;
             return 0;

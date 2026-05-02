@@ -1037,6 +1037,32 @@ function createDestinyAuthority(deps = {}) {
         observerMissileLifecyclePostHeldClearFloor,
       };
     }
+    const lastFreshAcquirePublishedStamp = Math.max(
+      toInt(sessionState.lastFreshAcquireLifecycleStamp, 0) >>> 0,
+      toInt(
+        authoritySessionState && authoritySessionState.lastFreshAcquireLifecycleStamp,
+        0,
+      ) >>> 0,
+      toInt(
+        session && session._space && session._space.lastFreshAcquireLifecycleStamp,
+        0,
+      ) >>> 0,
+      toInt(
+        authoritySessionState && authoritySessionState.lastBootstrapStamp,
+        0,
+      ) >>> 0,
+    ) >>> 0;
+    const movementAfterSameRawFreshAcquireCatchUpFloor =
+      containsMovementContractPayload &&
+      !isMissileLifecycleGroup &&
+      !isOwnerCriticalGroup &&
+      !isOwnerDamageStateGroup &&
+      previousLastSentDestinyStamp > 0 &&
+      previousLastSentDestinyRawDispatchStamp > 0 &&
+      previousLastSentDestinyRawDispatchStamp === currentRawDispatchStamp &&
+      previousLastSentDestinyStamp === lastFreshAcquirePublishedStamp
+        ? previousLastSentDestinyStamp
+        : 0;
     recordFloorStage(
       "observer.directPresentedMonotonicFloor",
       observerDirectPresentedMonotonicFloor,
@@ -1163,6 +1189,68 @@ function createDestinyAuthority(deps = {}) {
           toInt(sendOptions && sendOptions.maximumHistorySafeLeadOverride, 0),
       },
     );
+    const ownerSkippedMonotonicLastSentCatchUpIsSafe =
+      allowsPostHeldFutureDelivery ||
+      subwarpHeldFutureCeilingStamp === 0 ||
+      previousLastSentDestinyStamp <= subwarpHeldFutureCeilingStamp;
+    const ownerSkippedMonotonicLastSentCatchUpFloor =
+      authorityJourney.contract === DESTINY_CONTRACTS.OWNER_PILOT_COMMAND &&
+      isOwnerPilotMovementGroup &&
+      skipOwnerMonotonicRestamp === true &&
+      previousLastSentDestinyOnlyStaleProjectedOwnerMissileLane !== true &&
+      previousLastSentDestinyStamp > 0 &&
+      localStamp < previousLastSentDestinyStamp &&
+      ownerSkippedMonotonicLastSentCatchUpIsSafe
+        ? previousLastSentDestinyStamp
+        : 0;
+    recordFloorStage(
+      "owner.skippedMonotonicLastSentCatchUpFloor",
+      ownerSkippedMonotonicLastSentCatchUpFloor,
+      {
+        previousLastSentDestinyStamp,
+        previousLastSentDestinyRawDispatchStamp,
+        currentRawDispatchStamp,
+        currentSessionStamp,
+        subwarpHeldFutureCeilingStamp,
+        allowsPostHeldFutureDelivery,
+        skipOwnerMonotonicRestamp,
+        previousLastSentDestinyOnlyStaleProjectedOwnerMissileLane,
+        isSafe: ownerSkippedMonotonicLastSentCatchUpIsSafe,
+      },
+    );
+    const bootstrapAcquireLastSentCatchUpFloor =
+      isBootstrapAcquireGroup &&
+      isFreshAcquireLifecycleGroup &&
+      previousLastSentDestinyStamp > 0 &&
+      localStamp < previousLastSentDestinyStamp &&
+      allowsPostHeldFutureDelivery
+        ? previousLastSentDestinyStamp
+        : 0;
+    recordFloorStage(
+      "bootstrapAcquire.lastSentCatchUpFloor",
+      bootstrapAcquireLastSentCatchUpFloor,
+      {
+        previousLastSentDestinyStamp,
+        previousLastSentDestinyRawDispatchStamp,
+        currentRawDispatchStamp,
+        currentSessionStamp,
+        bootstrapAcquireClearCeilingStamp,
+        allowsPostHeldFutureDelivery,
+      },
+    );
+    recordFloorStage(
+      "movement.sameRawFreshAcquireCatchUpFloor",
+      movementAfterSameRawFreshAcquireCatchUpFloor,
+      {
+        previousLastSentDestinyStamp,
+        previousLastSentDestinyRawDispatchStamp,
+        currentRawDispatchStamp,
+        currentSessionStamp,
+        lastFreshAcquirePublishedStamp,
+        containsMovementContractPayload,
+        isOwnerCriticalGroup,
+      },
+    );
     if (
       traceDetails &&
       previousLastSentDestinyStamp > 0 &&
@@ -1213,6 +1301,9 @@ function createDestinyAuthority(deps = {}) {
         observerDirectPresentedMonotonicFloor,
         observerMovementContractProjectedClearFloor,
         observerMissileLifecyclePostHeldClearFloor,
+        ownerSkippedMonotonicLastSentCatchUpFloor,
+        bootstrapAcquireLastSentCatchUpFloor,
+        movementAfterSameRawFreshAcquireCatchUpFloor,
       },
       ceilings: {
         ownerCriticalCeilingStamp,

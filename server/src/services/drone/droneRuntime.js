@@ -2518,6 +2518,55 @@ function resetDroneToIdle(droneEntity, controllerEntity = null, options = {}) {
   return true;
 }
 
+function idleMiningDronesTargeting(scene, rawTargetID, options = {}) {
+  if (!scene) {
+    return 0;
+  }
+
+  const targetID = toInt(rawTargetID, 0);
+  const excludeDroneID = toInt(options.excludeDroneID, 0);
+  if (targetID <= 0) {
+    return 0;
+  }
+
+  let idledCount = 0;
+  for (const droneEntity of getSceneDroneEntities(scene)) {
+    const droneID = toInt(droneEntity && droneEntity.itemID, 0);
+    if (droneID <= 0 || droneID === excludeDroneID) {
+      continue;
+    }
+
+    const miningState =
+      droneEntity &&
+      droneEntity.droneMining &&
+      typeof droneEntity.droneMining === "object"
+        ? droneEntity.droneMining
+        : null;
+    const miningTargetID = toInt(
+      miningState && miningState.targetID,
+      toInt(droneEntity && droneEntity.targetID, 0),
+    );
+    if (miningTargetID !== targetID) {
+      continue;
+    }
+    if (droneEntity.droneCommand !== DRONE_COMMAND_MINE && !miningState) {
+      continue;
+    }
+
+    const controllerID = toInt(droneEntity.controllerID, 0);
+    const controllerEntity = controllerID > 0 ? scene.getEntityByID(controllerID) : null;
+    if (resetDroneToIdle(droneEntity, controllerEntity, {
+      scene,
+      stopMovement: Boolean(controllerEntity),
+      sessions: options.sessions || null,
+    })) {
+      idledCount += 1;
+    }
+  }
+
+  return idledCount;
+}
+
 function noteIncomingAggression(attackerEntity, targetEntity, whenMs = Date.now()) {
   const targetSystemID = toInt(targetEntity && targetEntity.systemID, 0);
   if (
@@ -3028,6 +3077,7 @@ function tickDroneMining(scene, droneEntity, controllerEntity, now) {
     {
       broadcast: true,
       nowMs: now,
+      sourceDroneID: droneEntity.itemID,
     },
   );
   if (snapshot.effectGUID) {
@@ -3156,5 +3206,6 @@ module.exports = {
   commandReconnectToDrones,
   handleControllerLost,
   scoopDrone,
+  idleMiningDronesTargeting,
   tickScene,
 };

@@ -206,6 +206,8 @@ function encodeRigidBall(entity) {
   const flags =
     entity.kind === "station" || entity.kind === "stargate"
       ? BALL_FLAG.IS_GLOBAL | BALL_FLAG.IS_MASSIVE
+      : entity.kind === "orbital"
+        ? BALL_FLAG.IS_GLOBAL | BALL_FLAG.IS_INTERACTIVE
       : entity.kind === "container" || entity.kind === "wreck"
         ? BALL_FLAG.IS_INTERACTIVE
         : BALL_FLAG.IS_GLOBAL;
@@ -702,6 +704,22 @@ function buildSlimItemDict(entity) {
       "modules",
       buildList(Array.isArray(entity.modules) ? entity.modules : []),
     ]);
+    if (Array.isArray(entity.dunRotation) && entity.dunRotation.length === 3) {
+      entries.push(["dunRotation", entity.dunRotation]);
+    }
+  } else if (entity.kind === "orbital") {
+    entries.push(["locationID", entity.locationID || entity.systemID || 0]);
+    entries.push(["corpID", entity.corporationID || entity.ownerID || 0]);
+    entries.push(["allianceID", entity.allianceID || 0]);
+    entries.push(["warFactionID", entity.warFactionID || 0]);
+    entries.push(["planetID", entity.planetID || 0]);
+    entries.push(["level", entity.level ?? 1]);
+    entries.push(["orbitalState", entity.orbitalState ?? null]);
+    entries.push(["orbitalTimestamp", buildWallclockFiletimeFromMs(entity.orbitalTimestampMs)]);
+    entries.push(["orbitalHackerID", entity.orbitalHackerID ?? null]);
+    entries.push(["orbitalHackerProgress", entity.orbitalHackerProgress ?? null]);
+    entries.push(["online", 1]);
+    entries.push(["incapacitated", 0]);
     if (Array.isArray(entity.dunRotation) && entity.dunRotation.length === 3) {
       entries.push(["dunRotation", entity.dunRotation]);
     }

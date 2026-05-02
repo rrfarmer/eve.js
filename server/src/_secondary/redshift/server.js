@@ -1,7 +1,6 @@
 "use strict";
 
 const http = require("http");
-const fs = require("fs");
 const path = require("path");
 
 const config = require(path.join(__dirname, "../../config"));
@@ -12,6 +11,10 @@ const tidiAutoscaler = require(path.join(
 ));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 const worldData = require(path.join(__dirname, "../../space/worldData"));
+const {
+  TABLE,
+  readStaticTable,
+} = require(path.join(__dirname, "../../services/_shared/referenceData"));
 const sessionRegistry = require(path.join(
   __dirname,
   "../../services/chat/sessionRegistry",
@@ -24,33 +27,25 @@ const DEFAULT_PORT = 26400;
 const DEFAULT_HOST = "127.0.0.1";
 
 // ---------- Region / constellation name lookup ----------
-// Loaded once on first use from the bundled EVE static data.
-
-const STATIC_DATA_DIR = path.join(
-  __dirname, "../../../../data/eve-online-static-data-3294658-jsonl",
-);
+// Loaded once on first use from the generated project SDE authority table.
 let mapNamesCache = null;
 
 function loadMapNames() {
   if (mapNamesCache) return mapNamesCache;
   const result = { constellations: new Map(), regions: new Map() };
   try {
-    const parseJsonl = (file, bucket) => {
-      const fullPath = path.join(STATIC_DATA_DIR, file);
-      if (!fs.existsSync(fullPath)) return;
-      const text = fs.readFileSync(fullPath, "utf8");
-      for (const line of text.split(/\r?\n/)) {
-        if (!line) continue;
-        try {
-          const row = JSON.parse(line);
-          const id = Number(row._key);
-          const name = row && row.name && row.name.en;
-          if (id && typeof name === "string") bucket.set(id, name);
-        } catch (_) { /* skip malformed */ }
+    const payload = readStaticTable(TABLE.MAP_NAMES);
+    for (const [regionID, regionName] of Object.entries(payload.regionsByID || {})) {
+      if (regionName) {
+        result.regions.set(Number(regionID), String(regionName));
       }
-    };
-    parseJsonl("mapConstellations.jsonl", result.constellations);
-    parseJsonl("mapRegions.jsonl", result.regions);
+    }
+    for (const [constellationID, entry] of Object.entries(payload.constellationsByID || {})) {
+      const name = entry && (entry.constellationName || entry.name);
+      if (name) {
+        result.constellations.set(Number(constellationID), String(name));
+      }
+    }
   } catch (err) {
     log.warn(`[Redshift] map-names load failed: ${err.message}`);
   }

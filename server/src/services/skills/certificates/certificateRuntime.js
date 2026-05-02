@@ -1,4 +1,3 @@
-const fs = require("fs");
 const path = require("path");
 
 const {
@@ -10,6 +9,7 @@ const {
 } = require(path.join(__dirname, "../../_shared/serviceHelpers"));
 const {
   TABLE,
+  readStaticTable,
   readStaticRows,
 } = require(path.join(__dirname, "../../_shared/referenceData"));
 const {
@@ -19,11 +19,6 @@ const {
 const {
   getCharacterSkills,
 } = require(path.join(__dirname, "../skillState"));
-
-const CERTIFICATE_JSONL_PATH = path.join(
-  __dirname,
-  "../../../../../data/eve-online-static-data-3284752-jsonl/certificates.jsonl",
-);
 
 let certificateAuthorityCache = null;
 
@@ -76,48 +71,6 @@ function buildGroupNameByID() {
   return groupNameByID;
 }
 
-function parseCertificateJsonlLine(line) {
-  if (!line || !line.trim()) {
-    return null;
-  }
-
-  const parsed = JSON.parse(line);
-  const certificateID = toInt(parsed && parsed._key, 0);
-  if (certificateID <= 0) {
-    return null;
-  }
-
-  const requirementsBySkillTypeID = {};
-  for (const requirement of Array.isArray(parsed.skillTypes) ? parsed.skillTypes : []) {
-    const skillTypeID = toInt(requirement && requirement._key, 0);
-    if (skillTypeID <= 0) {
-      continue;
-    }
-    requirementsBySkillTypeID[String(skillTypeID)] = {
-      1: Math.max(0, toInt(requirement.basic, 0)),
-      2: Math.max(0, toInt(requirement.standard, 0)),
-      3: Math.max(0, toInt(requirement.improved, 0)),
-      4: Math.max(0, toInt(requirement.advanced, 0)),
-      5: Math.max(0, toInt(requirement.elite, 0)),
-    };
-  }
-
-  return {
-    certificateID,
-    groupID: Math.max(0, toInt(parsed.groupID, 0)),
-    name: String(parsed && parsed.name && parsed.name.en ? parsed.name.en : ""),
-    description: String(
-      parsed && parsed.description && parsed.description.en ? parsed.description.en : "",
-    ),
-    recommendedFor: [...new Set(
-      (Array.isArray(parsed.recommendedFor) ? parsed.recommendedFor : [])
-        .map((typeID) => toInt(typeID, 0))
-        .filter((typeID) => typeID > 0),
-    )].sort((left, right) => left - right),
-    requirementsBySkillTypeID,
-  };
-}
-
 function loadCertificateAuthority() {
   if (certificateAuthorityCache) {
     return certificateAuthorityCache;
@@ -129,17 +82,38 @@ function loadCertificateAuthority() {
   const certificateIDsByGroupID = new Map();
   const certificateIDsByShipTypeID = new Map();
 
-  const rawJsonl = fs.readFileSync(CERTIFICATE_JSONL_PATH, "utf8");
-  for (const line of rawJsonl.split(/\r?\n/)) {
-    const certificate = parseCertificateJsonlLine(line);
-    if (!certificate) {
+  const certificatePayload = readStaticTable(TABLE.CERTIFICATES);
+  const certificateRows = Array.isArray(certificatePayload.certificates)
+    ? certificatePayload.certificates
+    : [];
+
+  for (const certificate of certificateRows) {
+    const certificateID = toInt(certificate && certificate.certificateID, 0);
+    if (certificateID <= 0) {
       continue;
     }
+    const groupID = Math.max(0, toInt(certificate.groupID, 0));
 
-    const certificateGroupName = groupNameByID.get(certificate.groupID) || `Group ${certificate.groupID}`;
+    const certificateGroupName =
+      String(certificate.groupName || "").trim() ||
+      groupNameByID.get(groupID) ||
+      `Group ${groupID}`;
     const normalizedCertificate = {
-      ...certificate,
+      certificateID,
+      groupID,
       groupName: certificateGroupName,
+      name: String(certificate.name || ""),
+      description: String(certificate.description || ""),
+      recommendedFor: [...new Set(
+        (Array.isArray(certificate.recommendedFor) ? certificate.recommendedFor : [])
+          .map((typeID) => toInt(typeID, 0))
+          .filter((typeID) => typeID > 0),
+      )].sort((left, right) => left - right),
+      requirementsBySkillTypeID:
+        certificate.requirementsBySkillTypeID &&
+        typeof certificate.requirementsBySkillTypeID === "object"
+          ? cloneValue(certificate.requirementsBySkillTypeID)
+          : {},
     };
     certificates.push(normalizedCertificate);
     certificatesByID.set(normalizedCertificate.certificateID, normalizedCertificate);

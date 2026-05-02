@@ -11,6 +11,7 @@
 const path = require("path");
 const log = require(path.join(__dirname, "../utils/logger"));
 const rotatingLog = require(path.join(__dirname, "../utils/rotatingLog"));
+const syncLedger = require(path.join(__dirname, "./syncLedger"));
 const { marshalEncode, marshalDecode, encodePacket } = require(
   path.join(__dirname, "./tcp/utils/marshal"),
 );
@@ -282,6 +283,7 @@ class ClientSession {
     // Timestamps
     this.connectTime = Date.now();
     this.lastActivity = Date.now();
+    syncLedger.trackSocketLifecycle(this);
   }
 
   /**
@@ -289,15 +291,25 @@ class ClientSession {
    * The value is encoded, optionally encrypted, and framed with a 4-byte length.
    */
   sendPacket(value) {
+    const pendingPerfMeta = this._pendingBootstrapPacketPerf || null;
+    this._pendingBootstrapPacketPerf = null;
+    const packetPerfMeta = summarizeOutgoingPacket(value, pendingPerfMeta);
+
     if (!this.socket || this.socket.destroyed) {
       log.warn(`[Session] Cannot send to ${this.address}: socket closed`);
+      syncLedger.recordSyncLedgerEvent(this, "packet.dropped", {
+        ...(packetPerfMeta || {}),
+        reason: "socket-closed",
+      });
       return;
     }
 
     this.lastActivity = Date.now();
-    const pendingPerfMeta = this._pendingBootstrapPacketPerf || null;
-    this._pendingBootstrapPacketPerf = null;
-    const packetPerfMeta = summarizeOutgoingPacket(value, pendingPerfMeta);
+    const packetLedger = syncLedger.recordSyncLedgerEvent(
+      this,
+      "packet.begin",
+      packetPerfMeta || {},
+    );
 
     // Marshal the value
     const encodeStartedAtMs = Date.now();
@@ -312,8 +324,23 @@ class ClientSession {
     }
 
     const writeStartedAtMs = Date.now();
-    this._writePayload(marshaled);
+    const writeResult = this._writePayload(marshaled);
     const writeElapsedMs = Date.now() - writeStartedAtMs;
+
+    syncLedger.recordSyncLedgerEvent(this, "packet.sent", {
+      ...(packetPerfMeta || {}),
+      packetSeq: packetLedger.seq,
+      bytes: marshaled.length,
+      encodeMs: encodeElapsedMs,
+      writeMs: writeElapsedMs,
+      encrypted: this.encrypted === true,
+      writeAccepted:
+        writeResult && Object.prototype.hasOwnProperty.call(writeResult, "writeAccepted")
+          ? writeResult.writeAccepted
+          : null,
+      framedBytes: writeResult ? writeResult.framedBytes : null,
+      socketWritableLength: this.socket ? Number(this.socket.writableLength || 0) : null,
+    });
 
     if (packetPerfMeta) {
       recordSpaceBootstrapTrace(this, "outgoing-packet", {
@@ -341,6 +368,11 @@ class ClientSession {
   sendRawPayload(payload, options = {}) {
     if (!this.socket || this.socket.destroyed) {
       log.warn(`[Session] Cannot send raw payload to ${this.address}: socket closed`);
+      syncLedger.recordSyncLedgerEvent(this, "packet.dropped", {
+        kind: "raw",
+        label: options && options.label ? String(options.label) : "raw",
+        reason: "socket-closed",
+      });
       return;
     }
 
@@ -358,7 +390,28 @@ class ClientSession {
       );
     }
 
-    this._writePayload(payload);
+    const startedAtMs = Date.now();
+    const ledger = syncLedger.recordSyncLedgerEvent(this, "packet.begin", {
+      kind: "raw",
+      label,
+      bytes: payload.length,
+      encrypted: this.encrypted === true,
+    });
+    const writeResult = this._writePayload(payload);
+    syncLedger.recordSyncLedgerEvent(this, "packet.sent", {
+      kind: "raw",
+      label,
+      packetSeq: ledger.seq,
+      bytes: payload.length,
+      writeMs: Date.now() - startedAtMs,
+      encrypted: this.encrypted === true,
+      writeAccepted:
+        writeResult && Object.prototype.hasOwnProperty.call(writeResult, "writeAccepted")
+          ? writeResult.writeAccepted
+          : null,
+      framedBytes: writeResult ? writeResult.framedBytes : null,
+      socketWritableLength: this.socket ? Number(this.socket.writableLength || 0) : null,
+    });
   }
 
   _writePayload(payload) {
@@ -367,12 +420,22 @@ class ClientSession {
       const encrypted = this._encryptFn(payload);
       const header = Buffer.alloc(4);
       header.writeUInt32LE(encrypted.length, 0);
-      this.socket.write(Buffer.concat([header, encrypted]));
+      const framed = Buffer.concat([header, encrypted]);
+      return {
+        bodyBytes: encrypted.length,
+        framedBytes: framed.length,
+        writeAccepted: this.socket.write(framed) !== false,
+      };
     } else {
       // Frame without encryption
       const header = Buffer.alloc(4);
       header.writeUInt32LE(payload.length, 0);
-      this.socket.write(Buffer.concat([header, payload]));
+      const framed = Buffer.concat([header, payload]);
+      return {
+        bodyBytes: payload.length,
+        framedBytes: framed.length,
+        writeAccepted: this.socket.write(framed) !== false,
+      };
     }
   }
 
@@ -401,7 +464,13 @@ class ClientSession {
    *   PyObject("macho.SessionChangeNotification", [type, src, dst, userID, payload, {}, null])
    */
   sendSessionChange(changes, options = {}) {
-    if (!this.socket || this.socket.destroyed) return;
+    if (!this.socket || this.socket.destroyed) {
+      syncLedger.recordSyncLedgerEvent(this, "packet.dropped", {
+        kind: "session-change",
+        reason: "socket-closed",
+      });
+      return;
+    }
 
     // Build the session change dict — each entry is [oldValue, newValue]
     const changeEntries = [];
@@ -506,7 +575,19 @@ class ClientSession {
    * Mirrors EVEmu's `Client::SendNotification(notifyType, idType, payload)`
    */
   sendNotification(notifyType, idType, payloadTuple = []) {
-    if (!this.socket || this.socket.destroyed) return;
+    if (!this.socket || this.socket.destroyed) {
+      syncLedger.recordSyncLedgerEvent(this, "packet.dropped", {
+        kind: "notification",
+        notifyType: notifyType || "Notification",
+        idType: idType || "ownerid",
+        reason: "socket-closed",
+        ...syncLedger.summarizeNotificationPayload(
+          notifyType || "Notification",
+          payloadTuple,
+        ),
+      });
+      return;
+    }
 
     // Source address: Node
     // C++: packet->source.type = PyAddress::Node; packet->source.objectID = m_services.GetNodeID();
@@ -563,6 +644,10 @@ class ClientSession {
       idType: idType || "ownerid",
       innerBytes: marshalledPayload.length,
       innerMarshalMs: innerMarshalElapsedMs,
+      ...syncLedger.summarizeNotificationPayload(
+        notifyType || "Notification",
+        payloadTuple,
+      ),
     };
     this.sendPacket(packet);
   }
@@ -573,7 +658,16 @@ class ClientSession {
    * where the service must transform raw wire args before scattering them.
    */
   sendServiceNotification(serviceName, methodName, payloadTuple = [], kwargs = null) {
-    if (!this.socket || this.socket.destroyed) return;
+    if (!this.socket || this.socket.destroyed) {
+      syncLedger.recordSyncLedgerEvent(this, "packet.dropped", {
+        kind: "service-notification",
+        service: serviceName || null,
+        method: methodName,
+        reason: "socket-closed",
+        argCount: Array.isArray(payloadTuple) ? payloadTuple.length : 0,
+      });
+      return;
+    }
 
     const sourceAddr = encodeAddress({
       type: "node",
@@ -624,6 +718,7 @@ class ClientSession {
       method: methodName,
       innerBytes: marshalledPayload.length,
       innerMarshalMs: innerMarshalElapsedMs,
+      argCount: Array.isArray(payloadTuple) ? payloadTuple.length : 0,
     };
     this.sendPacket(packet);
   }
@@ -634,7 +729,16 @@ class ClientSession {
    * notifications, which is required for methods like `Michelle.OnDbuffUpdated`.
    */
   sendObjectNotification(objectID, methodName, payloadTuple = [], kwargs = null) {
-    if (!this.socket || this.socket.destroyed) return;
+    if (!this.socket || this.socket.destroyed) {
+      syncLedger.recordSyncLedgerEvent(this, "packet.dropped", {
+        kind: "object-notification",
+        objectID,
+        method: methodName,
+        reason: "socket-closed",
+        argCount: Array.isArray(payloadTuple) ? payloadTuple.length : 0,
+      });
+      return;
+    }
     if (typeof objectID !== "string" || objectID.trim() === "") return;
     if (typeof methodName !== "string" || methodName.trim() === "") return;
 
@@ -695,6 +799,13 @@ class ClientSession {
     };
 
     log.pktOut(objectID, `${methodName}()`);
+    this._pendingBootstrapPacketPerf = {
+      kind: "object-notification",
+      objectID,
+      method: methodName,
+      innerBytes: marshalledObjectPayload.length,
+      argCount: Array.isArray(payloadTuple) ? payloadTuple.length : 0,
+    };
     this.sendPacket(packet);
   }
 

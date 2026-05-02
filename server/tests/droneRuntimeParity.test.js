@@ -79,6 +79,8 @@ const {
 const {
   ensureSceneMiningState,
   getMineableState,
+  updateMineableState,
+  applyMiningDelta,
 } = require(path.join(
   repoRoot,
   "server/src/services/mining/miningRuntimeState",
@@ -300,6 +302,12 @@ function advanceScene(scene, deltaMs) {
     Number(scene.getCurrentSimTimeMs()) || 0,
   );
   scene.tick(baseWallclock + Math.max(0, Number(deltaMs) || 0));
+}
+
+function flushDirectDestinyNotifications(scene) {
+  if (scene && typeof scene.flushDirectDestinyNotificationBatch === "function") {
+    scene.flushDirectDestinyNotificationBatch();
+  }
 }
 
 function finishInitialBallpark(session) {
@@ -591,6 +599,7 @@ function runDroneMiningScenario(options = {}) {
   const tickAdvanceMs = Math.max(1, Number(options.tickAdvanceMs) || 65_000);
   const maxSteps = Math.max(1, Number(options.maxSteps) || 6);
   const expectedFlagID = Number(options.expectedFlagID) || 0;
+  const targetRemainingQuantity = Number(options.targetRemainingQuantity);
 
   resetInventoryStoreForTests();
   snapshotItemsTable();
@@ -614,6 +623,24 @@ function runDroneMiningScenario(options = {}) {
 
   const asteroidEntry = findMineableEntryByKind(scene, yieldKind);
   assert.ok(asteroidEntry, `Expected at least one mineable ${yieldKind} target in the test system`);
+  if (Number.isFinite(targetRemainingQuantity) && targetRemainingQuantity > 0) {
+    const clampedRemainingQuantity = Math.max(1, Math.trunc(targetRemainingQuantity));
+    const updateResult = updateMineableState(
+      scene,
+      asteroidEntry.entity,
+      {
+        ...asteroidEntry.state,
+        originalQuantity: Math.max(
+          Number(asteroidEntry.state.originalQuantity) || 0,
+          clampedRemainingQuantity,
+        ),
+        remainingQuantity: clampedRemainingQuantity,
+      },
+      { broadcast: false },
+    );
+    assert.equal(updateResult.success, true, "Expected test mineable quantity override to succeed");
+    asteroidEntry.state = getMineableState(scene, asteroidEntry.entity.itemID);
+  }
 
   const shipPosition = {
     x: Number(asteroidEntry.entity.position.x) + Number(asteroidEntry.entity.radius || 0) + 900,
@@ -630,6 +657,7 @@ function runDroneMiningScenario(options = {}) {
     },
   );
   assert.equal(shipTeleport && shipTeleport.success, true);
+  finishInitialBallpark(session);
 
   const yieldTypeID = Number(asteroidEntry.state.yieldTypeID);
   const initialTotalQuantity = getTotalQuantityInShipByType(
@@ -659,6 +687,28 @@ function runDroneMiningScenario(options = {}) {
     {},
   );
   assertEmptyDroneCommandResult(commandResult);
+
+  if (options.skipMiningTicks === true) {
+    return {
+      candidate,
+      session,
+      shipEntity,
+      scene,
+      droneItem,
+      asteroidEntry,
+      droneEntity: scene.getEntityByID(droneItem.itemID),
+      updatedMineableState: getMineableState(scene, asteroidEntry.entity.itemID),
+      yieldTypeID,
+      initialTotalQuantity,
+      finalTotalQuantity: initialTotalQuantity,
+      initialStackCount,
+      finalStackCount: initialStackCount,
+      initialFlagQuantity,
+      finalFlagQuantity: initialFlagQuantity,
+      initialRemainingQuantity,
+      receivedInventorySync: false,
+    };
+  }
 
   let wallclockAt = scene.getCurrentWallclockMs();
   let droneEntity = null;
@@ -705,6 +755,7 @@ function runDroneMiningScenario(options = {}) {
     candidate,
     session,
     shipEntity,
+    scene,
     droneItem,
     asteroidEntry,
     droneEntity,
@@ -3338,5 +3389,116 @@ test("entity.CmdMineRepeatedly routes excavator mining drones into the controlle
     result.updatedMineableState &&
       Number(result.updatedMineableState.remainingQuantity) < result.initialRemainingQuantity,
     "Expected excavator cycle to deplete chunk runtime quantity",
+  );
+});
+
+test("entity.CmdMineRepeatedly idles a mining drone after it depletes its target", { concurrency: false }, () => {
+  const result = runDroneMiningScenario({
+    systemID: ORE_TEST_SYSTEM_ID,
+    shipTypeName: "Myrmidon",
+    droneTypeName: "Mining Drone I",
+    yieldKind: "ore",
+    targetRemainingQuantity: 1,
+    tickAdvanceMs: 65_000,
+    maxSteps: 2,
+    expectedFlagID: ITEM_FLAGS.CARGO_HOLD,
+  });
+
+  assert.ok(result.droneEntity, "Expected depleted-target mining drone to remain in space");
+  assert.equal(Number(result.droneEntity.activityState), 0);
+  assert.equal(result.droneEntity.targetID, null);
+  assert.equal(result.droneEntity.droneMining, null);
+  assert.equal(result.droneEntity.droneCommand, null);
+  assert.ok(
+    result.finalFlagQuantity > result.initialFlagQuantity || result.receivedInventorySync,
+    "Expected self-depleting mining drone to deliver ore before idling",
+  );
+  assert.equal(
+    result.scene.getEntityByID(result.asteroidEntry.entity.itemID),
+    null,
+    "Expected depleted asteroid to be removed from space",
+  );
+  assert.ok(
+    flattenDestinyUpdates(result.session.notifications)
+      .some((update) => getRemoveBallsEntityIDs(update).includes(result.asteroidEntry.entity.itemID)),
+    "Expected drone-depleted asteroid to emit RemoveBalls",
+  );
+
+  const idleNotify = findNotification(result.session, "OnDroneStateChange");
+  assert.ok(idleNotify, "Expected idle OnDroneStateChange after drone depletion");
+  assert.deepEqual(idleNotify.payload, [
+    Number(result.droneItem.itemID),
+    Number(result.candidate.characterID),
+    Number(result.shipEntity.itemID),
+    0,
+    Number(result.droneItem.typeID),
+    Number(result.candidate.characterID),
+    null,
+  ]);
+});
+
+test("entity.CmdMineRepeatedly idles a mining drone when another miner depletes its target", { concurrency: false }, () => {
+  const result = runDroneMiningScenario({
+    systemID: ORE_TEST_SYSTEM_ID,
+    shipTypeName: "Myrmidon",
+    droneTypeName: "Mining Drone I",
+    yieldKind: "ore",
+    targetRemainingQuantity: 1,
+    skipMiningTicks: true,
+    expectedFlagID: ITEM_FLAGS.CARGO_HOLD,
+  });
+
+  assert.ok(result.droneEntity, "Expected mining drone to be in space before external depletion");
+  assert.equal(Number(result.droneEntity.targetID), Number(result.asteroidEntry.entity.itemID));
+  assert.ok([2, 3].includes(Number(result.droneEntity.activityState)));
+
+  const depletionResult = applyMiningDelta(
+    result.scene,
+    result.asteroidEntry.entity,
+    result.initialRemainingQuantity,
+    0,
+    {
+      broadcast: true,
+      nowMs: result.scene.getCurrentSimTimeMs() + 1000,
+    },
+  );
+  assert.equal(depletionResult.success, true, "Expected external depletion delta to succeed");
+  assert.equal(depletionResult.data.depleted, true, "Expected external depletion delta to remove the target");
+  flushDirectDestinyNotifications(result.scene);
+
+  const droneEntity = result.scene.getEntityByID(result.droneItem.itemID);
+  assert.ok(droneEntity, "Expected externally stopped mining drone to remain in space");
+  assert.equal(Number(droneEntity.activityState), 0);
+  assert.equal(droneEntity.targetID, null);
+  assert.equal(droneEntity.droneMining, null);
+  assert.equal(droneEntity.droneCommand, null);
+
+  const idleNotify = findNotification(result.session, "OnDroneStateChange");
+  assert.ok(idleNotify, "Expected idle OnDroneStateChange after external depletion");
+  assert.deepEqual(idleNotify.payload, [
+    Number(result.droneItem.itemID),
+    Number(result.candidate.characterID),
+    Number(result.shipEntity.itemID),
+    0,
+    Number(result.droneItem.typeID),
+    Number(result.candidate.characterID),
+    null,
+  ]);
+  assert.ok(
+    flattenDestinyUpdates(result.session.notifications)
+      .some((update) => getRemoveBallsEntityIDs(update).includes(result.asteroidEntry.entity.itemID)),
+    "Expected externally depleted asteroid to emit RemoveBalls",
+  );
+
+  advanceScene(result.scene, 130_000);
+  const finalFlagQuantity = getTotalQuantityInShipByTypeAndFlag(
+    result.shipEntity.itemID,
+    result.yieldTypeID,
+    ITEM_FLAGS.CARGO_HOLD,
+  );
+  assert.equal(
+    finalFlagQuantity,
+    result.initialFlagQuantity,
+    "Expected externally idled drone not to grant ore on a stale later cycle",
   );
 });

@@ -149,6 +149,15 @@ function flushDirectDestinyNotifications(scene) {
   }
 }
 
+function advanceScene(scene, deltaMs) {
+  const baseWallclock = Math.max(
+    Number(scene.lastWallclockTickAt) || 0,
+    Number(scene.getCurrentWallclockMs()) || 0,
+    Number(scene.getCurrentSimTimeMs()) || 0,
+  );
+  scene.tick(baseWallclock + Math.max(0, Number(deltaMs) || 0));
+}
+
 function getRemoveBallsEntityIDs(update) {
   if (!update || update.name !== "RemoveBalls" || !Array.isArray(update.args)) {
     return [];
@@ -157,6 +166,45 @@ function getRemoveBallsEntityIDs(update) {
   return listArg && listArg.type === "list" && Array.isArray(listArg.items)
     ? listArg.items.map((value) => Number(value))
     : [];
+}
+
+function getGodmaShipEffectNotifications(notifications, moduleID, activeValue = null) {
+  return notifications.filter((notification) => (
+    notification &&
+    notification.name === "OnGodmaShipEffect" &&
+    Array.isArray(notification.payload) &&
+    Number(notification.payload[0]) === Number(moduleID) &&
+    (
+      activeValue === null ||
+      Number(notification.payload[3]) === Number(activeValue)
+    )
+  ));
+}
+
+function getExpectedSpecialFxModuleID(shipEntity, moduleItem) {
+  const categoryID = Number(shipEntity && shipEntity.categoryID) || 0;
+  const slimCategoryID = Number(shipEntity && shipEntity.slimCategoryID) || categoryID;
+  const usesNpcHardpointPresentation = Boolean(
+    shipEntity &&
+    (
+      shipEntity.nativeNpc === true ||
+      shipEntity.nativeNpcOccupied === true ||
+      (categoryID > 0 && slimCategoryID > 0 && slimCategoryID !== categoryID)
+    ),
+  );
+  return usesNpcHardpointPresentation
+    ? Number(shipEntity.itemID)
+    : Number(moduleItem && moduleItem.itemID);
+}
+
+function hasLostTargetNotification(notifications, targetID) {
+  return notifications.some((notification) => (
+    notification &&
+    notification.name === "OnTarget" &&
+    Array.isArray(notification.payload) &&
+    notification.payload[0] === "lost" &&
+    Number(notification.payload[1]) === Number(targetID)
+  ));
 }
 
 function getSlimDictEntry(dict, key) {
@@ -526,10 +574,12 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
   assert.equal(activationResult.success, true, "expected gas harvester activation to succeed");
   flushDirectDestinyNotifications(scene);
 
+  const moduleID = shipEntity.fittedItems[0].itemID;
+  const fxModuleID = getExpectedSpecialFxModuleID(shipEntity, shipEntity.fittedItems[0]);
   const startFx = flattenDestinyUpdates(notifications).find((update) => (
     update.name === "OnSpecialFX" &&
     String(update.args[5]) === "effects.CloudMining" &&
-    Number(update.args[1]) === Number(shipEntity.fittedItems[0].itemID) &&
+    Number(update.args[1]) === Number(fxModuleID) &&
     Number(update.args[3]) === Number(gasCloud.itemID) &&
     Number(update.args[7]) === 1 &&
     Number(update.args[8]) === 1
@@ -540,7 +590,7 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
     notification &&
     notification.name === "OnGodmaShipEffect" &&
     Array.isArray(notification.payload) &&
-    Number(notification.payload[0]) === Number(shipEntity.fittedItems[0].itemID) &&
+    Number(notification.payload[0]) === Number(moduleID) &&
     Number(notification.payload[3]) === 1
   ));
   assert.ok(godmaStart, "expected gas harvester activation to emit OnGodmaShipEffect");
@@ -567,7 +617,7 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
   const stopFx = updates.find((update) => (
     update.name === "OnSpecialFX" &&
     String(update.args[5]) === "effects.CloudMining" &&
-    Number(update.args[1]) === Number(shipEntity.fittedItems[0].itemID) &&
+    Number(update.args[1]) === Number(fxModuleID) &&
     Number(update.args[3]) === Number(gasCloud.itemID) &&
     Number(update.args[7]) === 0 &&
     Number(update.args[8]) === 0
@@ -578,10 +628,224 @@ test("gas cloud mining emits targeted FX and RemoveBalls when the cloud depletes
     notification &&
     notification.name === "OnGodmaShipEffect" &&
     Array.isArray(notification.payload) &&
-    Number(notification.payload[0]) === Number(shipEntity.fittedItems[0].itemID) &&
+    Number(notification.payload[0]) === Number(moduleID) &&
     Number(notification.payload[3]) === 0
   ));
   assert.ok(godmaStop, "expected gas harvester stop to emit OnGodmaShipEffect");
+});
+
+test("mining cycle tick depletion stops the laser without reactivating it", (t) => {
+  disableGeneratedMiningSites(t);
+  const systemID = 39_990_005;
+  resetScene(systemID);
+  t.after(() => resetScene(systemID));
+
+  const minerType = resolveItemByName("Miner II").match;
+  const miningEffect = getMiningEffect(minerType, "miningLaser");
+  const scene = runtime.ensureScene(systemID);
+  const shipEntity = runtime._testing.buildRuntimeShipEntityForTesting({
+    itemID: 9800005001,
+    typeID: 32880,
+    nativeNpc: true,
+    position: { x: 0, y: 0, z: 0 },
+  }, systemID);
+  shipEntity.nativeNpc = true;
+  shipEntity.fittedItems = [
+    buildModuleItem(minerType, 9800005101, shipEntity.itemID, 11),
+  ];
+  shipEntity.nativeCargoItems = [];
+  const { session, notifications } = attachSessionToShip(scene, shipEntity, 408);
+
+  const veldspar = addMineableEntity(
+    scene,
+    "Veldspar",
+    550000005,
+    "asteroid",
+    { x: 500, y: 0, z: 0 },
+    1,
+  );
+  clearPersistedSystemState(systemID);
+  scene._miningRuntimeState = null;
+  scene.finalizeTargetLock(shipEntity, veldspar, {
+    nowMs: scene.getCurrentSimTimeMs(),
+  });
+
+  const activationResult = scene.activateGenericModule(
+    session,
+    shipEntity.fittedItems[0],
+    miningEffect.name,
+    { targetID: veldspar.itemID },
+  );
+  assert.equal(activationResult.success, true, "expected mining laser activation to succeed");
+  flushDirectDestinyNotifications(scene);
+
+  const moduleID = shipEntity.fittedItems[0].itemID;
+  const fxModuleID = getExpectedSpecialFxModuleID(shipEntity, shipEntity.fittedItems[0]);
+  const afterActivationIndex = notifications.length;
+  const cycleBoundaryMs = Number(activationResult.data.effectState.nextCycleAtMs);
+  advanceScene(scene, cycleBoundaryMs - scene.getCurrentSimTimeMs() + 50);
+  flushDirectDestinyNotifications(scene);
+
+  const depletionNotifications = notifications.slice(afterActivationIndex);
+  const depletionUpdates = flattenDestinyUpdates(depletionNotifications);
+  assert.ok(
+    shipEntity.nativeCargoItems.some((entry) => Number(entry && entry.quantity) > 0),
+    "expected the final mining tick to deposit ore before depletion",
+  );
+  assert.ok(
+    hasLostTargetNotification(depletionNotifications, veldspar.itemID),
+    "expected depletion to notify the miner that the asteroid target was lost",
+  );
+  assert.ok(
+    depletionUpdates.some((update) => getRemoveBallsEntityIDs(update).includes(veldspar.itemID)),
+    "expected depleted asteroid to emit RemoveBalls",
+  );
+  assert.ok(
+    depletionUpdates.some((update) => (
+      update.name === "OnSpecialFX" &&
+      String(update.args[5]) === "effects.Laser" &&
+      Number(update.args[1]) === Number(fxModuleID) &&
+      Number(update.args[3]) === Number(veldspar.itemID) &&
+      Number(update.args[7]) === 0 &&
+      Number(update.args[8]) === 0
+    )),
+    "expected depletion to emit mining laser stop FX",
+  );
+  assert.ok(
+    getGodmaShipEffectNotifications(depletionNotifications, moduleID, 0).length > 0,
+    "expected depletion to emit inactive OnGodmaShipEffect",
+  );
+  assert.equal(
+    getGodmaShipEffectNotifications(depletionNotifications, moduleID, 1).length,
+    0,
+    "expected depletion tick not to re-emit active OnGodmaShipEffect",
+  );
+  assert.equal(
+    shipEntity.activeModuleEffects.has(moduleID),
+    false,
+    "expected depleted target cleanup to remove the active mining effect",
+  );
+  assert.ok(
+    Number(shipEntity.moduleReactivationLocks.get(moduleID)) >= cycleBoundaryMs,
+    "expected module reactivation lock to be based on the depletion cycle boundary",
+  );
+});
+
+test("another miner depleting the asteroid stops competing lasers", (t) => {
+  disableGeneratedMiningSites(t);
+  const systemID = 39_990_006;
+  resetScene(systemID);
+  t.after(() => resetScene(systemID));
+
+  const minerType = resolveItemByName("Miner II").match;
+  const miningEffect = getMiningEffect(minerType, "miningLaser");
+  const scene = runtime.ensureScene(systemID);
+  const shipA = runtime._testing.buildRuntimeShipEntityForTesting({
+    itemID: 9800006001,
+    typeID: 32880,
+    nativeNpc: true,
+    position: { x: 0, y: -100, z: 0 },
+  }, systemID);
+  const shipB = runtime._testing.buildRuntimeShipEntityForTesting({
+    itemID: 9800006002,
+    typeID: 32880,
+    nativeNpc: true,
+    position: { x: 0, y: 100, z: 0 },
+  }, systemID);
+  shipA.nativeNpc = true;
+  shipB.nativeNpc = true;
+  shipA.fittedItems = [buildModuleItem(minerType, 9800006101, shipA.itemID, 11)];
+  shipB.fittedItems = [buildModuleItem(minerType, 9800006102, shipB.itemID, 11)];
+  shipA.nativeCargoItems = [];
+  shipB.nativeCargoItems = [];
+  const { session: sessionA, notifications: notificationsA } = attachSessionToShip(scene, shipA, 409);
+  const { session: sessionB, notifications: notificationsB } = attachSessionToShip(scene, shipB, 410);
+
+  const veldspar = addMineableEntity(
+    scene,
+    "Veldspar",
+    550000006,
+    "asteroid",
+    { x: 500, y: 0, z: 0 },
+    1,
+  );
+  clearPersistedSystemState(systemID);
+  scene._miningRuntimeState = null;
+  for (const shipEntity of [shipA, shipB]) {
+    scene.finalizeTargetLock(shipEntity, veldspar, {
+      nowMs: scene.getCurrentSimTimeMs(),
+    });
+  }
+
+  const activationA = scene.activateGenericModule(
+    sessionA,
+    shipA.fittedItems[0],
+    miningEffect.name,
+    { targetID: veldspar.itemID },
+  );
+  const activationB = scene.activateGenericModule(
+    sessionB,
+    shipB.fittedItems[0],
+    miningEffect.name,
+    { targetID: veldspar.itemID },
+  );
+  assert.equal(activationA.success, true, "expected first miner activation to succeed");
+  assert.equal(activationB.success, true, "expected competing miner activation to succeed");
+  flushDirectDestinyNotifications(scene);
+
+  const afterActivationA = notificationsA.length;
+  const afterActivationB = notificationsB.length;
+  const moduleAID = shipA.fittedItems[0].itemID;
+  const moduleBID = shipB.fittedItems[0].itemID;
+  const fxModuleBID = getExpectedSpecialFxModuleID(shipB, shipB.fittedItems[0]);
+  const cycleBoundaryMs = Number(activationA.data.effectState.nextCycleAtMs);
+  advanceScene(scene, cycleBoundaryMs - scene.getCurrentSimTimeMs() + 50);
+  flushDirectDestinyNotifications(scene);
+
+  const depletionA = notificationsA.slice(afterActivationA);
+  const depletionB = notificationsB.slice(afterActivationB);
+  const updatesB = flattenDestinyUpdates(depletionB);
+  assert.ok(
+    shipA.nativeCargoItems.some((entry) => Number(entry && entry.quantity) > 0),
+    "expected the depleting miner to receive the final ore",
+  );
+  assert.equal(
+    shipB.nativeCargoItems.length,
+    0,
+    "expected the competing miner not to receive ore from a stale later cycle",
+  );
+  assert.ok(
+    hasLostTargetNotification(depletionB, veldspar.itemID),
+    "expected competing miner to receive target loss when another miner depletes the asteroid",
+  );
+  assert.ok(
+    updatesB.some((update) => (
+      update.name === "OnSpecialFX" &&
+      String(update.args[5]) === "effects.Laser" &&
+      Number(update.args[1]) === Number(fxModuleBID) &&
+      Number(update.args[3]) === Number(veldspar.itemID) &&
+      Number(update.args[7]) === 0 &&
+      Number(update.args[8]) === 0
+    )),
+    "expected competing miner laser stop FX when another miner depletes the asteroid",
+  );
+  assert.ok(
+    getGodmaShipEffectNotifications(depletionA, moduleAID, 0).length > 0,
+    "expected depleting miner to receive inactive OnGodmaShipEffect",
+  );
+  assert.ok(
+    getGodmaShipEffectNotifications(depletionB, moduleBID, 0).length > 0,
+    "expected competing miner to receive inactive OnGodmaShipEffect",
+  );
+  assert.equal(
+    getGodmaShipEffectNotifications(depletionB, moduleBID, 1).length,
+    0,
+    "expected competing miner not to receive active re-notification after external depletion",
+  );
+  assert.equal(shipA.activeModuleEffects.has(moduleAID), false);
+  assert.equal(shipB.activeModuleEffects.has(moduleBID), false);
+  assert.ok(Number(shipA.moduleReactivationLocks.get(moduleAID)) >= cycleBoundaryMs);
+  assert.ok(Number(shipB.moduleReactivationLocks.get(moduleBID)) >= cycleBoundaryMs);
 });
 
 test("mining beam FX ignores repeat=1 so observer beams do not expire after one cycle", (t) => {
