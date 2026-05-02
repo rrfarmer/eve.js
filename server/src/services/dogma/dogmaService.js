@@ -87,6 +87,7 @@ const {
   getTypeDogmaAttributes,
   getTypeAttributeValue,
   isShipFittingFlag,
+  isStructureServiceFlag,
   applyModifierGroups,
   typeHasEffectName,
 } = require(path.join(__dirname, "../fitting/liveFittingState"));
@@ -168,6 +169,10 @@ const {
   repairShipAndFittedItemsForSession,
   resolveRookieShipTypeID,
 } = require(path.join(__dirname, "../ship/rookieShipRuntime"));
+const structureServiceModules = require(path.join(
+  __dirname,
+  "../structure/structureServiceModules",
+));
 const worldData = require(path.join(__dirname, "../../space/worldData"));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 
@@ -4189,6 +4194,14 @@ class DogmaService extends BaseService {
     log.debug("[DogmaIM] ShipOnlineModules");
     const charID = this._getCharID(session);
     const shipID = this._getShipID(session);
+    if (this._isControllingStructureSession(session)) {
+      return {
+        type: "list",
+        items: structureServiceModules.listStructureServiceModules(shipID, {
+          includeOffline: false,
+        }).map((item) => item.itemID),
+      };
+    }
     return {
       type: "list",
       items: getFittedModuleItems(charID, shipID)
@@ -4371,6 +4384,10 @@ class DogmaService extends BaseService {
           have: 0,
           need: ONLINE_CAPACITOR_CHARGE_RATIO / 100,
         });
+        break;
+      case "NOT_ENOUGH_STRUCTURE_FUEL":
+      case "NOT_ENOUGH_FUEL":
+        this._throwCustomNotifyUserError("There is not enough fuel in the structure fuel bay to online that service module.");
         break;
       default:
         this._throwCustomNotifyUserError(
@@ -5021,6 +5038,102 @@ class DogmaService extends BaseService {
     }
     return null;
   }
+  _setStructureServiceModuleOnlineState(structureID, moduleID, online, session) {
+    const charID = this._getCharID(session);
+    const numericStructureID = Number(structureID) || this._getShipID(session);
+    const numericModuleID = Number(moduleID) || 0;
+    const moduleItem = findItemById(numericModuleID);
+    if (
+      !moduleItem ||
+      Number(moduleItem.locationID) !== numericStructureID ||
+      !isStructureServiceFlag(moduleItem.flagID)
+    ) {
+      return {
+        success: false,
+        errorMsg: "MODULE_NOT_FOUND",
+      };
+    }
+
+    const previousOnline = isModuleOnline(moduleItem);
+    const nextOnline = Boolean(online);
+    if (nextOnline && !previousOnline) {
+      const consumeResult = structureServiceModules.consumeServiceModuleOnlineFuel(
+        numericStructureID,
+        moduleItem,
+      );
+      if (!consumeResult.success) {
+        return {
+          success: false,
+          errorMsg: consumeResult.errorMsg || "NOT_ENOUGH_STRUCTURE_FUEL",
+        };
+      }
+      for (const change of (consumeResult.data && consumeResult.data.changes) || []) {
+        if (!change || !change.item) {
+          continue;
+        }
+        syncInventoryItemForSession(
+          session,
+          change.item,
+          change.previousData || {},
+          { emitCfgLocation: true },
+        );
+      }
+    }
+
+    if (!nextOnline && previousOnline) {
+      const disableValidation = structureServiceModules.checkCanDisableServiceModule(
+        moduleItem,
+        session,
+      );
+      if (!disableValidation.success) {
+        return disableValidation;
+      }
+    }
+
+    const updateResult = updateInventoryItem(numericModuleID, (currentItem) => ({
+      ...currentItem,
+      moduleState: {
+        ...(currentItem.moduleState || {}),
+        online: nextOnline,
+      },
+    }));
+    if (!updateResult.success) {
+      return updateResult;
+    }
+
+    const isOnlineAttributeID = getAttributeIDByNames("isOnline");
+    if (isOnlineAttributeID && previousOnline !== nextOnline) {
+      this._notifyModuleAttributeChanges(session, [[
+        "OnModuleAttributeChanges",
+        charID,
+        numericModuleID,
+        isOnlineAttributeID,
+        this._sessionFileTime(session),
+        nextOnline ? 1 : 0,
+        previousOnline ? 1 : 0,
+        null,
+      ]]);
+    }
+    syncModuleOnlineEffectForSession(session, updateResult.data, {
+      active: nextOnline,
+    });
+
+    const reconcileResult = structureServiceModules.reconcileStructureServices(
+      numericStructureID,
+    );
+    if (!reconcileResult.success) {
+      return reconcileResult;
+    }
+    log.debug(
+      `[DogmaIM] SetStructureServiceModuleOnlineState applied structureID=${numericStructureID} ` +
+      `module=${JSON.stringify(summarizeModuleItemForLog(updateResult.data))} ` +
+      `previousOnline=${previousOnline === true} nextOnline=${nextOnline}`,
+    );
+    return {
+      success: true,
+      data: updateResult.data,
+    };
+  }
   _setModuleOnlineState(shipID, moduleID, online, session) {
     const charID = this._getCharID(session);
     const numericShipID = Number(shipID) || this._getShipID(session);
@@ -5028,9 +5141,22 @@ class DogmaService extends BaseService {
     const moduleItem = findItemById(numericModuleID);
     if (
       !moduleItem ||
-      Number(moduleItem.ownerID) !== charID ||
       Number(moduleItem.locationID) !== numericShipID
     ) {
+      return {
+        success: false,
+        errorMsg: "MODULE_NOT_FOUND",
+      };
+    }
+    if (isStructureServiceFlag(moduleItem.flagID)) {
+      return this._setStructureServiceModuleOnlineState(
+        numericShipID,
+        numericModuleID,
+        online,
+        session,
+      );
+    }
+    if (Number(moduleItem.ownerID) !== charID) {
       return {
         success: false,
         errorMsg: "MODULE_NOT_FOUND",

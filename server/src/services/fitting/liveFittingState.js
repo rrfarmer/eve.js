@@ -29,11 +29,19 @@ const SLOT_FAMILY_FLAGS = Object.freeze({
   high: Object.freeze([27, 28, 29, 30, 31, 32, 33, 34]),
   rig: Object.freeze([92, 93, 94, 95, 96, 97, 98, 99]),
   subsystem: Object.freeze([125, 126, 127, 128, 129, 130, 131, 132]),
+  service: Object.freeze([164, 165, 166, 167, 168, 169, 170, 171]),
 });
 const SHIP_FITTING_FLAG_RANGES = Object.freeze([
   Object.freeze([11, 34]),
   Object.freeze([92, 99]),
   Object.freeze([125, 132]),
+]);
+const STRUCTURE_SERVICE_SLOT_FLAGS = SLOT_FAMILY_FLAGS.service;
+const STRUCTURE_FUEL_FLAG = 172;
+const STRUCTURE_FITTING_FLAG_RANGES = Object.freeze([
+  Object.freeze([11, 34]),
+  Object.freeze([92, 99]),
+  Object.freeze([164, 171]),
 ]);
 const EFFECT_ID_FALLBACK = Object.freeze({
   loPower: 11,
@@ -100,6 +108,17 @@ function normalizeNumericAttributeMap(attributes = {}) {
 function isShipFittingFlag(flagID) {
   const numericFlagID = toInt(flagID, 0);
   return SHIP_FITTING_FLAG_RANGES.some(
+    ([start, end]) => numericFlagID >= start && numericFlagID <= end,
+  );
+}
+
+function isStructureServiceFlag(flagID) {
+  return STRUCTURE_SERVICE_SLOT_FLAGS.includes(toInt(flagID, 0));
+}
+
+function isStructureFittingFlag(flagID) {
+  const numericFlagID = toInt(flagID, 0);
+  return STRUCTURE_FITTING_FLAG_RANGES.some(
     ([start, end]) => numericFlagID >= start && numericFlagID <= end,
   );
 }
@@ -2345,12 +2364,16 @@ function selectAutoFitFlagForType(shipItem, fittedItems, typeID) {
 
 module.exports = {
   SLOT_FAMILY_FLAGS,
+  STRUCTURE_SERVICE_SLOT_FLAGS,
+  STRUCTURE_FUEL_FLAG,
   DEFAULT_MODULE_STATE,
   normalizeModuleState,
   getItemModuleState,
   isModuleOnline,
   isEffectivelyOnlineModule,
   isShipFittingFlag,
+  isStructureServiceFlag,
+  isStructureFittingFlag,
   isChargeItem,
   isFittedChargeItem,
   isFittedModuleItem,

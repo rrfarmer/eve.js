@@ -464,6 +464,9 @@ function normalizeStructureRecord(entry = {}) {
     profileID: toPositiveInt(entry.profileID, 1),
     serviceStates: normalizeServiceStates(entry.serviceStates, typeID, typeRecord.structureFamily),
     fuelExpiresAt: Number.isFinite(Number(entry.fuelExpiresAt)) ? toInt(entry.fuelExpiresAt, 0) : null,
+    serviceFuelLastTickAt: Number.isFinite(Number(entry.serviceFuelLastTickAt))
+      ? toInt(entry.serviceFuelLastTickAt, 0)
+      : null,
     assetSafetyMode: String(entry.assetSafetyMode || "enabled"),
     destroyedAt: Number.isFinite(Number(entry.destroyedAt)) ? toInt(entry.destroyedAt, 0) : null,
     wars: Array.isArray(entry.wars) ? entry.wars.map((warID) => toPositiveInt(warID, 0)).filter(Boolean) : [],

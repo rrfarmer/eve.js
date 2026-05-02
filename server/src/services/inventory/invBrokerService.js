@@ -50,6 +50,7 @@ const {
 } = require(path.join(__dirname, "./itemTypeRegistry"));
 const {
   isShipFittingFlag,
+  isStructureServiceFlag,
   listFittedItems,
   selectAutoFitFlagForType,
   validateFitForShip,
@@ -93,6 +94,10 @@ const {
 const structureState = require(path.join(
   __dirname,
   "../structure/structureState",
+));
+const structureServiceModules = require(path.join(
+  __dirname,
+  "../structure/structureServiceModules",
 ));
 const {
   getCharacterSkills,
@@ -1320,7 +1325,10 @@ class InvBrokerService extends BaseService {
       item &&
       Number(item.singleton) !== 1 &&
       destination &&
-      isShipFittingFlag(destination.flagID)
+      (
+        isShipFittingFlag(destination.flagID) ||
+        isStructureServiceFlag(destination.flagID)
+      )
     ) {
       return 1;
     }
@@ -1435,8 +1443,8 @@ class InvBrokerService extends BaseService {
     }
 
     if (
-      boundContext.kind === "shipInventory" &&
-      isShipFittingFlag(destination.flagID)
+      (boundContext.kind === "shipInventory" && isShipFittingFlag(destination.flagID)) ||
+      isStructureServiceFlag(destination.flagID)
     ) {
       return false;
     }
@@ -1686,6 +1694,47 @@ class InvBrokerService extends BaseService {
     }
 
     this._refreshDockedFittingState(session, normalizedChanges);
+    this._refreshStructureServicesForInventoryChanges(normalizedChanges);
+  }
+
+  _refreshStructureServicesForInventoryChanges(changes = []) {
+    const structureIDs = new Set();
+    const collectStructureID = (locationID, flagID) => {
+      const numericLocationID = this._normalizeInventoryId(locationID, 0);
+      const numericFlagID = this._normalizeInventoryId(flagID, 0);
+      if (
+        numericLocationID <= 0 ||
+        (
+          !isStructureServiceFlag(numericFlagID) &&
+          !structureServiceModules.isStructureFuelFlag(numericFlagID)
+        )
+      ) {
+        return;
+      }
+      if (structureState.getStructureByID(numericLocationID, { refresh: false })) {
+        structureIDs.add(numericLocationID);
+      }
+    };
+
+    for (const change of Array.isArray(changes) ? changes : []) {
+      collectStructureID(
+        change && change.previousData && change.previousData.locationID,
+        change && change.previousData && change.previousData.flagID,
+      );
+      collectStructureID(
+        change && change.item && change.item.locationID,
+        change && change.item && change.item.flagID,
+      );
+    }
+
+    for (const structureID of structureIDs) {
+      const reconcileResult = structureServiceModules.reconcileStructureServices(structureID);
+      if (!reconcileResult.success) {
+        log.warn(
+          `[InvBroker] Failed to reconcile structure services for ${structureID}: ${reconcileResult.errorMsg || "WRITE_ERROR"}`,
+        );
+      }
+    }
   }
 
   _refreshDockedFittingState(session, changes = []) {
@@ -1747,6 +1796,7 @@ class InvBrokerService extends BaseService {
     }
 
     syncShipFittingStateForSession(session, activeShipID, {
+      onlyCharges: true,
       includeOfflineModules: true,
       includeCharges: true,
       emitChargeInventoryRows: false,
@@ -1872,6 +1922,51 @@ class InvBrokerService extends BaseService {
   }
 
   _validateFittingMove(session, shipRecord, item, destination, fittedItemsSnapshot = null) {
+    const destinationStructure = destination
+      ? structureState.getStructureByID(destination.locationID, { refresh: false })
+      : null;
+    if (
+      item &&
+      isStructureServiceFlag(item.flagID) &&
+      (
+        !destination ||
+        this._normalizeInventoryId(destination.locationID, 0) !==
+          this._normalizeInventoryId(item.locationID, 0) ||
+        !isStructureServiceFlag(destination.flagID)
+      )
+    ) {
+      const disableValidation = structureServiceModules.checkCanDisableServiceModule(
+        item,
+        session,
+      );
+      if (!disableValidation.success) {
+        return disableValidation;
+      }
+    }
+
+    if (
+      destinationStructure &&
+      destination &&
+      structureServiceModules.isStructureFuelFlag(destination.flagID)
+    ) {
+      return structureServiceModules.isFuelCompatibleItem(item)
+        ? { success: true }
+        : { success: false, errorMsg: "STRUCTURE_FUEL_TYPE_NOT_ALLOWED" };
+    }
+
+    if (
+      destinationStructure &&
+      destination &&
+      isStructureServiceFlag(destination.flagID)
+    ) {
+      return structureServiceModules.validateServiceModuleFit({
+        structure: destinationStructure,
+        item,
+        targetFlagID: destination.flagID,
+        fittedItems: null,
+      });
+    }
+
     if (
       !shipRecord ||
       !item ||
