@@ -2,6 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
+const { setupNewDatabaseSandbox } = require("./helpers/newDatabaseSandbox");
+setupNewDatabaseSandbox("evejs-structure-services-db-");
+
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const DogmaService = require(path.join(
@@ -116,6 +119,22 @@ function bindStructureInventory(service, session, structureID) {
   const boundID = extractBoundID(bound);
   assert.ok(boundID, "Expected structure inventory bind to succeed");
   session.currentBoundObjectID = boundID;
+}
+
+function getKeyValEntry(keyVal, key) {
+  return keyVal &&
+    keyVal.args &&
+    keyVal.args.type === "dict" &&
+    Array.isArray(keyVal.args.entries)
+    ? new Map(keyVal.args.entries).get(key)
+    : undefined;
+}
+
+function getDogmaInfoAttributes(entry) {
+  const fields = getKeyValEntry(entry, "attributes");
+  return fields && fields.type === "dict" && Array.isArray(fields.entries)
+    ? new Map(fields.entries)
+    : new Map();
 }
 
 function createAstrahus(characterID = 140000001, corporationID = 1000009) {
@@ -234,6 +253,95 @@ test("service module fit, online fuel, service reconciliation, offline, and unfi
   invbroker.Handle_Add([onlineModule.itemID, structureID], session, { flag: ITEM_FLAGS.HANGAR });
   const unfittedModule = findItemById(onlineModule.itemID);
   assert.equal(Number(unfittedModule && unfittedModule.flagID), ITEM_FLAGS.HANGAR);
+});
+
+test("controlled-structure auto-fit places service modules into service slots", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, corporationID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 0 },
+  );
+  const fittedModule = findItemById(Number(movedModuleID) || marketModule.itemID);
+  assert.equal(Number(fittedModule && fittedModule.ownerID), corporationID);
+  assert.equal(Number(fittedModule && fittedModule.locationID), structureID);
+  assert.equal(Number(fittedModule && fittedModule.flagID), 164);
+  assert.equal(
+    listContainerItems(characterID, structureID, ITEM_FLAGS.HANGAR)
+      .some((item) => Number(item.itemID) === Number(fittedModule.itemID)),
+    false,
+    "Auto-fitted service module should leave the personal hangar",
+  );
+});
+
+test("controlled-structure GetAllInfo advertises slot attributes and fitted service modules", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedModuleID = Number(movedModuleID) || marketModule.itemID;
+
+  const dogma = new DogmaService();
+  const allInfo = dogma.Handle_GetAllInfo([false, true, true], session);
+  const shipInfo = getKeyValEntry(allInfo, "shipInfo");
+  assert.ok(
+    shipInfo && shipInfo.type === "dict" && Array.isArray(shipInfo.entries),
+    "Expected controlled structure shipInfo dogma bootstrap",
+  );
+
+  const structureEntry = shipInfo.entries.find(
+    ([itemID]) => Number(itemID) === Number(structureID),
+  );
+  assert.ok(structureEntry, "Expected structure self row in shipInfo");
+  const structureAttributes = getDogmaInfoAttributes(structureEntry[1]);
+  assert.equal(structureAttributes.get(2056), 3, "Expected Astrahus service slot count");
+  assert.equal(structureAttributes.get(14), 4, "Expected structure high slots");
+  assert.equal(structureAttributes.get(13), 4, "Expected structure medium slots");
+  assert.equal(structureAttributes.get(12), 3, "Expected structure low slots");
+  assert.equal(structureAttributes.get(1137), 3, "Expected structure rig slots");
+
+  const moduleEntry = shipInfo.entries.find(
+    ([itemID]) => Number(itemID) === Number(fittedModuleID),
+  );
+  assert.ok(moduleEntry, "Expected fitted service module row in shipInfo");
+  const moduleInvItem = getKeyValEntry(moduleEntry[1], "invItem");
+  const moduleLine = getKeyValEntry(moduleInvItem, "line");
+  assert.equal(Number(moduleLine && moduleLine[3]), Number(structureID));
+  assert.equal(Number(moduleLine && moduleLine[4]), 164);
+
+  const shipState = getKeyValEntry(allInfo, "shipState");
+  const shipStateEntries =
+    Array.isArray(shipState) &&
+    shipState[0] &&
+    shipState[0].type === "dict" &&
+    Array.isArray(shipState[0].entries)
+      ? shipState[0].entries
+      : [];
+  assert.ok(
+    shipStateEntries.some(([itemID]) => Number(itemID) === Number(fittedModuleID)),
+    "Expected structure service module status row in shipState",
+  );
 });
 
 test("structure fuel bay rejects non-fuel items", (t) => {

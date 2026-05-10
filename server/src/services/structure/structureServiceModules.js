@@ -16,14 +16,18 @@ const {
 } = require(path.join(__dirname, "../inventory/itemTypeRegistry"));
 const structureState = require(path.join(__dirname, "./structureState"));
 const {
+  STRUCTURE_SERVICE_SLOT_FLAGS,
+  STRUCTURE_FUEL_FLAG,
+  isStructureServiceFlag,
+  isStructureFuelFlag,
+} = require(path.join(__dirname, "./structureInventoryFlags"));
+const {
   STRUCTURE_SERVICE_ID,
   STRUCTURE_SERVICE_STATE,
   STRUCTURE_UPKEEP_STATE,
   getAllowedServicesForStructureType,
 } = require(path.join(__dirname, "./structureConstants"));
 
-const STRUCTURE_SERVICE_SLOT_FLAGS = Object.freeze([164, 165, 166, 167, 168, 169, 170, 171]);
-const STRUCTURE_FUEL_FLAG = 172;
 const FUEL_BLOCK_GROUP_ID = 1136;
 const MS_PER_HOUR = 60 * 60 * 1000;
 
@@ -94,14 +98,6 @@ function toInt(value, fallback = 0) {
 function toPositiveInt(value, fallback = 0) {
   const numeric = toInt(value, fallback);
   return numeric > 0 ? numeric : fallback;
-}
-
-function isStructureServiceFlag(flagID) {
-  return STRUCTURE_SERVICE_SLOT_FLAGS.includes(toInt(flagID, 0));
-}
-
-function isStructureFuelFlag(flagID) {
-  return toInt(flagID, 0) === STRUCTURE_FUEL_FLAG;
 }
 
 function getServiceIDsForModuleType(typeID) {

@@ -13,6 +13,13 @@ const worldData = require(path.join(
   repoRoot,
   "server/src/space/worldData",
 ));
+const {
+  buildStructureInventoryDogmaItem,
+  getStructureParentLocationID,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureDogmaPrime",
+));
 
 const originalGetStructureByID = worldData.getStructureByID;
 
@@ -105,6 +112,23 @@ test.afterEach(() => {
   worldData.getStructureByID = originalGetStructureByID;
 });
 
+test("structure dogma prime rows parent the structure to the solar system", () => {
+  const structure = buildControlledStructureRecord();
+  const invItem = buildStructureInventoryDogmaItem(structure);
+
+  assert.equal(invItem.itemID, structure.structureID);
+  assert.equal(invItem.locationID, structure.solarSystemID);
+  assert.notEqual(invItem.locationID, structure.structureID);
+  assert.equal(
+    getStructureParentLocationID({
+      ...structure,
+      solarSystemID: null,
+      locationID: structure.structureID,
+    }, 30000142),
+    30000142,
+  );
+});
+
 test("dogma GetAllInfo primes the controlled structure as the active ship", () => {
   const session = buildControlledStructureSession();
   const structure = buildControlledStructureRecord();
@@ -138,13 +162,19 @@ test("dogma GetAllInfo primes the controlled structure as the active ship", () =
   assert.equal(structureInvRow[2], structure.ownerCorpID);
   assert.equal(
     structureInvRow[3],
-    structure.structureID,
-    "Expected the controlled structure to prime as its own location item",
+    structure.solarSystemID,
+    "Expected the controlled structure item to be parented to its solar system",
   );
+  assert.notEqual(structureInvRow[3], structure.structureID);
   assert.equal(structureInvRow[6], 1657);
   assert.equal(structureInvRow[7], 65);
   const attributeEntries = getDictEntryMap(structureShipFields.get("attributes"));
   assert.equal(attributeEntries.has(2216), true);
+  assert.equal(attributeEntries.get(1175), 0);
+  assert.equal(attributeEntries.get(1176), 0);
+  assert.equal(attributeEntries.get(1177), 0);
+  assert.equal(attributeEntries.get(1224), 1);
+  assert.equal(attributeEntries.get(3101), 56201);
 
   const shipState = getKeyValEntry(allInfo, "shipState");
   assert.ok(Array.isArray(shipState), "Expected shipState tuple payload");
@@ -173,10 +203,15 @@ test("dogma ShipGetInfo and ItemGetInfo resolve the controlled structure", () =>
   const itemInfo = dogma.Handle_ItemGetInfo([structure.structureID], session);
   const itemInfoFields = new Map(itemInfo.args.entries);
   assert.equal(itemInfoFields.get("itemID"), structure.structureID);
+  const itemInfoRow = new Map(itemInfoFields.get("invItem").args.entries).get("line");
   assert.equal(
-    new Map(itemInfoFields.get("invItem").args.entries).get("line")[0],
+    itemInfoRow[0],
     structure.structureID,
   );
+  assert.equal(itemInfoRow[3], structure.solarSystemID);
+  const itemInfoAttributes = getDictEntryMap(itemInfoFields.get("attributes"));
+  assert.equal(itemInfoAttributes.get(1177), 0);
+  assert.equal(itemInfoAttributes.get(3101), 56201);
 });
 
 test("dogma GetAllInfo does not flush deferred docked fitting replay while controlling a structure", () => {

@@ -20,6 +20,11 @@ const {
   FUEL_BAY_ATTRIBUTE_ID,
   FUEL_BAY_RESOURCE_KEY,
 } = require(path.join(__dirname, "../inventory/fuelBayInventory"));
+const {
+  STRUCTURE_SERVICE_SLOT_FLAGS,
+  STRUCTURE_FUEL_FLAG,
+  isStructureServiceFlag,
+} = require(path.join(__dirname, "../structure/structureInventoryFlags"));
 
 const CHARGE_CATEGORY_ID = 8;
 const GROUP_SCAN_PROBE_LAUNCHER = 481;
@@ -36,8 +41,6 @@ const SHIP_FITTING_FLAG_RANGES = Object.freeze([
   Object.freeze([92, 99]),
   Object.freeze([125, 132]),
 ]);
-const STRUCTURE_SERVICE_SLOT_FLAGS = SLOT_FAMILY_FLAGS.service;
-const STRUCTURE_FUEL_FLAG = 172;
 const STRUCTURE_FITTING_FLAG_RANGES = Object.freeze([
   Object.freeze([11, 34]),
   Object.freeze([92, 99]),
@@ -110,10 +113,6 @@ function isShipFittingFlag(flagID) {
   return SHIP_FITTING_FLAG_RANGES.some(
     ([start, end]) => numericFlagID >= start && numericFlagID <= end,
   );
-}
-
-function isStructureServiceFlag(flagID) {
-  return STRUCTURE_SERVICE_SLOT_FLAGS.includes(toInt(flagID, 0));
 }
 
 function isStructureFittingFlag(flagID) {

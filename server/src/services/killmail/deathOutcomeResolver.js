@@ -77,6 +77,12 @@ function hashToDrop(seed, itemID, unitIndex) {
 
 function resolveStackDropCounts(snapshot, seed, options = {}) {
   const quantity = Math.max(1, toInt(snapshot && snapshot.quantity, 1));
+  if (options.forceAllDropped === true && !isAlwaysDestroyedFlag(snapshot && snapshot.flag)) {
+    return {
+      qtyDropped: quantity,
+      qtyDestroyed: 0,
+    };
+  }
   if (options.forceAllDestroyed === true || isAlwaysDestroyedFlag(snapshot && snapshot.flag)) {
     return {
       qtyDropped: 0,
@@ -113,9 +119,12 @@ function resolveSnapshotNode(snapshot, seed, options = {}) {
     };
   }
 
-  const dropped = options.forceAllDestroyed === true || isAlwaysDestroyedFlag(snapshot && snapshot.flag)
-    ? 0
-    : (hashToDrop(seed, snapshot && snapshot.itemID, 0) ? 1 : 0);
+  const dropped =
+    options.forceAllDestroyed === true || isAlwaysDestroyedFlag(snapshot && snapshot.flag)
+      ? 0
+      : options.forceAllDropped === true
+        ? 1
+        : (hashToDrop(seed, snapshot && snapshot.itemID, 0) ? 1 : 0);
   return {
     ...snapshot,
     qtyDropped: dropped,

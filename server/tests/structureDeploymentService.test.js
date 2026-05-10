@@ -1,8 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("fs");
 const path = require("path");
 
 process.env.EVEJS_SKIP_NPC_STARTUP = "1";
+
+const { setupNewDatabaseSandbox } = require("./helpers/newDatabaseSandbox");
+setupNewDatabaseSandbox("evejs-structure-deploy-db-");
 
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
@@ -541,6 +545,30 @@ test("structureDeployment anchors and unanchors a cargo Astrahus through generic
       String(structure.itemName || structure.name || "") === "Client Astrahus",
   );
   assert.ok(astrahus, "Expected the deployed Astrahus to be persisted");
+  const diskStructures = JSON.parse(
+    fs.readFileSync(
+      path.join(process.env.EVEJS_NEWDB_DATA_DIR, "structures", "data.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    (diskStructures.structures || []).some(
+      (structure) => Number(structure.structureID) === Number(astrahus.structureID),
+    ),
+    true,
+    "Expected deployed structures to be flushed to disk immediately",
+  );
+  const diskItems = JSON.parse(
+    fs.readFileSync(
+      path.join(process.env.EVEJS_NEWDB_DATA_DIR, "items", "data.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(diskItems, String(itemID)),
+    false,
+    "Expected consumed deployment item removal to be flushed to disk immediately",
+  );
   assert.equal(Number(astrahus.position.x), 33333);
   assert.equal(Number(astrahus.position.z), 77777);
   assert.equal(Number(astrahus.state), STRUCTURE_STATE.ANCHOR_VULNERABLE);
@@ -607,6 +635,9 @@ test("structureDeployment consumes exactly one packaged Keepstar from a stacked 
   );
   assert.equal(grantResult.success, true);
   const stackItemID = grantResult.data.items[0].itemID;
+  const initialStack = findItemById(stackItemID);
+  const initialQuantity = Number(initialStack && (initialStack.stacksize || initialStack.quantity)) || 0;
+  assert.ok(initialQuantity >= 5, "Expected a Keepstar deployment stack to be available");
 
   const service = new StructureDeploymentService();
   service.Handle_Anchor(
@@ -620,7 +651,10 @@ test("structureDeployment consumes exactly one packaged Keepstar from a stacked 
   assert.equal(Number(remainingStack.locationID), Number(session._space.shipID));
   assert.equal(Number(remainingStack.flagID), ITEM_FLAGS.CARGO_HOLD);
   assert.equal(Number(remainingStack.singleton), 0);
-  assert.equal(Number(remainingStack.stacksize || remainingStack.quantity), 4);
+  assert.equal(
+    Number(remainingStack.stacksize || remainingStack.quantity),
+    initialQuantity - 1,
+  );
 
   const structures = structureState.listStructuresForSystem(solarSystemID, {
     refresh: true,
@@ -638,6 +672,57 @@ test("structureDeployment consumes exactly one packaged Keepstar from a stacked 
     true,
     "Expected Keepstar stack consumption to emit inventory change feedback",
   );
+});
+
+test("structureDeployment accepts citadels from the client infrastructure hold flag", (t) => {
+  const structuresBackup = readTable("structures");
+  const itemsBackup = readTable("items");
+  t.after(() => {
+    writeTable("structures", structuresBackup);
+    writeTable("items", itemsBackup);
+    resetInventoryStoreForTests();
+    structureState.clearStructureCaches();
+  });
+
+  writeCleanStructuresTable(structuresBackup);
+  writeTable("items", itemsBackup);
+  resetInventoryStoreForTests();
+  structureState.clearStructureCaches();
+
+  const [solarSystemID] = findClaimableSolarSystems(1);
+  const session = buildSpaceSession(solarSystemID, 990000006);
+  session.corprole = 0n;
+  session.role = 1600953932865792n;
+  const grantResult = grantItemToCharacterLocation(
+    session.characterID,
+    session._space.shipID,
+    ITEM_FLAGS.COLONY_RESOURCES_HOLD,
+    { typeID: ASTRAHUS_TYPE_ID, name: "Astrahus Infrastructure Hold Crate" },
+    1,
+    { singleton: 0 },
+  );
+  assert.equal(grantResult.success, true);
+  const itemID = grantResult.data.items[0].itemID;
+
+  const service = new StructureDeploymentService();
+  service.Handle_Anchor(
+    [itemID, 44444, 55555, 0.5, 1, { type: "wstring", value: "Infrastructure Hold Astrahus" }, "", 5, 18, {}],
+    session,
+  );
+
+  assert.equal(findItemById(itemID), null, "Expected the infrastructure-hold citadel item to be consumed");
+  const structures = structureState.listStructuresForSystem(solarSystemID, {
+    refresh: true,
+    includeDestroyed: false,
+  });
+  const astrahus = structures.find(
+    (structure) =>
+      Number(structure.typeID) === ASTRAHUS_TYPE_ID &&
+      String(structure.itemName || structure.name || "") === "Infrastructure Hold Astrahus",
+  );
+  assert.ok(astrahus, "Expected the infrastructure-hold Astrahus to be persisted");
+  assert.equal(Number(astrahus.position.x), 44444);
+  assert.equal(Number(astrahus.position.z), 55555);
 });
 
 test("structureDeployment anchors a live-space Astrahus at ship-relative coordinates and seeds AddBalls2", async (t) => {

@@ -375,6 +375,16 @@ function characterBelongsToAccount(character, accountID) {
   );
 }
 
+function resolveCharacterSelectionDockableID(character) {
+  const stationID = Number(character && character.stationID) || 0;
+  if (stationID > 0) {
+    return stationID;
+  }
+
+  const structureID = Number(character && character.structureID) || 0;
+  return structureID > 0 ? structureID : null;
+}
+
 class CharService extends BaseService {
   constructor() {
     super("charUnboundMgr");
@@ -472,6 +482,7 @@ class CharService extends BaseService {
         const skillPoints = getCharacterSkillPointTotal(cid) || character.skillPoints || 50000;
         const paperDollState = resolvePaperDollState(character, 2);
         const trainingInfo = buildTrainingSelectionInfo(cid);
+        const selectionDockableID = resolveCharacterSelectionDockableID(character);
         characterDetails.push(
           buildKeyVal([
             ["characterID", cid],
@@ -492,7 +503,8 @@ class CharService extends BaseService {
             // Exposing empire/school/faction state here caused the client to
             // incorrectly surface war/faction UI on the selection screen.
             ["factionID", null],
-            ["stationID", character.stationID ?? null],
+            ["stationID", selectionDockableID],
+            ["structureID", Number(character.structureID || 0) > 0 ? Number(character.structureID) : null],
             ["solarSystemID", character.solarSystemID || 30000142],
             ["constellationID", character.constellationID || 20000020],
             ["regionID", character.regionID || 10000002],
@@ -584,6 +596,7 @@ class CharService extends BaseService {
       50000;
     const paperDollState = resolvePaperDollState(character, 2);
     const trainingInfo = buildTrainingSelectionInfo(charId);
+    const selectionDockableID = resolveCharacterSelectionDockableID(character);
 
     if (!character) {
       log.warn(`[CharService] Character ${charId} not found`);
@@ -617,7 +630,8 @@ class CharService extends BaseService {
       ],
       ["corporationID", character.corporationID || 1000009],
       ["worldSpaceID", character.worldSpaceID || 0],
-      ["stationID", character.stationID ?? null],
+      ["stationID", selectionDockableID],
+      ["structureID", Number(character.structureID || 0) > 0 ? Number(character.structureID) : null],
       ["solarSystemID", character.solarSystemID || 30000142],
       ["constellationID", character.constellationID || 20000020],
       ["regionID", character.regionID || 10000002],

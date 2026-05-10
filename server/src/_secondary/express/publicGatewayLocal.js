@@ -1308,6 +1308,19 @@ function getSessionCharacterID(session) {
   );
 }
 
+function getSessionActiveShipID(session) {
+  return normalizeProtoNumber(
+    session && (session.shipID || session.shipid || session.shipId),
+  );
+}
+
+function getSessionStructureID(session) {
+  return normalizeProtoNumber(
+    session &&
+      (session.structureID || session.structureid || session.structureId),
+  );
+}
+
 function findLiveSessionByCharacterID(characterID) {
   const numericCharacterID = normalizeProtoNumber(characterID);
   if (!numericCharacterID) {
@@ -1322,6 +1335,25 @@ function findLiveSessionByCharacterID(characterID) {
   );
 }
 
+function isControlledStructureActiveShip(shipID, activeCharacterID) {
+  const numericShipID = normalizeProtoNumber(shipID);
+  const liveSession = findLiveSessionByCharacterID(activeCharacterID);
+  if (!numericShipID || !liveSession) {
+    return false;
+  }
+
+  if (getSessionActiveShipID(liveSession) !== numericShipID) {
+    return false;
+  }
+
+  const sessionStructureID = getSessionStructureID(liveSession);
+  if (sessionStructureID && sessionStructureID === numericShipID) {
+    return true;
+  }
+
+  return Boolean(getStructureByID(numericShipID));
+}
+
 function buildShipStateObject(shipID, activeCharacterID) {
   const numericShipID = normalizeProtoNumber(shipID);
   if (!numericShipID) {
@@ -1330,7 +1362,11 @@ function buildShipStateObject(shipID, activeCharacterID) {
 
   const appliedRecord = getAppliedSkinRecord(numericShipID);
   const shipItem = findShipItemById(numericShipID);
-  if (!appliedRecord && !shipItem) {
+  const controlledStructureActiveShip = isControlledStructureActiveShip(
+    numericShipID,
+    activeCharacterID,
+  );
+  if (!appliedRecord && !shipItem && !controlledStructureActiveShip) {
     return null;
   }
 
@@ -2222,10 +2258,12 @@ module.exports = {
 };
 module.exports._testing = {
   buildBubbleShipStatesForCharacter,
+  buildShipStateObject,
   findLiveSessionByCharacterID,
   gatewayServiceRegistry,
   getObserverCharacterIDsForShip,
   getEmptySuccessResponseType,
+  isControlledStructureActiveShip,
   PROTO_ROOT,
   RequestEnvelope,
   ResponseEnvelope,

@@ -137,6 +137,56 @@ function normalizeConditionState(value) {
   };
 }
 
+function normalizeStructureLifecycleStateFields(entry = {}) {
+  const hasQuantumCore = entry.hasQuantumCore === true;
+  let state = STRUCTURE_STATE_NAME_BY_ID[toInt(entry.state, -1)]
+    ? toInt(entry.state, STRUCTURE_STATE.UNANCHORED)
+    : STRUCTURE_STATE.UNANCHORED;
+  let stateEndsAt =
+    entry.stateEndsAt !== null &&
+    entry.stateEndsAt !== undefined &&
+    Number.isFinite(Number(entry.stateEndsAt))
+    ? toInt(entry.stateEndsAt, 0)
+    : null;
+
+  // Older builds represented the post-24h "waiting for core" phase as
+  // ANCHORING with no timer. CCP's client flow expects this to be dockable
+  // onlining-vulnerable instead.
+  if (
+    state === STRUCTURE_STATE.ANCHORING &&
+    hasQuantumCore !== true &&
+    (stateEndsAt === null || stateEndsAt <= 0)
+  ) {
+    state = STRUCTURE_STATE.ONLINING_VULNERABLE;
+    stateEndsAt = null;
+  }
+
+  return { state, stateEndsAt, hasQuantumCore };
+}
+
+function normalizeStructureUpkeepState(entry = {}, lifecycleState = {}) {
+  const numericUpkeepState = toInt(entry.upkeepState, -1);
+  const normalizedUpkeepState = STRUCTURE_UPKEEP_NAME_BY_ID[numericUpkeepState]
+    ? numericUpkeepState
+    : STRUCTURE_UPKEEP_STATE.FULL_POWER;
+
+  if (normalizedUpkeepState === STRUCTURE_UPKEEP_STATE.ABANDONED) {
+    return normalizedUpkeepState;
+  }
+
+  // After the 24h anchoring timer, the client expects an uncored structure to
+  // sit in the onlining-vulnerable hull state, but it should not appear to be
+  // Full Power until service modules are actually online.
+  if (
+    lifecycleState.state === STRUCTURE_STATE.ONLINING_VULNERABLE &&
+    lifecycleState.hasQuantumCore !== true
+  ) {
+    return STRUCTURE_UPKEEP_STATE.LOW_POWER;
+  }
+
+  return normalizedUpkeepState;
+}
+
 function toFileTimeLongFromMs(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -423,6 +473,7 @@ function normalizeStructureRecord(entry = {}) {
   const system = getSolarSystemRecord(entry.solarSystemID);
   const reinforceWeekday = toInt(entry.reinforceWeekday, DEFAULT_REINFORCE_WEEKDAY);
   const reinforceHour = toInt(entry.reinforceHour, DEFAULT_REINFORCE_HOUR);
+  const lifecycleState = normalizeStructureLifecycleStateFields(entry);
 
   return {
     structureID,
@@ -440,19 +491,20 @@ function normalizeStructureRecord(entry = {}) {
     radius: Math.max(DEFAULT_STRUCTURE_RADIUS, toFloat(entry.radius, typeRecord.radius)),
     structureFamily: typeRecord.structureFamily,
     structureSize: typeRecord.structureSize,
-    state: STRUCTURE_STATE_NAME_BY_ID[toInt(entry.state, -1)]
-      ? toInt(entry.state, STRUCTURE_STATE.UNANCHORED)
-      : STRUCTURE_STATE.UNANCHORED,
+    state: lifecycleState.state,
     stateStartedAt: Number.isFinite(Number(entry.stateStartedAt)) ? toInt(entry.stateStartedAt, 0) : null,
-    stateEndsAt: Number.isFinite(Number(entry.stateEndsAt)) ? toInt(entry.stateEndsAt, 0) : null,
-    upkeepState: STRUCTURE_UPKEEP_NAME_BY_ID[toInt(entry.upkeepState, -1)]
-      ? toInt(entry.upkeepState, STRUCTURE_UPKEEP_STATE.FULL_POWER)
-      : STRUCTURE_UPKEEP_STATE.FULL_POWER,
-    hasQuantumCore: entry.hasQuantumCore === true,
+    stateEndsAt: lifecycleState.stateEndsAt,
+    upkeepState: normalizeStructureUpkeepState(entry, lifecycleState),
+    hasQuantumCore: lifecycleState.hasQuantumCore,
+    quantumCoreItemID: toPositiveInt(entry.quantumCoreItemID, 0) || null,
     quantumCoreItemTypeID: toPositiveInt(
       entry.quantumCoreItemTypeID,
       typeRecord.defaultQuantumCoreTypeID || 0,
     ) || null,
+    quantumCoreInstalledAt:
+      Number.isFinite(Number(entry.quantumCoreInstalledAt))
+        ? toInt(entry.quantumCoreInstalledAt, 0)
+        : null,
     reinforceWeekday,
     reinforceHour,
     nextReinforceWeekday: toInt(entry.nextReinforceWeekday, reinforceWeekday),
@@ -543,6 +595,13 @@ function persistStructures(rows, metaOverrides = {}) {
   });
   if (!writeResult.success) {
     return writeResult;
+  }
+  const flushResult = database.flushTableSync(STRUCTURES_TABLE);
+  if (!flushResult.success) {
+    return {
+      success: false,
+      errorMsg: flushResult.errorMsg || "FLUSH_FAILED",
+    };
   }
 
   const cachedRows = normalizedRows.map((entry) => cloneValue(entry));
@@ -1010,20 +1069,45 @@ function repairStructureState(structure, preserveState = false) {
   };
 }
 
-function maybeAdvanceStructureState(structure, nowMs = Date.now()) {
+function hasActiveStateTimer(structure) {
   const stateEndsAt = Number(structure && structure.stateEndsAt);
-  if (
-    !structure ||
-    structure.destroyedAt ||
-    structure.stateEndsAt === null ||
-    structure.stateEndsAt === undefined ||
-    !Number.isFinite(stateEndsAt) ||
-    stateEndsAt <= 0 ||
-    nowMs < stateEndsAt
-  ) {
+  return (
+    structure &&
+    structure.stateEndsAt !== null &&
+    structure.stateEndsAt !== undefined &&
+    Number.isFinite(stateEndsAt) &&
+    stateEndsAt > 0
+  );
+}
+
+function buildOnliningVulnerableState(structure, nowMs, startRepairTimer) {
+  const currentUpkeepState = toInt(structure && structure.upkeepState, 0);
+  return {
+    ...structure,
+    state: STRUCTURE_STATE.ONLINING_VULNERABLE,
+    stateStartedAt: nowMs,
+    stateEndsAt: startRepairTimer === true
+      ? nowMs + scaledTimerMs(
+        STRUCTURE_REPAIR_SECONDS_BY_STATE[STRUCTURE_STATE.ONLINING_VULNERABLE],
+        structure,
+      )
+      : null,
+    upkeepState: currentUpkeepState === STRUCTURE_UPKEEP_STATE.ABANDONED
+      ? STRUCTURE_UPKEEP_STATE.ABANDONED
+      : STRUCTURE_UPKEEP_STATE.LOW_POWER,
+  };
+}
+
+function maybeAdvanceStructureState(structure, nowMs = Date.now()) {
+  if (!structure || structure.destroyedAt) {
     return { structure, changed: false };
   }
+
+  const stateEndsAt = Number(structure && structure.stateEndsAt);
   if (structure.state === STRUCTURE_STATE.ANCHOR_VULNERABLE) {
+    if (!hasActiveStateTimer(structure) || nowMs < stateEndsAt) {
+      return { structure, changed: false };
+    }
     return {
       structure: {
         ...structure,
@@ -1035,28 +1119,20 @@ function maybeAdvanceStructureState(structure, nowMs = Date.now()) {
     };
   }
   if (structure.state === STRUCTURE_STATE.ANCHORING) {
-    if (!structure.hasQuantumCore) {
-      return {
-        structure: {
-          ...structure,
-          stateStartedAt: nowMs,
-          stateEndsAt: null,
-        },
-        changed: true,
-      };
+    if (hasActiveStateTimer(structure) && nowMs < stateEndsAt) {
+      return { structure, changed: false };
     }
     return {
-      structure: {
-        ...structure,
-        state: STRUCTURE_STATE.ONLINING_VULNERABLE,
-        stateStartedAt: nowMs,
-        stateEndsAt: nowMs + scaledTimerMs(
-          STRUCTURE_REPAIR_SECONDS_BY_STATE[STRUCTURE_STATE.ONLINING_VULNERABLE],
-          structure,
-        ),
-      },
+      structure: buildOnliningVulnerableState(
+        structure,
+        nowMs,
+        structure.hasQuantumCore === true,
+      ),
       changed: true,
     };
+  }
+  if (!hasActiveStateTimer(structure) || nowMs < stateEndsAt) {
+    return { structure, changed: false };
   }
   if (structure.state === STRUCTURE_STATE.ONLINING_VULNERABLE) {
     return {
@@ -1294,40 +1370,71 @@ function cancelStructureUnanchoring(structureID) {
   };
 }
 
-function setStructureQuantumCoreInstalled(structureID, installed, nowMs = Date.now()) {
-  const hasAnchoringWaitTimer =
-    (current) => (
-      current &&
-      current.stateEndsAt !== null &&
-      current.stateEndsAt !== undefined &&
-      Number.isFinite(Number(current.stateEndsAt)) &&
-      Number(current.stateEndsAt) > 0
-    );
-  return updateStructureRecord(structureID, (current) => ({
-    ...current,
-    hasQuantumCore: installed === true,
-    state:
-      installed === true &&
+function setStructureQuantumCoreInstalled(structureID, installed, options = {}) {
+  const normalizedOptions =
+    options && typeof options === "object"
+      ? options
+      : { nowMs: options };
+  const nowMs = toInt(normalizedOptions.nowMs, Date.now());
+  return updateStructureRecord(structureID, (current) => {
+    const nextInstalled = installed === true;
+    const typeRecord = getStructureTypeByID(current.typeID);
+    const fallbackCoreTypeID = toPositiveInt(
+      current.quantumCoreItemTypeID,
+      toPositiveInt(typeRecord && typeRecord.defaultQuantumCoreTypeID, 0),
+    ) || null;
+    const installedCoreTypeID = toPositiveInt(
+      normalizedOptions.quantumCoreItemTypeID || normalizedOptions.coreTypeID,
+      fallbackCoreTypeID || 0,
+    ) || fallbackCoreTypeID;
+    const shouldAdvanceToOnlining =
+      nextInstalled &&
       current.state === STRUCTURE_STATE.ANCHORING &&
-      !hasAnchoringWaitTimer(current)
+      !hasActiveStateTimer(current);
+    const shouldStartOnliningRepairTimer =
+      nextInstalled &&
+      current.state === STRUCTURE_STATE.ONLINING_VULNERABLE &&
+      !hasActiveStateTimer(current);
+    const shouldEnterOnliningRepair =
+      shouldAdvanceToOnlining || shouldStartOnliningRepairTimer;
+    const currentUpkeepState = toInt(current.upkeepState, 0);
+
+    return {
+      ...current,
+      hasQuantumCore: nextInstalled,
+      quantumCoreItemID: nextInstalled
+        ? toPositiveInt(
+          normalizedOptions.quantumCoreItemID || normalizedOptions.coreItemID,
+          toPositiveInt(current.quantumCoreItemID, 0),
+        ) || null
+        : null,
+      quantumCoreItemTypeID: nextInstalled
+        ? installedCoreTypeID
+        : fallbackCoreTypeID,
+      quantumCoreInstalledAt: nextInstalled
+        ? toInt(
+          normalizedOptions.quantumCoreInstalledAt,
+          toInt(current.quantumCoreInstalledAt, nowMs),
+        )
+        : null,
+      state: shouldEnterOnliningRepair
         ? STRUCTURE_STATE.ONLINING_VULNERABLE
         : current.state,
-    stateStartedAt:
-      installed === true &&
-      current.state === STRUCTURE_STATE.ANCHORING &&
-      !hasAnchoringWaitTimer(current)
+      stateStartedAt: shouldEnterOnliningRepair
         ? nowMs
         : current.stateStartedAt,
-    stateEndsAt:
-      installed === true &&
-      current.state === STRUCTURE_STATE.ANCHORING &&
-      !hasAnchoringWaitTimer(current)
+      stateEndsAt: shouldEnterOnliningRepair
         ? nowMs + scaledTimerMs(
           STRUCTURE_REPAIR_SECONDS_BY_STATE[STRUCTURE_STATE.ONLINING_VULNERABLE],
           current,
         )
         : current.stateEndsAt,
-  }));
+      upkeepState: shouldEnterOnliningRepair &&
+        currentUpkeepState !== STRUCTURE_UPKEEP_STATE.ABANDONED
+        ? STRUCTURE_UPKEEP_STATE.LOW_POWER
+        : current.upkeepState,
+    };
+  });
 }
 
 function setStructureUpkeepState(structureID, upkeepState) {
@@ -1503,6 +1610,7 @@ function destroyStructure(structureID, options = {}) {
       {
         nowMs,
         includeStructureContents: assetSafetyDisabled,
+        forceAllStructureContentsDropped: assetSafetyDisabled,
         includeQuantumCore: true,
       },
     );

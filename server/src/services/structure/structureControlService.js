@@ -13,6 +13,9 @@ const {
   findItemById,
 } = require(path.join(__dirname, "../inventory/itemStore"));
 const structureServiceModules = require(path.join(__dirname, "./structureServiceModules"));
+const {
+  primeStructureDogmaItemForSession,
+} = require(path.join(__dirname, "./structureDogmaPrime"));
 const structureState = require(path.join(__dirname, "./structureState"));
 const {
   STRUCTURE_SETTING_ID,
@@ -155,12 +158,16 @@ class StructureControlService extends BaseService {
       throwControlDenied("STRUCTURE_CONTROL_DENIED");
     }
 
+    clearStructureControlDockedReplayState(session);
+    primeStructureDogmaItemForSession(session, structure, {
+      reason: "structureControl.TakeControl",
+    });
+
     const result = assumeStructureControl(session, structureID);
     if (!result.success) {
       throwControlDenied(result.errorMsg);
     }
 
-    clearStructureControlDockedReplayState(session);
     return null;
   }
 

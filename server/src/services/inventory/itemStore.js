@@ -20,6 +20,10 @@ const {
 const {
   FUEL_BAY_FLAG,
 } = require(path.join(__dirname, "./fuelBayInventory"));
+const {
+  STRUCTURE_DEED_FLAG,
+  isStructureServiceFlag,
+} = require(path.join(__dirname, "../structure/structureInventoryFlags"));
 
 // Fitting flag ranges (hi/med/lo slots, rigs, subsystems).
 // Duplicated from liveFittingState to avoid circular dependency.
@@ -33,11 +37,6 @@ const FITTING_FLAG_RANGES = Object.freeze([
 function isFittingFlag(flagID) {
   const f = Number(flagID) || 0;
   return FITTING_FLAG_RANGES.some(([lo, hi]) => f >= lo && f <= hi);
-}
-
-function isStructureServiceFlag(flagID) {
-  const f = Number(flagID) || 0;
-  return f >= 164 && f <= 171;
 }
 
 const CHARACTERS_TABLE = "characters";
@@ -67,6 +66,7 @@ const ITEM_FLAGS = {
   STRUCTURE_SERVICE_SLOT_6: 170,
   STRUCTURE_SERVICE_SLOT_7: 171,
   STRUCTURE_FUEL: 172,
+  STRUCTURE_DEED: STRUCTURE_DEED_FLAG,
   GENERAL_MINING_HOLD: 134,
   SPECIALIZED_COMMAND_CENTER_HOLD: 148,
   SPECIALIZED_MATERIAL_BAY: 151,

@@ -925,15 +925,114 @@ function getActiveShipRecord(charId) {
   return getActiveShipItem(charId);
 }
 
+function getStructureForInventorySelfItem(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const itemID = Number(item.itemID) || 0;
+  if (itemID <= 0) {
+    return null;
+  }
+
+  const structureState = getStructureState();
+  return structureState && typeof structureState.getStructureByID === "function"
+    ? structureState.getStructureByID(itemID, { refresh: false })
+    : null;
+}
+
+function normalizeInventoryItemForClientRow(item) {
+  const structure = getStructureForInventorySelfItem(item);
+  if (!structure) {
+    return item;
+  }
+
+  const structureID = Number(structure.structureID || item.itemID) || item.itemID;
+  const typeID = Number(structure.typeID || item.typeID) || item.typeID;
+  const typeRow = resolveItemByTypeID(typeID) || null;
+  const parentLocationID = Number(structure.solarSystemID) || 0;
+  const fallbackLocationID = Number(item.locationID) === Number(structureID)
+    ? 0
+    : Number(item.locationID) || 0;
+  const itemName = structure.itemName || structure.name || item.itemName || "";
+
+  return {
+    ...item,
+    itemID: structureID,
+    typeID,
+    ownerID:
+      Number(structure.ownerCorpID || structure.ownerID) ||
+      Number(item.ownerID) ||
+      item.ownerID,
+    locationID: parentLocationID || fallbackLocationID,
+    flagID: 0,
+    quantity: item.quantity !== undefined && item.quantity !== null
+      ? item.quantity
+      : 1,
+    groupID: Number(typeRow && typeRow.groupID) || Number(item.groupID) || 0,
+    categoryID: Number(typeRow && typeRow.categoryID) || Number(item.categoryID) || 0,
+    customInfo: itemName || item.customInfo || "",
+    itemName,
+    stacksize: 1,
+    singleton: 1,
+  };
+}
+
+function normalizePreviousInventoryStateForClientRow(
+  previousState,
+  rawItem,
+  normalizedItem,
+  options = {},
+) {
+  if (
+    !previousState ||
+    typeof previousState !== "object" ||
+    !rawItem ||
+    rawItem === normalizedItem
+  ) {
+    return previousState || {};
+  }
+
+  const rawItemID = Number(rawItem.itemID) || 0;
+  const normalizedItemID = Number(normalizedItem && normalizedItem.itemID) || 0;
+  if (rawItemID <= 0 || rawItemID !== normalizedItemID) {
+    return previousState;
+  }
+
+  const normalizedPreviousState = { ...previousState };
+  if (
+    options.preserveStructureSelfPreviousLocation !== true &&
+    normalizedPreviousState.locationID !== undefined &&
+    Number(normalizedPreviousState.locationID) === rawItemID
+  ) {
+    normalizedPreviousState.locationID = normalizedItem.locationID;
+  }
+  if (normalizedPreviousState.flagID !== undefined) {
+    normalizedPreviousState.flagID = normalizedItem.flagID;
+  }
+  if (normalizedPreviousState.stacksize !== undefined) {
+    normalizedPreviousState.stacksize = normalizedItem.stacksize;
+  }
+  if (normalizedPreviousState.singleton !== undefined) {
+    normalizedPreviousState.singleton = normalizedItem.singleton;
+  }
+
+  return normalizedPreviousState;
+}
+
 function buildInventoryItemRow(item) {
-  const rawSingleton = Number(item && item.singleton) || 0;
+  const normalizedItem = normalizeInventoryItemForClientRow(item);
+  const rawSingleton = Number(normalizedItem && normalizedItem.singleton) || 0;
   const singleton = rawSingleton === 2 ? 2 : rawSingleton === 1 ? 1 : 0;
   const normalizedStacksize = singleton > 0
     ? 1
-    : Math.max(0, Number(item && (item.stacksize ?? item.quantity ?? 0)) || 0);
+    : Math.max(
+      0,
+      Number(normalizedItem && (normalizedItem.stacksize ?? normalizedItem.quantity ?? 0)) || 0,
+    );
   const normalizedQuantity =
-    item && item.quantity !== undefined && item.quantity !== null
-      ? item.quantity
+    normalizedItem && normalizedItem.quantity !== undefined && normalizedItem.quantity !== null
+      ? normalizedItem.quantity
       : singleton === 2
         ? -2
         : singleton === 1
@@ -952,17 +1051,19 @@ function buildInventoryItemRow(item) {
     },
     columns: INVENTORY_ROW_DESCRIPTOR_COLUMNS,
     fields: {
-      itemID: item.itemID,
-      typeID: item.typeID,
-      ownerID: item.ownerID,
-      locationID: item.locationID,
-      flagID: item.flagID,
+      itemID: normalizedItem.itemID,
+      typeID: normalizedItem.typeID,
+      ownerID: normalizedItem.ownerID,
+      locationID: normalizedItem.locationID,
+      flagID: normalizedItem.flagID,
       quantity: normalizedQuantity,
-      groupID: item.groupID,
-      categoryID: item.categoryID,
+      groupID: normalizedItem.groupID,
+      categoryID: normalizedItem.categoryID,
       customInfo:
-        item && item.customInfo !== undefined && item.customInfo !== null
-          ? String(item.customInfo)
+        normalizedItem &&
+        normalizedItem.customInfo !== undefined &&
+        normalizedItem.customInfo !== null
+          ? String(normalizedItem.customInfo)
           : "",
       stacksize: normalizedStacksize,
       singleton,
@@ -1190,6 +1291,12 @@ function buildChargeDogmaPrimeEntry(item, options = {}) {
 }
 
 function buildInventoryDogmaPrimeEntry(item, options = {}) {
+  const attributeEntries = Object.entries(
+    normalizeDogmaNumericAttributeMap(options.attributes || {}),
+  ).map(([attributeID, value]) => [
+    Number(attributeID),
+    Number(value),
+  ]);
   const now =
     typeof options.now === "bigint"
       ? options.now
@@ -1204,7 +1311,7 @@ function buildInventoryDogmaPrimeEntry(item, options = {}) {
         ["itemID", item.itemID],
         ["invItem", buildInventoryDogmaInfoInventoryRow(item)],
         ["activeEffects", { type: "dict", entries: [] }],
-        ["attributes", { type: "dict", entries: [] }],
+        ["attributes", { type: "dict", entries: attributeEntries }],
         ["description", options.description || "item"],
         ["time", now],
         ["wallclockTime", now],
@@ -1446,14 +1553,21 @@ function buildLocationChangePayload(session, item) {
   ]);
 }
 
-function buildItemChangePayload(item, previousState = {}) {
+function buildItemChangePayload(item, previousState = {}, options = {}) {
+  const normalizedItem = normalizeInventoryItemForClientRow(item);
+  const normalizedPreviousState = normalizePreviousInventoryStateForClientRow(
+    previousState,
+    item,
+    normalizedItem,
+    options,
+  );
   const entries = [];
-  const currentQuantity = Number(item && item.quantity);
-  const previousQuantity = Number(previousState.quantity);
-  const currentStackSize = Number(item && item.stacksize);
-  const previousStackSize = Number(previousState.stacksize);
+  const currentQuantity = Number(normalizedItem && normalizedItem.quantity);
+  const previousQuantity = Number(normalizedPreviousState.quantity);
+  const currentStackSize = Number(normalizedItem && normalizedItem.stacksize);
+  const previousStackSize = Number(normalizedPreviousState.stacksize);
   const prefersStackSizeOnly =
-    Number(item && item.singleton) !== 1 &&
+    Number(normalizedItem && normalizedItem.singleton) !== 1 &&
     Number.isFinite(currentQuantity) &&
     Number.isFinite(previousQuantity) &&
     Number.isFinite(currentStackSize) &&
@@ -1464,46 +1578,49 @@ function buildItemChangePayload(item, previousState = {}) {
     previousQuantity === previousStackSize;
 
   if (
-    previousState.locationID !== undefined &&
-    previousState.locationID !== item.locationID
+    normalizedPreviousState.locationID !== undefined &&
+    normalizedPreviousState.locationID !== normalizedItem.locationID
   ) {
-    entries.push([INV_UPDATE_LOCATION, previousState.locationID]);
+    entries.push([INV_UPDATE_LOCATION, normalizedPreviousState.locationID]);
   }
 
-  if (previousState.flagID !== undefined && previousState.flagID !== item.flagID) {
-    entries.push([INV_UPDATE_FLAG, previousState.flagID]);
+  if (
+    normalizedPreviousState.flagID !== undefined &&
+    normalizedPreviousState.flagID !== normalizedItem.flagID
+  ) {
+    entries.push([INV_UPDATE_FLAG, normalizedPreviousState.flagID]);
   }
 
   if (
     !prefersStackSizeOnly &&
-    previousState.quantity !== undefined &&
+    normalizedPreviousState.quantity !== undefined &&
     Number.isFinite(previousQuantity) &&
     Number.isFinite(currentQuantity) &&
     previousQuantity >= 0 &&
     currentQuantity >= 0 &&
     previousQuantity !== currentQuantity
   ) {
-    entries.push([INV_UPDATE_QUANTITY, previousState.quantity]);
+    entries.push([INV_UPDATE_QUANTITY, normalizedPreviousState.quantity]);
   }
 
   if (
-    previousState.singleton !== undefined &&
-    previousState.singleton !== item.singleton
+    normalizedPreviousState.singleton !== undefined &&
+    normalizedPreviousState.singleton !== normalizedItem.singleton
   ) {
-    entries.push([INV_UPDATE_SINGLETON, previousState.singleton]);
+    entries.push([INV_UPDATE_SINGLETON, normalizedPreviousState.singleton]);
   }
 
   if (
-    previousState.stacksize !== undefined &&
-    previousState.stacksize !== item.stacksize
+    normalizedPreviousState.stacksize !== undefined &&
+    normalizedPreviousState.stacksize !== normalizedItem.stacksize
   ) {
     // CCP's invCache logs a traceback for ixQuantity on normal stackable item
     // updates, but ixStackSize is sufficient for cargo/hangar stack deltas.
-    entries.push([INV_UPDATE_STACKSIZE, previousState.stacksize]);
+    entries.push([INV_UPDATE_STACKSIZE, normalizedPreviousState.stacksize]);
   }
 
   return [
-    buildInventoryItemRow(item),
+    buildInventoryItemRow(normalizedItem),
     {
       type: "dict",
       entries,
@@ -2851,7 +2968,7 @@ function syncInventoryItemForSession(session, item, previousState = {}, options 
   session.sendNotification(
     "OnItemChange",
     "clientID",
-    buildItemChangePayload(item, previousState),
+    buildItemChangePayload(item, previousState, options),
   );
 
   if (

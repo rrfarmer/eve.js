@@ -8,8 +8,12 @@ const {
   findItemById,
   grantItemToCharacterLocation,
   listContainerItems,
+  moveItemToLocation,
   updateInventoryItem,
 } = require(path.join(__dirname, "../inventory/itemStore"));
+const {
+  GROUP_STRUCTURE_DEED,
+} = require(path.join(__dirname, "./structureInventoryFlags"));
 const {
   resolveItemByTypeID,
 } = require(path.join(__dirname, "../inventory/itemTypeRegistry"));
@@ -117,6 +121,38 @@ function addQuantumCoreToDropLocation(structure, dropLocationID) {
     };
   }
 
+  const installedCoreItemID = toPositiveInt(structure.quantumCoreItemID, 0);
+  const installedCoreItem = installedCoreItemID > 0
+    ? findItemById(installedCoreItemID)
+    : null;
+  if (
+    installedCoreItem &&
+    toPositiveInt(installedCoreItem.locationID, 0) ===
+      toPositiveInt(structure.structureID, 0) &&
+    toPositiveInt(installedCoreItem.flagID, 0) === ITEM_FLAGS.STRUCTURE_DEED &&
+    toPositiveInt(installedCoreItem.groupID, 0) === GROUP_STRUCTURE_DEED
+  ) {
+    const moveResult = moveItemToLocation(
+      installedCoreItem.itemID,
+      dropLocationID,
+      ITEM_FLAGS.HANGAR,
+      1,
+    );
+    if (!moveResult.success) {
+      return moveResult;
+    }
+    return {
+      success: true,
+      data: {
+        dropped: true,
+        itemID: installedCoreItem.itemID,
+        typeID: installedCoreItem.typeID,
+        name: installedCoreItem.itemName,
+        moved: true,
+      },
+    };
+  }
+
   const coreTypeID = toPositiveInt(structure.quantumCoreItemTypeID, 0);
   const coreType = resolveItemByTypeID(coreTypeID);
   if (!coreType) {
@@ -150,6 +186,23 @@ function addQuantumCoreToDropLocation(structure, dropLocationID) {
       name: coreType.name,
     },
   };
+}
+
+function getInstalledQuantumCoreItem(structure) {
+  const installedCoreItemID = toPositiveInt(structure && structure.quantumCoreItemID, 0);
+  const installedCoreItem = installedCoreItemID > 0
+    ? findItemById(installedCoreItemID)
+    : null;
+  if (
+    installedCoreItem &&
+    toPositiveInt(installedCoreItem.locationID, 0) ===
+      toPositiveInt(structure && structure.structureID, 0) &&
+    toPositiveInt(installedCoreItem.flagID, 0) === ITEM_FLAGS.STRUCTURE_DEED &&
+    toPositiveInt(installedCoreItem.groupID, 0) === GROUP_STRUCTURE_DEED
+  ) {
+    return installedCoreItem;
+  }
+  return null;
 }
 
 function handleStructureDestroyedLoot(structure, options = {}) {
@@ -213,6 +266,17 @@ function handleStructureDestroyedLoot(structure, options = {}) {
   }
 
   const dropLocation = dropLocationResult.data;
+  const shouldMoveActualCoreBeforeLoot =
+    includeQuantumCore && Boolean(getInstalledQuantumCoreItem(structure));
+  let quantumCoreResult = shouldMoveActualCoreBeforeLoot
+    ? addQuantumCoreToDropLocation(structure, dropLocation.itemID)
+    : { success: true, data: { dropped: false } };
+  if (!quantumCoreResult.success) {
+    log.warn(
+      `[StructureDestructionLoot] Failed to create quantum-core drop for structure ${structureID}: ${quantumCoreResult.errorMsg}`,
+    );
+  }
+
   let deathOutcome = {
     items: [],
     movedChanges: [],
@@ -222,6 +286,7 @@ function handleStructureDestroyedLoot(structure, options = {}) {
     const deathOutcomeResult = resolveLocationDeathOutcome(structureID, {
       rootLootLocationID: dropLocation.itemID,
       seed: `structure:${structureID}:${String(options.nowMs || Date.now())}`,
+      forceAllDropped: options.forceAllStructureContentsDropped === true,
     });
     if (!deathOutcomeResult.success || !deathOutcomeResult.data) {
       return deathOutcomeResult;
@@ -231,13 +296,13 @@ function handleStructureDestroyedLoot(structure, options = {}) {
   if (Array.isArray(deathOutcome.items)) {
     killmailItems.push(...deathOutcome.items);
   }
-  const quantumCoreResult = includeQuantumCore
-    ? addQuantumCoreToDropLocation(structure, dropLocation.itemID)
-    : { success: true, data: { dropped: false } };
-  if (!quantumCoreResult.success) {
-    log.warn(
-      `[StructureDestructionLoot] Failed to create quantum-core drop for structure ${structureID}: ${quantumCoreResult.errorMsg}`,
-    );
+  if (includeQuantumCore && !shouldMoveActualCoreBeforeLoot) {
+    quantumCoreResult = addQuantumCoreToDropLocation(structure, dropLocation.itemID);
+    if (!quantumCoreResult.success) {
+      log.warn(
+        `[StructureDestructionLoot] Failed to create quantum-core drop for structure ${structureID}: ${quantumCoreResult.errorMsg}`,
+      );
+    }
   }
 
   if (

@@ -8,6 +8,57 @@ const {
   normalizeExtraConfig,
   unanchorStructureByID,
 } = require(path.join(__dirname, "../sovereignty/sovPlayerDeployment"));
+const structureLog = require(path.join(__dirname, "./structureLog"));
+
+function safeJson(value) {
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(value, (_key, entry) => {
+      if (typeof entry === "bigint") {
+        return entry.toString();
+      }
+      if (entry && typeof entry === "object") {
+        if (seen.has(entry)) {
+          return "[circular]";
+        }
+        seen.add(entry);
+      }
+      return entry;
+    });
+  } catch (error) {
+    return JSON.stringify({ error: error.message });
+  }
+}
+
+function buildSessionSummary(session) {
+  return {
+    userID: session && (session.userid || session.userID),
+    characterID: session && (session.characterID || session.charid),
+    corporationID: session && (session.corporationID || session.corpid),
+    allianceID: session && (session.allianceID || session.allianceid),
+    shipID:
+      session &&
+      ((session._space && session._space.shipID) ||
+        session.shipID ||
+        session.shipid),
+    solarSystemID:
+      session &&
+      ((session._space && session._space.systemID) ||
+        session.solarsystemid2 ||
+        session.solarsystemid),
+    corprole: session && session.corprole,
+  };
+}
+
+function buildErrorSummary(error) {
+  return {
+    name: error && error.name,
+    message: error && error.message,
+    code: error && error.code,
+    machoErrorResponse: error && error.machoErrorResponse,
+    stack: error && error.stack,
+  };
+}
 
 class StructureDeploymentService extends BaseService {
   constructor() {
@@ -25,15 +76,47 @@ class StructureDeploymentService extends BaseService {
     const reinforceHour = Array.isArray(args) && args.length > 8 ? args[8] : null;
     const extraConfig = Array.isArray(args) && args.length > 9 ? args[9] : null;
 
-    deployStructureFromInventoryItem(session, itemID, {
-      position: buildPositionFromClientRequest(session, x, z),
-      rotationYaw,
-      profileID,
-      structureName,
-      reinforceWeekday,
-      reinforceHour,
-      ...normalizeExtraConfig(extraConfig),
-    });
+    structureLog.info(
+      `structureDeployment.Anchor begin ${safeJson({
+        session: buildSessionSummary(session),
+        itemID,
+        x,
+        z,
+        rotationYaw,
+        profileID,
+        structureName,
+        reinforceWeekday,
+        reinforceHour,
+        extraConfig,
+      })}`,
+    );
+    try {
+      const result = deployStructureFromInventoryItem(session, itemID, {
+        position: buildPositionFromClientRequest(session, x, z),
+        rotationYaw,
+        profileID,
+        structureName,
+        reinforceWeekday,
+        reinforceHour,
+        ...normalizeExtraConfig(extraConfig),
+      });
+      structureLog.info(
+        `structureDeployment.Anchor success ${safeJson({
+          itemID,
+          result,
+        })}`,
+      );
+    } catch (error) {
+      structureLog.error(
+        `structureDeployment.Anchor failure ${safeJson({
+          session: buildSessionSummary(session),
+          itemID,
+          args,
+          error: buildErrorSummary(error),
+        })}`,
+      );
+      throw error;
+    }
     return null;
   }
 

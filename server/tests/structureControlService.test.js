@@ -27,6 +27,7 @@ const originalGetStructureByID = structureState.getStructureByID;
 function buildStructure() {
   return {
     structureID: 1030000000000,
+    typeID: 35832,
     ownerCorpID: 1000044,
     ownerID: 1000044,
     allianceID: null,
@@ -35,6 +36,7 @@ function buildStructure() {
 
 function buildSession(overrides = {}) {
   const sentChanges = [];
+  const events = [];
   const session = {
     characterID: 140000002,
     charid: 140000002,
@@ -50,12 +52,19 @@ function buildSession(overrides = {}) {
     socket: {
       destroyed: false,
     },
+    notifications: [],
+    sendNotification(name, idType, payload) {
+      this.notifications.push({ name, idType, payload });
+      events.push({ kind: "notification", name });
+    },
     sendSessionChange(changes) {
       sentChanges.push(changes);
+      events.push({ kind: "sessionChange", changes });
     },
     ...overrides,
   };
   session._sentChanges = sentChanges;
+  session._events = events;
   return session;
 }
 
@@ -108,6 +117,24 @@ test("structureControl TakeControl switches shipid to structureid and advertises
   assert.equal(session._deferredDockedShipSessionChange, null);
   assert.equal(session._deferredDockedFittingReplay, null);
   assert.equal(session._pendingCommandShipFittingReplay, null);
+  const structurePrime = session.notifications.find(
+    (notification) => notification.name === "OnGodmaPrimeItem",
+  );
+  assert.ok(structurePrime, "Expected TakeControl to prime controlled structure dogma");
+  const primePayload = structurePrime.payload || [];
+  assert.equal(primePayload[0], structure.structureID);
+  const primeFields = new Map(primePayload[1].args.entries);
+  const primeAttributes = new Map(primeFields.get("attributes").entries);
+  assert.equal(primeAttributes.has(2216), true);
+  assert.equal(primeAttributes.get(1175), 0);
+  assert.equal(primeAttributes.get(1176), 0);
+  assert.equal(primeAttributes.get(1177), 0);
+  assert.equal(primeAttributes.get(1224), 1);
+  assert.equal(primeAttributes.get(3101), 56201);
+  assert.equal(primeAttributes.get(2056), 3);
+  assert.equal(session._events[0].kind, "notification");
+  assert.equal(session._events[0].name, "OnGodmaPrimeItem");
+  assert.equal(session._events[1].kind, "sessionChange");
   assert.equal(
     service.Handle_GetStructurePilot([structure.structureID], session),
     session.characterID,

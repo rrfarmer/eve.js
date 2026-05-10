@@ -3149,11 +3149,13 @@ function getSessionTransportAnchor(session) {
   const dockedStationID = getSessionDockedStationID(session);
   if (dockedStationID) {
     const station = worldData.getStationByID(dockedStationID);
+    const structure = station ? null : worldData.getStructureByID(dockedStationID);
     return {
       kind: "station",
       stationID: dockedStationID,
       label:
         (station && station.stationName) ||
+        (structure && (structure.itemName || structure.name)) ||
         `station ${dockedStationID}`,
     };
   }
@@ -3211,7 +3213,9 @@ function findStaticTransportAnchorByID(entityID) {
 
   for (const solarSystem of worldData.getSolarSystems()) {
     const match = worldData.getStaticSceneForSystem(solarSystem.solarSystemID).find(
-      (candidate) => Number(candidate && candidate.itemID) === numericEntityID,
+      (candidate) =>
+        Number(candidate && (candidate.itemID || candidate.structureID || candidate.stationID)) ===
+          numericEntityID,
     );
     if (match) {
       if (match.stationID) {
@@ -3221,6 +3225,16 @@ function findStaticTransportAnchorByID(entityID) {
           label:
             match.stationName ||
             `station ${numericEntityID}`,
+        };
+      }
+      if (match.structureID) {
+        return {
+          kind: "station",
+          stationID: numericEntityID,
+          label:
+            match.itemName ||
+            match.name ||
+            `structure ${numericEntityID}`,
         };
       }
       return buildTransportPointAnchor(match, solarSystem.solarSystemID);
@@ -3318,11 +3332,13 @@ function resolveTransportPointContext(session, targetDescriptor) {
       };
     }
     if (sessionAnchor.kind === "station") {
-      const station = worldData.getStationByID(sessionAnchor.stationID);
-      if (station) {
+      const dockable =
+        worldData.getStationByID(sessionAnchor.stationID) ||
+        worldData.getStructureByID(sessionAnchor.stationID);
+      if (dockable) {
         return {
           kind: "point",
-          systemID: normalizePositiveInteger(station.solarSystemID),
+          systemID: normalizePositiveInteger(dockable.solarSystemID),
           point: null,
           direction: { x: 1, y: 0, z: 0 },
         };
@@ -3345,11 +3361,13 @@ function resolveTransportPointContext(session, targetDescriptor) {
         };
       }
       if (targetAnchor.kind === "station") {
-        const station = worldData.getStationByID(targetAnchor.stationID);
-        if (station) {
+        const dockable =
+          worldData.getStationByID(targetAnchor.stationID) ||
+          worldData.getStructureByID(targetAnchor.stationID);
+        if (dockable) {
           return {
             kind: "point",
-            systemID: normalizePositiveInteger(station.solarSystemID),
+            systemID: normalizePositiveInteger(dockable.solarSystemID),
             point: null,
             direction: { x: 1, y: 0, z: 0 },
           };
@@ -3408,6 +3426,18 @@ function resolveTransportLocationToken(session, targetDescriptor, token) {
       label:
         station.stationName ||
         `station ${numericID}`,
+    };
+  }
+
+  const structure = worldData.getStructureByID(numericID);
+  if (structure) {
+    return {
+      kind: "station",
+      stationID: numericID,
+      label:
+        structure.itemName ||
+        structure.name ||
+        `structure ${numericID}`,
     };
   }
 
@@ -3662,7 +3692,11 @@ function executeSessionTransportTarget(
           : destination.kind === "point"
             ? destination.systemID
             : normalizePositiveInteger(
-              (worldData.getStationByID(destination.stationID) || {}).solarSystemID,
+              (
+                worldData.getStationByID(destination.stationID) ||
+                worldData.getStructureByID(destination.stationID) ||
+                {}
+              ).solarSystemID,
             );
       const destinationSystem = worldData.getSolarSystemByID(destinationSystemID);
       reconcileSolarTargetSessionIdentity(requestSession, destinationSystem);

@@ -2,6 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
+const { setupNewDatabaseSandbox } = require("./helpers/newDatabaseSandbox");
+setupNewDatabaseSandbox("evejs-structure-destruction-db-");
+
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const structureState = require(path.join(

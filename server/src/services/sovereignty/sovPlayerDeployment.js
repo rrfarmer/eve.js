@@ -1,5 +1,6 @@
 const path = require("path");
 
+const database = require(path.join(__dirname, "../../newDatabase"));
 const spaceRuntime = require(path.join(__dirname, "../../space/runtime"));
 const worldData = require(path.join(__dirname, "../../space/worldData"));
 const {
@@ -54,6 +55,10 @@ const {
 } = require(path.join(__dirname, "./sovUpgradeSupport"));
 
 const CORP_ROLE_STATION_MANAGER = 2048n;
+const STRUCTURE_DEPLOYMENT_SOURCE_FLAGS = new Set([
+  ITEM_FLAGS.CARGO_HOLD,
+  ITEM_FLAGS.COLONY_RESOURCES_HOLD,
+]);
 
 function normalizeInteger(value, fallback = 0) {
   const numeric = Number(value);
@@ -207,11 +212,20 @@ function requireValidDeploymentSession(session) {
     session && (session.corporationID || session.corpid),
     null,
   );
-  if (corporationID && corporationID >= 1000000 && corporationID < 2000000) {
+  const hasGmBypass = structureState.hasStructureGmBypass(session);
+  if (
+    !hasGmBypass &&
+    corporationID &&
+    corporationID >= 1000000 &&
+    corporationID < 2000000
+  ) {
     throwWrappedUserError("DropNeedsPlayerCorp", {});
   }
 
-  if ((normalizeRoleMask(session.corprole) & CORP_ROLE_STATION_MANAGER) === 0n) {
+  if (
+    !hasGmBypass &&
+    (normalizeRoleMask(session.corprole) & CORP_ROLE_STATION_MANAGER) === 0n
+  ) {
     throwWrappedUserError("CrpAccessDenied", {
       reason: "Insufficient roles",
     });
@@ -494,7 +508,7 @@ function deployStructureFromInventoryItem(session, itemID, options = {}) {
   if (
     Number(item.ownerID || 0) !== Number(session.characterID || session.charid || 0) ||
     Number(item.locationID || 0) !== Number(shipID || 0) ||
-    Number(item.flagID || 0) !== ITEM_FLAGS.CARGO_HOLD
+    !STRUCTURE_DEPLOYMENT_SOURCE_FLAGS.has(Number(item.flagID || 0))
   ) {
     throwWrappedUserError("TargetingAttemptCancelled");
   }
@@ -543,6 +557,12 @@ function deployStructureFromInventoryItem(session, itemID, options = {}) {
   if (!consumeResult.success) {
     throwWrappedUserError("CustomNotify", {
       notify: `Deployment succeeded but consuming the inventory item failed: ${consumeResult.errorMsg}.`,
+    });
+  }
+  const flushResult = database.flushTablesSync(["structures", "items"]);
+  if (!flushResult.success) {
+    throwWrappedUserError("CustomNotify", {
+      notify: "Deployment succeeded but persisting the structure deployment failed.",
     });
   }
 

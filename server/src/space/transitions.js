@@ -34,7 +34,6 @@ const {
   findCharacterShipByType,
   moveShipToSpace,
   dockShipToLocation,
-  dockShipToStation,
   normalizeShipConditionState,
   removeInventoryItem,
   setActiveShipForCharacter,
@@ -2294,9 +2293,9 @@ function jumpSessionToStation(session, stationID) {
     };
   }
 
-  const targetStationID = Number(stationID || 0);
-  const station = worldData.getStationByID(targetStationID);
-  if (!station) {
+  const targetLocationID = Number(stationID || 0);
+  const dockable = resolveDockableLocation(targetLocationID);
+  if (!dockable) {
     return {
       success: false,
       errorMsg: "STATION_NOT_FOUND",
@@ -2311,7 +2310,7 @@ function jumpSessionToStation(session, stationID) {
     };
   }
 
-  if (!beginTransition(session, "station-jump", targetStationID)) {
+  if (!beginTransition(session, "station-jump", targetLocationID)) {
     return {
       success: false,
       errorMsg: "STATION_JUMP_IN_PROGRESS",
@@ -2335,7 +2334,7 @@ function jumpSessionToStation(session, stationID) {
       });
     }
 
-    const dockResult = dockShipToStation(activeShip.itemID, station.stationID);
+    const dockResult = dockShipToLocation(activeShip.itemID, dockable.locationID);
     if (!dockResult.success) {
       return dockResult;
     }
@@ -2355,12 +2354,13 @@ function jumpSessionToStation(session, stationID) {
       ) || 0;
 
     const updateResult = updateCharacterRecord(session.characterID, (record) =>
-      buildLocationIdentityPatch(record, station.solarSystemID, {
-        homeStationID: authoritativeHomeStationID || station.stationID,
+      buildLocationIdentityPatch(record, dockable.solarSystemID, {
+        homeStationID: authoritativeHomeStationID || dockable.locationID,
         cloneStationID:
-          Number(record.cloneStationID || authoritativeHomeStationID || station.stationID) ||
-          station.stationID,
-        stationID: station.stationID,
+          Number(record.cloneStationID || authoritativeHomeStationID || dockable.locationID) ||
+          dockable.locationID,
+        stationID: dockable.kind === "station" ? dockable.locationID : null,
+        structureID: dockable.kind === "structure" ? dockable.locationID : null,
       }),
     );
     if (!updateResult.success) {
@@ -2383,16 +2383,21 @@ function jumpSessionToStation(session, stationID) {
     queuePendingSessionEffects(session, {
       previousLocalChannelID,
     });
-    broadcastOnCharNowInStation(session, station.stationID);
+    if (dockable.kind === "station") {
+      broadcastOnCharNowInStation(session, dockable.locationID);
+    } else if (dockable.kind === "structure") {
+      broadcastOnCharacterEnteredStructure(session, dockable.locationID);
+    }
 
     log.info(
-      `[SpaceTransition] Station jump ${session.characterName || session.characterID} ship=${activeShip.itemID} station=${station.stationID} system=${station.solarSystemID}`,
+      `[SpaceTransition] Station jump ${session.characterName || session.characterID} ` +
+      `ship=${activeShip.itemID} location=${dockable.locationID} kind=${dockable.kind} system=${dockable.solarSystemID}`,
     );
 
     return {
       success: true,
       data: {
-        station,
+        station: dockable.record,
         boundResult: buildBoundResult(session),
       },
     };

@@ -9,6 +9,10 @@ const {
   repoRoot,
   "server/src/services/character/characterState",
 ));
+const structureState = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureState",
+));
 const {
   marshalEncode,
 } = require(path.join(
@@ -25,6 +29,15 @@ function extractChangeKeys(payload) {
     .map((entry) => Number(Array.isArray(entry) ? entry[0] : 0) || 0)
     .filter((key) => key > 0)
     .sort((left, right) => left - right);
+}
+
+function extractChangeEntryMap(payload) {
+  const changeDict = Array.isArray(payload) ? payload[1] : null;
+  return new Map(
+    changeDict && changeDict.type === "dict" && Array.isArray(changeDict.entries)
+      ? changeDict.entries
+      : [],
+  );
 }
 
 function extractRowDescriptorColumns(payload) {
@@ -209,4 +222,184 @@ test("inventory item change rows keep CCP customInfo-stacksize-singleton order a
   assert.equal(fields.quantity, -1);
   assert.equal(fields.stacksize, 1);
   assert.equal(fields.singleton, 1);
+});
+
+test("structure self item changes are parented to the solar system", () => {
+  const originalGetStructureByID = structureState.getStructureByID;
+  const structureID = 1030999900001;
+  const solarSystemID = 30000144;
+  const ownerCorpID = 98000004;
+
+  structureState.getStructureByID = (requestedID, options = {}) => {
+    if (Number(requestedID) !== structureID) {
+      return originalGetStructureByID.call(structureState, requestedID, options);
+    }
+    return {
+      structureID,
+      typeID: 35832,
+      itemName: "Payload Test Astrahus",
+      ownerCorpID,
+      ownerID: ownerCorpID,
+      solarSystemID,
+    };
+  };
+
+  try {
+    const payload = buildItemChangePayload(
+      {
+        itemID: structureID,
+        typeID: 35832,
+        ownerID: ownerCorpID,
+        locationID: structureID,
+        flagID: 0,
+        quantity: 1,
+        stacksize: 1,
+        singleton: 1,
+        groupID: 1657,
+        categoryID: 65,
+        customInfo: "",
+      },
+      {
+        locationID: structureID,
+        flagID: 0,
+        quantity: 1,
+        stacksize: 1,
+        singleton: 1,
+      },
+    );
+
+    const fields = extractRowFields(payload);
+    assert.equal(fields.itemID, structureID);
+    assert.equal(fields.typeID, 35832);
+    assert.equal(fields.ownerID, ownerCorpID);
+    assert.equal(fields.locationID, solarSystemID);
+    assert.notEqual(fields.locationID, structureID);
+    assert.equal(fields.flagID, 0);
+    assert.equal(fields.groupID, 1657);
+    assert.equal(fields.categoryID, 65);
+    assert.equal(fields.customInfo, "Payload Test Astrahus");
+    assert.equal(fields.stacksize, 1);
+    assert.equal(fields.singleton, 1);
+    assert.ok(
+      !extractChangeKeys(payload).includes(3),
+      "Expected normalized structure self rows to avoid advertising the old self-parent location",
+    );
+  } finally {
+    structureState.getStructureByID = originalGetStructureByID;
+  }
+});
+
+test("structure self cache repair can target a stale self-parented cache entry", () => {
+  const originalGetStructureByID = structureState.getStructureByID;
+  const structureID = 1030999900003;
+  const solarSystemID = 30000144;
+  const ownerCorpID = 98000004;
+
+  structureState.getStructureByID = (requestedID, options = {}) => {
+    if (Number(requestedID) !== structureID) {
+      return originalGetStructureByID.call(structureState, requestedID, options);
+    }
+    return {
+      structureID,
+      typeID: 35832,
+      itemName: "Cache Repair Astrahus",
+      ownerCorpID,
+      ownerID: ownerCorpID,
+      solarSystemID,
+    };
+  };
+
+  try {
+    const payload = buildItemChangePayload(
+      {
+        itemID: structureID,
+        typeID: 35832,
+        ownerID: ownerCorpID,
+        locationID: structureID,
+        flagID: 0,
+        quantity: 1,
+        stacksize: 1,
+        singleton: 1,
+        groupID: 1657,
+        categoryID: 65,
+        customInfo: "",
+      },
+      {
+        locationID: structureID,
+        flagID: 0,
+        quantity: 1,
+        stacksize: 1,
+        singleton: 1,
+      },
+      {
+        preserveStructureSelfPreviousLocation: true,
+      },
+    );
+
+    const fields = extractRowFields(payload);
+    const changes = extractChangeEntryMap(payload);
+    assert.equal(fields.itemID, structureID);
+    assert.equal(fields.locationID, solarSystemID);
+    assert.notEqual(fields.locationID, structureID);
+    assert.equal(changes.get(3), structureID);
+  } finally {
+    structureState.getStructureByID = originalGetStructureByID;
+  }
+});
+
+test("structure bay item changes keep the structure as their location", () => {
+  const originalGetStructureByID = structureState.getStructureByID;
+  const structureID = 1030999900002;
+  const childItemID = 2990999900002;
+
+  structureState.getStructureByID = (requestedID, options = {}) => {
+    if (Number(requestedID) !== structureID) {
+      return originalGetStructureByID.call(structureState, requestedID, options);
+    }
+    return {
+      structureID,
+      typeID: 35832,
+      itemName: "Bay Content Test Astrahus",
+      ownerCorpID: 98000004,
+      ownerID: 98000004,
+      solarSystemID: 30000144,
+    };
+  };
+
+  try {
+    const payload = buildItemChangePayload(
+      {
+        itemID: childItemID,
+        typeID: 4246,
+        ownerID: 98000004,
+        locationID: structureID,
+        flagID: 172,
+        quantity: 40,
+        stacksize: 40,
+        singleton: 0,
+        groupID: 1136,
+        categoryID: 4,
+        customInfo: "",
+      },
+      {
+        locationID: structureID,
+        flagID: 4,
+        quantity: 40,
+        stacksize: 40,
+        singleton: 0,
+      },
+    );
+
+    const fields = extractRowFields(payload);
+    assert.equal(fields.itemID, childItemID);
+    assert.equal(fields.locationID, structureID);
+    assert.equal(fields.flagID, 172);
+    assert.deepEqual(
+      extractChangeKeys(payload),
+      [4],
+      "Expected bay contents to keep normal inventory deltas",
+    );
+  } finally {
+    structureState.getStructureByID = originalGetStructureByID;
+  }
 });

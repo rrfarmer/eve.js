@@ -2,6 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 
+const { setupNewDatabaseSandbox } = require("./helpers/newDatabaseSandbox");
+setupNewDatabaseSandbox("evejs-structure-docked-db-");
+
 const repoRoot = path.join(__dirname, "..", "..");
 const database = require(path.join(repoRoot, "server/src/newDatabase"));
 const ConfigService = require(path.join(
@@ -16,6 +19,13 @@ const DogmaService = require(path.join(
   repoRoot,
   "server/src/services/dogma/dogmaService",
 ));
+const CharService = require(path.join(
+  repoRoot,
+  "server/src/services/character/charService",
+));
+const {
+  jumpSessionToStation,
+} = require(path.join(repoRoot, "server/src/space/transitions"));
 const structureState = require(path.join(
   repoRoot,
   "server/src/services/structure/structureState",
@@ -30,6 +40,7 @@ const {
 ));
 const {
   ITEM_FLAGS,
+  findItemById,
   moveItemToLocation,
 } = require(path.join(
   repoRoot,
@@ -101,6 +112,20 @@ function getKeyValEntry(value, key) {
     (candidate) => Array.isArray(candidate) && candidate[0] === key,
   );
   return entry ? entry[1] : null;
+}
+
+function getPrimeAttributes(primeEntry) {
+  const attributes = getKeyValEntry(primeEntry, "attributes");
+  return new Map(
+    attributes &&
+    attributes.type === "dict" &&
+    Array.isArray(attributes.entries)
+      ? attributes.entries.map((entry) => [
+        Number(entry[0]) || 0,
+        Number(entry[1]) || 0,
+      ])
+      : [],
+  );
 }
 
 test("structure-docked sessions resolve config, inventory, and dogma through structureID", () => {
@@ -236,6 +261,36 @@ test("structure-docked sessions resolve config, inventory, and dogma through str
 
     const invBroker = new InvBrokerService();
     const bound = invBroker.Handle_GetInventory([10004], session);
+    const primeNotification = session.notifications.find(
+      (entry) =>
+        entry &&
+        entry.name === "OnGodmaPrimeItem" &&
+        Array.isArray(entry.payload) &&
+        Number(entry.payload[0]) === structureID,
+    );
+    assert.ok(
+      primeNotification,
+      "Expected binding a structure inventory to prime the structure dogma item",
+    );
+    assert.equal(
+      getPrimeAttributes(primeNotification.payload[1]).get(3101),
+      56201,
+      "Expected structure dogma prime to include required quantum core type",
+    );
+    session.notifications.length = 0;
+    invBroker.Handle_GetInventoryFromId([structureID], session, {
+      locationID: structureID,
+    });
+    assert.ok(
+      session.notifications.some((entry) =>
+        entry &&
+        entry.name === "OnGodmaPrimeItem" &&
+        Array.isArray(entry.payload) &&
+        Number(entry.payload[0]) === structureID &&
+        getPrimeAttributes(entry.payload[1]).get(3101) === 56201,
+      ),
+      "Expected binding structure inventory by ID to prime the Core Room dogma attribute",
+    );
     const boundID =
       bound &&
       bound.type === "substruct" &&
@@ -282,6 +337,161 @@ test("structure-docked sessions resolve config, inventory, and dogma through str
       structurePrimeEntry,
       "Expected structureInfo to prime the docked structure item itself",
     );
+  } finally {
+    writeTable("characters", charactersBackup);
+    writeTable("items", itemsBackup);
+    writeTable("structures", structuresBackup);
+    structureState.clearStructureCaches();
+  }
+});
+
+test("character selection reports structure docks through stationID-compatible field", () => {
+  const charactersBackup = readTable("characters");
+  const itemsBackup = readTable("items");
+  const structuresBackup = readTable("structures");
+  const candidate = getCandidate();
+
+  try {
+    structureState.clearStructureCaches();
+
+    const createResult = structureState.createStructure({
+      typeID: 35832,
+      name: "Selection Payload Test Astrahus",
+      itemName: "Selection Payload Test Astrahus",
+      ownerCorpID: Number(candidate.characterRecord.corporationID || 1000009) || 1000009,
+      solarSystemID: Number(candidate.solarSystemID) || 30000142,
+      position: { x: 315000, y: 0, z: 335000 },
+      state: 110,
+      upkeepState: 1,
+      hasQuantumCore: true,
+      accessProfile: {
+        docking: "public",
+        tethering: "public",
+      },
+    });
+    assert.equal(createResult.success, true, "Expected structure creation to succeed");
+    const structureID = createResult.data.structureID;
+
+    const moveShipResult = moveItemToLocation(
+      candidate.activeShip.itemID,
+      structureID,
+      ITEM_FLAGS.HANGAR,
+    );
+    assert.equal(moveShipResult.success, true, "Expected active ship to move into the structure");
+
+    const accountID = Number(candidate.characterRecord.accountId || 910777) || 910777;
+    const nextCharacters = readTable("characters");
+    nextCharacters[String(candidate.characterID)] = {
+      ...nextCharacters[String(candidate.characterID)],
+      accountId: accountID,
+      stationID: null,
+      structureID,
+      solarSystemID: Number(candidate.solarSystemID) || 30000142,
+    };
+    writeTable("characters", nextCharacters);
+
+    const charService = new CharService();
+    const selectionPayload = charService.Handle_GetCharacterSelectionData([], {
+      userid: accountID,
+    });
+    const selectionRows = extractListItems(selectionPayload[2]);
+    const selectionRow = selectionRows.find(
+      (row) => Number(getKeyValEntry(row, "characterID") || 0) === Number(candidate.characterID),
+    );
+    assert.ok(selectionRow, "Expected the structure-docked character in selection payload");
+    assert.equal(
+      Number(getKeyValEntry(selectionRow, "stationID") || 0),
+      structureID,
+      "Expected login selection stationID to carry the docked structure ID",
+    );
+    assert.equal(
+      Number(getKeyValEntry(selectionRow, "structureID") || 0),
+      structureID,
+      "Expected login selection to preserve explicit structureID too",
+    );
+
+    const characterInfo = charService.Handle_GetCharacterToSelect(
+      [candidate.characterID],
+      { userid: accountID },
+    );
+    assert.equal(
+      Number(getKeyValEntry(characterInfo, "stationID") || 0),
+      structureID,
+      "Expected GetCharacterToSelect stationID to carry the docked structure ID",
+    );
+    assert.equal(
+      Number(getKeyValEntry(characterInfo, "structureID") || 0),
+      structureID,
+      "Expected GetCharacterToSelect to preserve explicit structureID too",
+    );
+  } finally {
+    writeTable("characters", charactersBackup);
+    writeTable("items", itemsBackup);
+    writeTable("structures", structuresBackup);
+    structureState.clearStructureCaches();
+  }
+});
+
+test("station-jump GM transport accepts player-owned structure IDs", () => {
+  const charactersBackup = readTable("characters");
+  const itemsBackup = readTable("items");
+  const structuresBackup = readTable("structures");
+  const candidate = getCandidate();
+
+  try {
+    structureState.clearStructureCaches();
+    const createResult = structureState.createStructure({
+      typeID: 35832,
+      name: "Transport Test Astrahus",
+      itemName: "Transport Test Astrahus",
+      ownerCorpID: Number(candidate.characterRecord.corporationID || 1000009) || 1000009,
+      solarSystemID: Number(candidate.solarSystemID) || 30000142,
+      position: { x: 320000, y: 0, z: 340000 },
+      state: 110,
+      upkeepState: 1,
+      hasQuantumCore: true,
+      accessProfile: {
+        docking: "public",
+        tethering: "public",
+      },
+    });
+    assert.equal(createResult.success, true);
+    const structureID = createResult.data.structureID;
+    const session = {
+      clientID: candidate.characterID + 94000,
+      userid: candidate.characterID,
+      characterID: candidate.characterID,
+      charid: candidate.characterID,
+      shipID: candidate.activeShip.itemID,
+      shipid: candidate.activeShip.itemID,
+      activeShipID: candidate.activeShip.itemID,
+      stationID: candidate.characterRecord.stationID || null,
+      stationid: candidate.characterRecord.stationID || null,
+      structureID: candidate.characterRecord.structureID || null,
+      structureid: candidate.characterRecord.structureID || null,
+      locationid: candidate.characterRecord.stationID || candidate.characterRecord.structureID || candidate.solarSystemID,
+      solarsystemid: candidate.solarSystemID,
+      solarsystemid2: candidate.solarSystemID,
+      socket: { destroyed: false },
+      notifications: [],
+      sendNotification(name, idType, payload) {
+        this.notifications.push({ name, idType, payload });
+      },
+      sendSessionChange() {},
+    };
+
+    const result = jumpSessionToStation(session, structureID);
+    assert.equal(result.success, true, result.errorMsg || "Expected structure station-jump to succeed");
+    assert.equal(Number(session.structureID || session.structureid), structureID);
+    assert.equal(Number(session.stationID || session.stationid || 0), 0);
+
+    const ship = findItemById(candidate.activeShip.itemID);
+    assert.equal(Number(ship && ship.locationID), structureID);
+    assert.equal(Number(ship && ship.flagID), ITEM_FLAGS.HANGAR);
+
+    const character = getCharacterRecord(candidate.characterID);
+    assert.equal(Number(character && character.structureID), structureID);
+    assert.equal(Number(character && character.stationID || 0), 0);
   } finally {
     writeTable("characters", charactersBackup);
     writeTable("items", itemsBackup);
