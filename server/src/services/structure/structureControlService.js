@@ -15,6 +15,7 @@ const {
 const structureServiceModules = require(path.join(__dirname, "./structureServiceModules"));
 const {
   primeStructureDogmaItemForSession,
+  refreshStructureFittingGaugeAttributesForSession,
 } = require(path.join(__dirname, "./structureDogmaPrime"));
 const structureState = require(path.join(__dirname, "./structureState"));
 const {
@@ -28,6 +29,82 @@ const {
   relinquishStructureControl,
   assumeStructureControl,
 } = require(path.join(__dirname, "./structureControlState"));
+
+const STRUCTURE_CONTROL_ACTIVATION_SETTLE_MS = 500;
+const STRUCTURE_CONTROL_FITTING_REFRESH_DELAY_MS = 2000;
+
+function waitForStructureControlActivationSettle() {
+  return new Promise((resolve) => {
+    setTimeout(resolve, STRUCTURE_CONTROL_ACTIVATION_SETTLE_MS);
+  });
+}
+
+function clearStructureControlFittingRefreshTimer(session) {
+  if (!session || !session._structureControlFittingRefreshTimer) {
+    return;
+  }
+
+  clearTimeout(session._structureControlFittingRefreshTimer);
+  session._structureControlFittingRefreshTimer = null;
+}
+
+function getStructureControlFittingRefreshDelay(session) {
+  if (
+    session &&
+    Object.prototype.hasOwnProperty.call(
+      session,
+      "_structureControlFittingRefreshDelayMs",
+    )
+  ) {
+    const explicitDelay = Number(session._structureControlFittingRefreshDelayMs);
+    return Number.isFinite(explicitDelay) && explicitDelay >= 0
+      ? Math.trunc(explicitDelay)
+      : STRUCTURE_CONTROL_FITTING_REFRESH_DELAY_MS;
+  }
+
+  return STRUCTURE_CONTROL_FITTING_REFRESH_DELAY_MS;
+}
+
+function sessionStillControlsStructure(session, structureID) {
+  return (
+    session &&
+    getSessionStructureID(session) === structureID &&
+    normalizePositiveInt(session.shipid || session.shipID, 0) === structureID
+  );
+}
+
+function scheduleStructureFittingGaugeRefresh(session, structure) {
+  const structureID = normalizePositiveInt(
+    structure && structure.structureID,
+    0,
+  );
+  if (structureID <= 0 || !session) {
+    return;
+  }
+
+  clearStructureControlFittingRefreshTimer(session);
+
+  const sendRefresh = () => {
+    session._structureControlFittingRefreshTimer = null;
+    if (!sessionStillControlsStructure(session, structureID)) {
+      return;
+    }
+    refreshStructureFittingGaugeAttributesForSession(session, structure, {
+      reason: "structureControl.TakeControl.settled",
+    });
+  };
+
+  const delayMs = getStructureControlFittingRefreshDelay(session);
+  if (delayMs <= 0) {
+    sendRefresh();
+    return;
+  }
+
+  session._structureControlFittingRefreshTimer = setTimeout(sendRefresh, delayMs);
+  if (typeof session._structureControlFittingRefreshTimer.unref === "function") {
+    session._structureControlFittingRefreshTimer.unref();
+  }
+}
 
 function throwControlDenied(errorMsg = "") {
   switch (String(errorMsg || "").trim()) {
@@ -55,6 +132,7 @@ function clearStructureControlDockedReplayState(session) {
     return;
   }
 
+  clearStructureControlFittingRefreshTimer(session);
   clearDeferredDockedShipSessionChange(session);
   clearDeferredDockedFittingReplay(session);
   session._pendingCommandShipFittingReplay = null;
@@ -134,7 +212,7 @@ class StructureControlService extends BaseService {
     return getStructurePilotCharacterID(structureID) || null;
   }
 
-  Handle_TakeControl(args, session) {
+  async Handle_TakeControl(args, session) {
     const structureID = normalizePositiveInt(
       args && args[0],
       getSessionStructureID(session),
@@ -159,14 +237,18 @@ class StructureControlService extends BaseService {
     }
 
     clearStructureControlDockedReplayState(session);
-    primeStructureDogmaItemForSession(session, structure, {
-      reason: "structureControl.TakeControl",
-    });
-
     const result = assumeStructureControl(session, structureID);
     if (!result.success) {
       throwControlDenied(result.errorMsg);
     }
+
+    primeStructureDogmaItemForSession(session, structure, {
+      reason: "structureControl.TakeControl",
+    });
+    // The retail client calls TakeControl directly, then can open fitting before
+    // its async MakeShipActive task populates clientDogmaLocation.shipsByPilotID.
+    await waitForStructureControlActivationSettle();
+    scheduleStructureFittingGaugeRefresh(session, structure);
 
     return null;
   }

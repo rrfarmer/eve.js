@@ -9,6 +9,18 @@ const StructureControlService = require(path.join(
   repoRoot,
   "server/src/services/structure/structureControlService",
 ));
+const {
+  ATTRIBUTE_CPU_LOAD,
+  ATTRIBUTE_CPU_OUTPUT,
+  ATTRIBUTE_POWER_LOAD,
+  ATTRIBUTE_POWER_OUTPUT,
+  ATTRIBUTE_UPGRADE_CAPACITY,
+  ATTRIBUTE_UPGRADE_LOAD,
+  ATTRIBUTE_UPGRADE_SLOTS_LEFT,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureDogmaPrime",
+));
 const structureState = require(path.join(
   repoRoot,
   "server/src/services/structure/structureState",
@@ -49,6 +61,7 @@ function buildSession(overrides = {}) {
     shipid: 990112614,
     structureID: 1030000000000,
     structureid: 1030000000000,
+    _structureControlFittingRefreshDelayMs: 0,
     socket: {
       destroyed: false,
     },
@@ -78,7 +91,7 @@ test.afterEach(() => {
   }
 });
 
-test("structureControl TakeControl switches shipid to structureid and advertises the pilot", () => {
+test("structureControl TakeControl switches shipid to structureid and advertises the pilot", async () => {
   const service = new StructureControlService();
   const session = buildSession({
     _deferredDockedShipSessionChange: {
@@ -103,11 +116,13 @@ test("structureControl TakeControl switches shipid to structureid and advertises
 
   sessionRegistry.register(session);
 
-  const result = service.Handle_TakeControl([structure.structureID], session);
+  const result = await service.Handle_TakeControl([structure.structureID], session);
 
   assert.equal(result, null);
   assert.equal(session.shipID, structure.structureID);
   assert.equal(session.shipid, structure.structureID);
+  assert.equal(session.activeShipID, structure.structureID);
+  assert.equal(session.activeShipId, structure.structureID);
   assert.equal(session._structureControlPreviousShipID, 990112614);
   assert.deepEqual(session._sentChanges, [
     {
@@ -117,9 +132,10 @@ test("structureControl TakeControl switches shipid to structureid and advertises
   assert.equal(session._deferredDockedShipSessionChange, null);
   assert.equal(session._deferredDockedFittingReplay, null);
   assert.equal(session._pendingCommandShipFittingReplay, null);
-  const structurePrime = session.notifications.find(
+  const structurePrimes = session.notifications.filter(
     (notification) => notification.name === "OnGodmaPrimeItem",
   );
+  const structurePrime = structurePrimes[0];
   assert.ok(structurePrime, "Expected TakeControl to prime controlled structure dogma");
   const primePayload = structurePrime.payload || [];
   assert.equal(primePayload[0], structure.structureID);
@@ -132,16 +148,50 @@ test("structureControl TakeControl switches shipid to structureid and advertises
   assert.equal(primeAttributes.get(1224), 1);
   assert.equal(primeAttributes.get(3101), 56201);
   assert.equal(primeAttributes.get(2056), 3);
-  assert.equal(session._events[0].kind, "notification");
-  assert.equal(session._events[0].name, "OnGodmaPrimeItem");
-  assert.equal(session._events[1].kind, "sessionChange");
+  assert.equal(primeAttributes.has(ATTRIBUTE_UPGRADE_SLOTS_LEFT), true);
+  assert.equal(structurePrimes.length, 2);
+  const statsRefresh = session.notifications.find(
+    (notification) => notification.name === "OnDogmaAttributeChanged",
+  );
+  assert.ok(statsRefresh, "Expected TakeControl to signal fitting stats refresh");
+  assert.deepEqual(statsRefresh.payload, [
+    structure.structureID,
+    structure.structureID,
+    ATTRIBUTE_UPGRADE_SLOTS_LEFT,
+    3,
+  ]);
+  const gaugeRefresh = session.notifications.find(
+    (notification) => notification.name === "OnModuleAttributeChanges",
+  );
+  assert.ok(gaugeRefresh, "Expected settled TakeControl to refresh fitting gauge attrs");
+  const gaugeChanges = gaugeRefresh.payload[0].items;
+  assert.deepEqual(
+    gaugeChanges.map((change) => change[3]).sort((left, right) => left - right),
+    [
+      ATTRIBUTE_POWER_OUTPUT,
+      ATTRIBUTE_POWER_LOAD,
+      ATTRIBUTE_CPU_OUTPUT,
+      ATTRIBUTE_CPU_LOAD,
+      ATTRIBUTE_UPGRADE_CAPACITY,
+      ATTRIBUTE_UPGRADE_LOAD,
+    ].sort((left, right) => left - right),
+  );
+  for (const change of gaugeChanges) {
+    assert.equal(change[1], session.characterID);
+    assert.equal(change[2], structure.structureID);
+    assert.equal(Number.isFinite(change[5]), true);
+  }
+  assert.equal(session._events[0].kind, "sessionChange");
+  assert.equal(session._events[1].kind, "notification");
+  assert.equal(session._events[1].name, "OnGodmaPrimeItem");
+  assert.equal(session._events.at(-1).name, "OnDogmaAttributeChanged");
   assert.equal(
     service.Handle_GetStructurePilot([structure.structureID], session),
     session.characterID,
   );
 });
 
-test("structureControl TakeControl overrides an existing controller and restores their previous ship", () => {
+test("structureControl TakeControl overrides an existing controller and restores their previous ship", async () => {
   const service = new StructureControlService();
   const structure = buildStructure();
   const previousController = buildSession({
@@ -165,16 +215,20 @@ test("structureControl TakeControl overrides an existing controller and restores
   sessionRegistry.register(previousController);
   sessionRegistry.register(session);
 
-  service.Handle_TakeControl([structure.structureID], session);
+  await service.Handle_TakeControl([structure.structureID], session);
 
   assert.equal(previousController.shipID, 990112610);
   assert.equal(previousController.shipid, 990112610);
+  assert.equal(previousController.activeShipID, 990112610);
+  assert.equal(previousController.activeShipId, 990112610);
   assert.deepEqual(previousController._sentChanges, [
     {
       shipid: [structure.structureID, 990112610],
     },
   ]);
   assert.equal(session.shipID, structure.structureID);
+  assert.equal(session.activeShipID, structure.structureID);
+  assert.equal(session.activeShipId, structure.structureID);
   assert.equal(
     service.Handle_GetStructurePilot([structure.structureID], session),
     session.characterID,
@@ -209,6 +263,8 @@ test("structureControl ReleaseControl restores the previously boarded ship", () 
   assert.equal(result, null);
   assert.equal(session.shipID, 990112614);
   assert.equal(session.shipid, 990112614);
+  assert.equal(session.activeShipID, 990112614);
+  assert.equal(session.activeShipId, 990112614);
   assert.equal(session._structureControlPreviousShipID, undefined);
   assert.deepEqual(session._sentChanges, [
     {
@@ -221,7 +277,7 @@ test("structureControl ReleaseControl restores the previously boarded ship", () 
   assert.equal(session._pendingCommandShipFittingReplay, null);
 });
 
-test("structureControl denies TakeControl when the pilot is not docked in the requested structure", () => {
+test("structureControl denies TakeControl when the pilot is not docked in the requested structure", async () => {
   const service = new StructureControlService();
   const structure = buildStructure();
   const session = buildSession({
@@ -231,8 +287,8 @@ test("structureControl denies TakeControl when the pilot is not docked in the re
 
   structureState.getStructureByID = () => structure;
 
-  assert.throws(
-    () => service.Handle_TakeControl([structure.structureID], session),
+  await assert.rejects(
+    service.Handle_TakeControl([structure.structureID], session),
     (error) => {
       const payload = error && error.machoErrorResponse && error.machoErrorResponse.payload;
       const header = payload && Array.isArray(payload.header) ? payload.header : [];

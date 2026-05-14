@@ -622,7 +622,7 @@ const ATTRIBUTE_ARMOR_HP = getAttributeIDByNames("armorHP") || 265;
 const ATTRIBUTE_STRUCTURE_HP = getAttributeIDByNames("hp", "structureHP") || 9;
 const ATTRIBUTE_UPGRADE_CAPACITY =
   getAttributeIDByNames("upgradeCapacity") || 1132;
-const ATTRIBUTE_UPGRADE_LOAD = getAttributeIDByNames("upgradeLoad") || 1154;
+const ATTRIBUTE_UPGRADE_LOAD = getAttributeIDByNames("upgradeLoad") || 1152;
 const ATTRIBUTE_TURRET_SLOTS_LEFT =
   getAttributeIDByNames("turretSlotsLeft") || 102;
 const ATTRIBUTE_LAUNCHER_SLOTS_LEFT =

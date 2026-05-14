@@ -106,10 +106,15 @@ const structureQuantumCore = require(path.join(
 const {
   getStructureParentLocationID,
   primeStructureDogmaItemForSession,
+  refreshStructureFittingGaugeAttributesForSession,
 } = require(path.join(__dirname, "../structure/structureDogmaPrime"));
 const structureCoreFreezeDiagnostics = require(path.join(
   __dirname,
   "../structure/structureCoreFreezeDiagnostics",
+));
+const structureControlState = require(path.join(
+  __dirname,
+  "../structure/structureControlState",
 ));
 const {
   GROUP_MOON_MATERIALS,
@@ -191,6 +196,7 @@ const STATION_CATEGORY_ID = 3;
 const STATION_OWNER_ID = DEFAULT_STATION.ownerID;
 const STRUCTURE_ID_FLOOR = 1000000000000;
 const LOGIN_CHARGE_REPLAY_FALLBACK_DELAY_MS = 900;
+const STRUCTURE_FITTING_INVENTORY_REFRESH_DELAYS_MS = Object.freeze([100, 750]);
 const INVENTORY_ROW_HEADER = {
   type: "list",
   items: [
@@ -428,6 +434,12 @@ class InvBrokerService extends BaseService {
   }
 
   _getShipId(session) {
+    if (structureControlState.isControllingStructureSession(session)) {
+      const structureID = structureControlState.getSessionStructureID(session);
+      if (structureID > 0) {
+        return structureID;
+      }
+    }
     const charId = this._getCharacterId(session);
     const activeShip = getActiveShipRecord(charId);
     return (
@@ -438,6 +450,19 @@ class InvBrokerService extends BaseService {
   }
 
   _getShipTypeId(session) {
+    if (structureControlState.isControllingStructureSession(session)) {
+      const structureID = structureControlState.getSessionStructureID(session);
+      const structure = structureID > 0
+        ? this._getStructureForInventoryID(structureID)
+        : null;
+      const structureTypeID = this._normalizeInventoryId(
+        structure && structure.typeID,
+        0,
+      );
+      if (structureTypeID > 0) {
+        return structureTypeID;
+      }
+    }
     const charId = this._getCharacterId(session);
     const activeShip = getActiveShipRecord(charId);
     const shipTypeID = activeShip ? activeShip.shipTypeID : (
@@ -1854,6 +1879,35 @@ class InvBrokerService extends BaseService {
       )
     ) {
       if (numericRequestedFlag !== null && isStructureServiceFlag(numericRequestedFlag)) {
+        const fittedItems = Array.isArray(fittedItemsOverride)
+          ? fittedItemsOverride
+          : structureServiceModules.listStructureServiceModules(
+            destinationStructure.structureID,
+            { includeOffline: true },
+          );
+        const requestedSlotValidation = structureServiceModules.validateServiceModuleFit({
+          structure: destinationStructure,
+          item,
+          targetFlagID: numericRequestedFlag,
+          fittedItems,
+        });
+        if (
+          !requestedSlotValidation.success &&
+          requestedSlotValidation.errorMsg === "SLOT_OCCUPIED" &&
+          numericRequestedFlag === STRUCTURE_SERVICE_SLOT_FLAGS[0]
+        ) {
+          const autoServiceFlag = this._selectAutoStructureServiceFlag(
+            destinationStructure,
+            item,
+            fittedItems,
+          );
+          if (autoServiceFlag) {
+            return {
+              locationID: structureID,
+              flagID: autoServiceFlag,
+            };
+          }
+        }
         return {
           locationID: structureID,
           flagID: numericRequestedFlag,
@@ -3014,6 +3068,76 @@ class InvBrokerService extends BaseService {
     return primeStructureDogmaItemForSession(session, structure, options);
   }
 
+  _getStructureFittingInventoryRefreshDelays(session) {
+    if (
+      session &&
+      Array.isArray(session._structureInventoryFittingRefreshDelaysMs)
+    ) {
+      return session._structureInventoryFittingRefreshDelaysMs
+        .map((delayMs) => Number(delayMs))
+        .filter((delayMs) => Number.isFinite(delayMs) && delayMs >= 0)
+        .map((delayMs) => Math.trunc(delayMs));
+    }
+    return STRUCTURE_FITTING_INVENTORY_REFRESH_DELAYS_MS;
+  }
+
+  _clearStructureFittingInventoryRefreshTimers(session) {
+    if (!session || !Array.isArray(session._structureInventoryFittingRefreshTimers)) {
+      return;
+    }
+    for (const timer of session._structureInventoryFittingRefreshTimers) {
+      clearTimeout(timer);
+    }
+    session._structureInventoryFittingRefreshTimers = [];
+  }
+
+  _scheduleStructureFittingInventoryRefresh(session, boundContext, reason) {
+    if (!session || !boundContext || boundContext.kind !== "structureInventory") {
+      return false;
+    }
+
+    const structureID = this._normalizeInventoryId(boundContext.inventoryID, 0);
+    if (
+      structureID <= 0 ||
+      !structureControlState.isControllingStructureSession(session, structureID)
+    ) {
+      return false;
+    }
+
+    const structure = structureState.getStructureByID(structureID, {
+      refresh: false,
+    });
+    if (!structure) {
+      return false;
+    }
+
+    this._clearStructureFittingInventoryRefreshTimers(session);
+    session._structureInventoryFittingRefreshTimers = [];
+
+    const sendRefresh = () => {
+      if (!structureControlState.isControllingStructureSession(session, structureID)) {
+        return;
+      }
+      refreshStructureFittingGaugeAttributesForSession(session, structure, {
+        reason,
+      });
+    };
+
+    for (const delayMs of this._getStructureFittingInventoryRefreshDelays(session)) {
+      if (delayMs <= 0) {
+        sendRefresh();
+        continue;
+      }
+      const timer = setTimeout(sendRefresh, delayMs);
+      if (typeof timer.unref === "function") {
+        timer.unref();
+      }
+      session._structureInventoryFittingRefreshTimers.push(timer);
+    }
+
+    return true;
+  }
+
   _repairStructureSelfInventoryCacheForSession(session, structureID, options = {}) {
     const numericStructureID = this._normalizeInventoryId(structureID, 0);
     if (
@@ -4145,6 +4269,11 @@ class InvBrokerService extends BaseService {
       boundContext,
       requestedFlag,
       itemsForContainer,
+    );
+    this._scheduleStructureFittingInventoryRefresh(
+      session,
+      boundContext,
+      `InvBroker.List:${requestedFlag === null ? "None" : requestedFlag}`,
     );
     return result;
   }

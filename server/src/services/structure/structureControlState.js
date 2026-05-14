@@ -89,6 +89,8 @@ function applySessionShipID(session, shipID) {
   const normalizedShipID = normalizePositiveInt(shipID, 0) || null;
   session.shipID = normalizedShipID;
   session.shipid = normalizedShipID;
+  session.activeShipID = normalizedShipID;
+  session.activeShipId = normalizedShipID;
 }
 
 function sendShipSessionChange(session, oldShipID, newShipID) {

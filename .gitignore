@@ -9,3 +9,4 @@ server/tidi_probe.log
 /server/src/logs
 /tools/DataSync/source_json
 /target
+/.vscode

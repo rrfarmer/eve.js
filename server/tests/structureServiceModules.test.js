@@ -47,11 +47,19 @@ const {
 ));
 const {
   STRUCTURE_FUEL_FLAG,
+  getAttributeIDByNames,
   isShipFittingFlag,
   isStructureServiceFlag,
 } = require(path.join(
   repoRoot,
   "server/src/services/fitting/liveFittingState",
+));
+const {
+  ATTRIBUTE_UPGRADE_SLOTS_LEFT,
+  primeStructureDogmaItemForSession,
+} = require(path.join(
+  repoRoot,
+  "server/src/services/structure/structureDogmaPrime",
 ));
 
 function cloneValue(value) {
@@ -137,6 +145,14 @@ function getDogmaInfoAttributes(entry) {
     : new Map();
 }
 
+function getPackedRowFields(rowset) {
+  return (rowset && rowset.type === "list" && Array.isArray(rowset.items)
+    ? rowset.items
+    : [])
+    .map((row) => row && row.fields)
+    .filter(Boolean);
+}
+
 function createAstrahus(characterID = 140000001, corporationID = 1000009) {
   structureState.clearStructureCaches();
   const createResult = structureState.createStructure({
@@ -179,6 +195,19 @@ function grantStructureItem(characterID, structureID, flagID, typeID, quantity =
 function getServiceState(structureID, serviceID) {
   const structure = structureState.getStructureByID(structureID, { refresh: false });
   return Number(structure && structure.serviceStates && structure.serviceStates[String(serviceID)]) || 0;
+}
+
+function getWrappedUserErrorDict(error) {
+  const dictHeader = error &&
+    error.machoErrorResponse &&
+    error.machoErrorResponse.payload &&
+    Array.isArray(error.machoErrorResponse.payload.header) &&
+    Array.isArray(error.machoErrorResponse.payload.header[1])
+      ? error.machoErrorResponse.payload.header[1][1]
+      : null;
+  return dictHeader && Array.isArray(dictHeader.entries)
+    ? Object.fromEntries(dictHeader.entries)
+    : {};
 }
 
 test("structure service slots are distinct from ship fitting flags", () => {
@@ -272,6 +301,7 @@ test("controlled-structure auto-fit places service modules into service slots", 
     session,
     { flag: 0 },
   );
+
   const fittedModule = findItemById(Number(movedModuleID) || marketModule.itemID);
   assert.equal(Number(fittedModule && fittedModule.ownerID), corporationID);
   assert.equal(Number(fittedModule && fittedModule.locationID), structureID);
@@ -281,6 +311,108 @@ test("controlled-structure auto-fit places service modules into service slots", 
       .some((item) => Number(item.itemID) === Number(fittedModule.itemID)),
     false,
     "Auto-fitted service module should leave the personal hangar",
+  );
+});
+
+test("controlled-structure fitting rejects duplicate concrete service modules", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const firstMarketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+  const secondMarketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const firstModuleID = invbroker.Handle_Add(
+    [firstMarketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  assert.ok(Number(firstModuleID) > 0, "Expected first market service module to fit");
+
+  const duplicateModuleID = invbroker.Handle_Add(
+    [secondMarketModule.itemID, structureID],
+    session,
+    { flag: 165 },
+  );
+  assert.equal(duplicateModuleID, null);
+
+  const duplicateModule = findItemById(secondMarketModule.itemID);
+  assert.equal(Number(duplicateModule && duplicateModule.flagID), ITEM_FLAGS.HANGAR);
+});
+
+test("service module online fuel failures report required and available quantities", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+  grantStructureItem(characterID, structureID, STRUCTURE_FUEL_FLAG, 4246, 500);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedModule = findItemById(Number(movedModuleID) || marketModule.itemID);
+  const dogma = new DogmaService();
+
+  let thrown = null;
+  try {
+    dogma.Handle_SetModuleOnline([structureID, fittedModule.itemID], session);
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert.ok(thrown, "Expected insufficient structure fuel to throw");
+  const wrappedDict = getWrappedUserErrorDict(thrown);
+  assert.match(String(wrappedDict.notify || ""), /Required: 2880; available: 500/);
+  const stillOfflineModule = findItemById(fittedModule.itemID);
+  assert.equal(Boolean(stillOfflineModule && stillOfflineModule.moduleState && stillOfflineModule.moduleState.online), false);
+});
+
+test("controlled-structure base service slot request uses next free service slot", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, corporationID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+  const cloneModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35894, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+
+  const fittedMarketID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedCloneID = invbroker.Handle_Add(
+    [cloneModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedMarket = findItemById(Number(fittedMarketID) || marketModule.itemID);
+  const fittedClone = findItemById(Number(fittedCloneID) || cloneModule.itemID);
+
+  assert.equal(Number(fittedMarket && fittedMarket.ownerID), corporationID);
+  assert.equal(Number(fittedMarket && fittedMarket.flagID), 164);
+  assert.equal(Number(fittedClone && fittedClone.ownerID), corporationID);
+  assert.equal(Number(fittedClone && fittedClone.flagID), 165);
+  assert.deepEqual(
+    structureServiceModules
+      .listStructureServiceModules(structureID)
+      .map((item) => Number(item.flagID)),
+    [164, 165],
   );
 });
 
@@ -320,6 +452,17 @@ test("controlled-structure GetAllInfo advertises slot attributes and fitted serv
   assert.equal(structureAttributes.get(13), 4, "Expected structure medium slots");
   assert.equal(structureAttributes.get(12), 3, "Expected structure low slots");
   assert.equal(structureAttributes.get(1137), 3, "Expected structure rig slots");
+  assert.equal(getAttributeIDByNames("upgradeLoad"), 1152);
+  for (const attributeID of [11, 15, 48, 49, 1132, 1152]) {
+    assert.equal(
+      typeof structureAttributes.get(attributeID),
+      "number",
+      `Expected numeric controlled-structure fitting resource attribute ${attributeID}`,
+    );
+  }
+  assert.equal(structureAttributes.get(15), 0, "Offline service module should not consume powergrid");
+  assert.equal(structureAttributes.get(49), 0, "Offline service module should not consume CPU");
+  assert.equal(structureAttributes.get(1152), 0, "Service module should not consume calibration");
 
   const moduleEntry = shipInfo.entries.find(
     ([itemID]) => Number(itemID) === Number(fittedModuleID),
@@ -342,6 +485,184 @@ test("controlled-structure GetAllInfo advertises slot attributes and fitted serv
     shipStateEntries.some(([itemID]) => Number(itemID) === Number(fittedModuleID)),
     "Expected structure service module status row in shipState",
   );
+});
+
+test("controlled-structure dogma resource loads include online service modules", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+  grantStructureItem(characterID, structureID, STRUCTURE_FUEL_FLAG, 4246, 3000);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedModuleID = Number(movedModuleID) || marketModule.itemID;
+
+  const dogma = new DogmaService();
+  dogma.Handle_SetModuleOnline([structureID, fittedModuleID], session);
+
+  assert.ok(
+    session.notifications.some(
+      (notification) => notification && notification.name === "OnGodmaPrimeItem",
+    ),
+    "Expected service module online changes to re-prime structure dogma",
+  );
+
+  const allInfo = dogma.Handle_GetAllInfo([false, true, true], session);
+  const shipInfo = getKeyValEntry(allInfo, "shipInfo");
+  const structureEntry = shipInfo.entries.find(
+    ([itemID]) => Number(itemID) === Number(structureID),
+  );
+  assert.ok(structureEntry, "Expected structure self row in shipInfo");
+
+  const structureAttributes = getDogmaInfoAttributes(structureEntry[1]);
+  assert.equal(structureAttributes.get(15), 100000, "Expected online market hub powergrid load");
+  assert.equal(structureAttributes.get(49), 1200, "Expected online market hub CPU load");
+  assert.equal(structureAttributes.get(1152), 0, "Expected upgradeLoad to use client dogma attribute 1152");
+});
+
+test("controlled-structure inventory list exposes fitted service modules for client dogma loading", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, corporationID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedModuleID = Number(movedModuleID) || marketModule.itemID;
+
+  session.notifications = [];
+  session._structureInventoryFittingRefreshDelaysMs = [0];
+  const listRows = getPackedRowFields(invbroker.Handle_List([], session, {}));
+  const moduleRow = listRows.find(
+    (row) => Number(row && row.itemID) === Number(fittedModuleID),
+  );
+
+  assert.ok(moduleRow, "Expected structure inventory List to include the fitted service module");
+  assert.equal(Number(moduleRow.ownerID), corporationID);
+  assert.equal(Number(moduleRow.locationID), structureID);
+  assert.equal(Number(moduleRow.flagID), 164);
+  assert.equal(Number(moduleRow.categoryID), 66);
+  assert.equal(Number(moduleRow.singleton), 1);
+  assert.ok(
+    session.notifications.some(
+      (notification) => notification && notification.name === "OnModuleAttributeChanges",
+    ),
+    "Expected structure inventory List to refresh fitting gauges after the fitting window opens",
+  );
+  assert.ok(
+    session.notifications.some(
+      (notification) => notification && notification.name === "OnDogmaAttributeChanged",
+    ),
+    "Expected structure inventory List to trigger fitting stats refresh",
+  );
+});
+
+test("controlled-structure dogma prime includes fitted service modules", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, corporationID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedModuleID = Number(movedModuleID) || marketModule.itemID;
+
+  session.notifications = [];
+  assert.equal(
+    primeStructureDogmaItemForSession(session, structure, { reason: "test" }),
+    true,
+  );
+
+  const primeNotifications = session.notifications.filter(
+    (notification) => notification && notification.name === "OnGodmaPrimeItem",
+  );
+  assert.equal(primeNotifications.length, 2);
+  const statsRefresh = session.notifications.find(
+    (notification) => notification && notification.name === "OnDogmaAttributeChanged",
+  );
+  assert.ok(statsRefresh, "Expected structure dogma prime to trigger fitting stats refresh");
+  assert.deepEqual(statsRefresh.payload, [
+    structureID,
+    structureID,
+    ATTRIBUTE_UPGRADE_SLOTS_LEFT,
+    3,
+  ]);
+  const modulePrime = primeNotifications.find((notification) => {
+    const fields = new Map(notification.payload[1].args.entries);
+    return Number(fields.get("itemID")) === Number(fittedModuleID);
+  });
+  assert.ok(modulePrime, "Expected fitted service module to be dogma-primed");
+  assert.equal(Number(modulePrime.payload[0]), Number(structureID));
+
+  const moduleFields = new Map(modulePrime.payload[1].args.entries);
+  const moduleInvItem = moduleFields.get("invItem");
+  const moduleLine = getKeyValEntry(moduleInvItem, "line");
+  assert.equal(Number(moduleLine && moduleLine[2]), corporationID);
+  assert.equal(Number(moduleLine && moduleLine[3]), structureID);
+  assert.equal(Number(moduleLine && moduleLine[4]), 164);
+  assert.equal(Number(moduleLine && moduleLine[7]), 66);
+
+  const moduleAttributes = getDogmaInfoAttributes(modulePrime.payload[1]);
+  assert.equal(moduleAttributes.get(30), 100000);
+  assert.equal(moduleAttributes.get(50), 1200);
+});
+
+test("controlled-structure ItemGetInfo resolves corp-owned fitted service modules", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, corporationID, structure, session } = createAstrahus();
+  const structureID = structure.structureID;
+  const marketModule = grantStructureItem(characterID, structureID, ITEM_FLAGS.HANGAR, 35892, 1);
+
+  const invbroker = new InvBrokerService();
+  bindStructureInventory(invbroker, session, structureID);
+  const movedModuleID = invbroker.Handle_Add(
+    [marketModule.itemID, structureID],
+    session,
+    { flag: 164 },
+  );
+  const fittedModuleID = Number(movedModuleID) || marketModule.itemID;
+
+  const dogma = new DogmaService();
+  const itemInfo = dogma.Handle_ItemGetInfo([fittedModuleID], session);
+  const itemInfoFields = new Map(itemInfo.args.entries);
+  const invItem = itemInfoFields.get("invItem");
+  const line = getKeyValEntry(invItem, "line");
+
+  assert.equal(Number(itemInfoFields.get("itemID")), Number(fittedModuleID));
+  assert.equal(Number(line && line[0]), Number(fittedModuleID));
+  assert.equal(Number(line && line[2]), corporationID);
+  assert.equal(Number(line && line[3]), structureID);
+  assert.equal(Number(line && line[4]), 164);
+  assert.equal(Number(line && line[7]), 66);
+  assert.equal(Number(line && line[10]), 1);
 });
 
 test("structure fuel bay rejects non-fuel items", (t) => {

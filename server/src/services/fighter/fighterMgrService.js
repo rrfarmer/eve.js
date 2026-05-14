@@ -9,6 +9,14 @@ const {
 const {
   getDockedLocationID,
 } = require(path.join(__dirname, "../structure/structureLocation"));
+const structureControlState = require(path.join(
+  __dirname,
+  "../structure/structureControlState",
+));
+const structureState = require(path.join(
+  __dirname,
+  "../structure/structureState",
+));
 const {
   ITEM_FLAGS,
   FIGHTER_TUBE_FLAGS,
@@ -56,6 +64,23 @@ class FighterMgrService extends BaseService {
   }
 
   _getActiveShip(session) {
+    if (structureControlState.isControllingStructureSession(session)) {
+      const structureID = structureControlState.getSessionStructureID(session);
+      const structure = structureID > 0
+        ? structureState.getStructureByID(structureID, { refresh: false })
+        : null;
+      if (structureID > 0) {
+        return {
+          itemID: structureID,
+          typeID: Number(structure && structure.typeID) || 0,
+          ownerID: Number(
+            structure && (structure.ownerCorpID || structure.ownerID),
+          ) || 0,
+          groupID: 0,
+          categoryID: 65,
+        };
+      }
+    }
     const characterID = this._getCharacterId(session);
     if (characterID <= 0) {
       return null;

@@ -227,6 +227,30 @@ function validateServiceModuleFit({
     return { success: false, errorMsg: "SLOT_OCCUPIED" };
   }
 
+  const requestedServiceSet = new Set(serviceIDs);
+  const duplicateServiceItem = currentFittedItems.find((fittedItem) => {
+    if (
+      !fittedItem ||
+      toInt(fittedItem.itemID, 0) === toInt(item.itemID, 0) ||
+      toInt(fittedItem.stacksize ?? 1, 1) <= 0
+    ) {
+      return false;
+    }
+    return getServiceIDsForModuleType(fittedItem.typeID).some((serviceID) =>
+      requestedServiceSet.has(serviceID),
+    );
+  });
+  if (duplicateServiceItem) {
+    return {
+      success: false,
+      errorMsg: "STRUCTURE_SERVICE_ALREADY_FITTED",
+      data: {
+        existingItemID: toInt(duplicateServiceItem.itemID, 0),
+        serviceIDs,
+      },
+    };
+  }
+
   const allowedServices = getAllowedServiceSet(structure);
   const disallowedServices = expandMetaServiceIDs(serviceIDs)
     .filter((serviceID) => !allowedServices.has(serviceID));
