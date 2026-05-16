@@ -1,0 +1,118 @@
+{
+  "name": "blue.so",
+  "description": "Exact-build patch metadata for the macOS EvEJS copied-client flow.",
+  "build": "3323810",
+  "releaseStage": "candidate",
+  "source": {
+    "filename": "blue.so",
+    "size": 19001296,
+    "sha256": "c99df29d89e547407fb31a29a2f722955562c006d10d13e26a0f389cda63ad92",
+    "slices": [
+      {
+        "arch": "x86_64",
+        "offset": 16384,
+        "size": 9914976,
+        "align": 16384,
+        "sha256": "b7ab786f80f4bb1fd3316fd5640394517a1cbdff4edaaec4c925bb40b896b50d"
+      },
+      {
+        "arch": "arm64",
+        "offset": 9945088,
+        "size": 9056208,
+        "align": 16384,
+        "sha256": "88e00719ca5f036582714b5bc6ddf0d60d995298ec888912be4ca119342fb96c"
+      }
+    ]
+  },
+  "target": {
+    "filename": "blue.so",
+    "size": 19001296,
+    "sha256": "38b672ed1c73481f34af495e1ce867e5c1a3e5d6bd1b76ddeab0d8fe252783d1",
+    "slices": [
+      {
+        "arch": "x86_64",
+        "offset": 16384,
+        "size": 9914976,
+        "align": 16384,
+        "sha256": "4087d576babff7b22ad0813d6e5c0a20c7aa80581728ee036bc39ed022d47566"
+      },
+      {
+        "arch": "arm64",
+        "offset": 9945088,
+        "size": 9056208,
+        "align": 16384,
+        "sha256": "69daee98a51d07ea11e5f9f31e22ffba9c348a492efba24998d19f5ca29c17db"
+      }
+    ]
+  },
+  "patchPayloadReady": true,
+  "patches": [
+    {
+      "arch": "x86_64",
+      "offset": 6867903,
+      "offsetHex": "0x0068CBBF",
+      "description": "VerifySignature bool normalization (setne (%rax) -> movb $1,(%rax))",
+      "beforeHex": "0f9500",
+      "afterHex": "c60001",
+      "allowMismatchedBefore": true
+    },
+    {
+      "arch": "arm64",
+      "offset": 5461176,
+      "offsetHex": "0x005354B8",
+      "description": "VerifySignature bool normalization (cset w8, ne -> mov w8, #1)",
+      "beforeHex": "e8079f1a",
+      "afterHex": "28008052",
+      "allowMismatchedBefore": true
+    },
+    {
+      "arch": "x86_64",
+      "offset": 6857552,
+      "offsetHex": "0x0068A350",
+      "description": "LoadKey key-length success branch (JE -> JMP) so 512-byte session key blobs continue to the EVP setup path",
+      "beforeHex": "7440",
+      "afterHex": "eb40"
+    },
+    {
+      "arch": "x86_64",
+      "offset": 6857616,
+      "offsetHex": "0x0068A390",
+      "description": "LoadKey key-length failure branch (JNE -> NOP NOP) so short-string keys also fall through to the success path",
+      "beforeHex": "75c0",
+      "afterHex": "9090"
+    },
+    {
+      "arch": "x86_64",
+      "offset": 6857634,
+      "offsetHex": "0x0068A3A2",
+      "description": "LoadKey IV-length success branch (JE -> JMP) so 512-byte session IV blobs continue to the EVP setup path",
+      "beforeHex": "7450",
+      "afterHex": "eb50"
+    },
+    {
+      "arch": "x86_64",
+      "offset": 6857714,
+      "offsetHex": "0x0068A3F2",
+      "description": "LoadKey IV-length failure branch (JNE -> NOP NOP) so short-string IVs also fall through to the success path",
+      "beforeHex": "75b0",
+      "afterHex": "9090"
+    },
+    {
+      "arch": "arm64",
+      "offset": 5451484,
+      "offsetHex": "0x00532EDC",
+      "description": "LoadKey key-length failure branch (b.ne -> nop) so long session key blobs continue to the EVP setup path",
+      "beforeHex": "a1050054",
+      "afterHex": "1f2003d5"
+    },
+    {
+      "arch": "arm64",
+      "offset": 5451516,
+      "offsetHex": "0x00532EFC",
+      "description": "LoadKey IV-length failure branch (b.ne -> nop) so long session IV blobs continue to the EVP setup path",
+      "beforeHex": "81060054",
+      "afterHex": "1f2003d5"
+    }
+  ],
+  "notes": "The staged runtime is the active Mac patch target. The current candidate keeps the earlier VerifySignature normalization for compatibility, but the auth-critical change is the LoadKey length-guard bypass that lets the stock Mac client carry 512-byte placebo session blobs into the EVP AES-256-CBC setup path with exact-build safety checks."
+}

@@ -1044,6 +1044,31 @@ const CONFIG_ENTRY_DEFINITIONS = [
     validValues: "Integer matching your client build.",
   },
   {
+    key: "clientHandshakeMode",
+    defaultValue: "patched",
+    allowedValues: ["patched", "stock"],
+    envVar: "EVEJS_CLIENT_HANDSHAKE_MODE",
+    envType: "string",
+    description: [
+      "Controls what the server sends in the login handshake signedFunc field.",
+      'Use "patched" for the upstream Placebo-patched client flow that can execute the injected TiDi/portrait Python path.',
+      'Use "stock" for untouched native clients that should skip handshake-time Python injection.',
+    ],
+    validValues: '"patched" or "stock".',
+  },
+  {
+    key: "handshakeCaptureMode",
+    defaultValue: "off",
+    allowedValues: ["off", "failures", "wait_auth"],
+    envVar: "EVEJS_HANDSHAKE_CAPTURE_MODE",
+    envType: "string",
+    description: [
+      "Controls how much raw login-handshake evidence is written under server/handshake-captures.",
+      'Use "failures" for decrypt failures only, or "wait_auth" to also capture successfully decoded WAIT_AUTH packets for client-diffing work.',
+    ],
+    validValues: '"off", "failures", or "wait_auth".',
+  },
+  {
     key: "projectCodename",
     defaultValue: "EvEJS",
     defaultComment: "client compatibility codename",
@@ -1387,13 +1412,13 @@ const CONFIG_ENTRY_DEFINITIONS = [
   },
   {
     key: "proxyAllowedHosts",
-    defaultValue: "",
+    defaultValue: "clientresources.eveonline.com",
     envVar: "EVEJS_PROXY_ALLOWED_HOSTS",
     envType: "string",
     description:
       "Comma-separated extra hostnames or suffix patterns the local HTTP proxy may forward off-box when they are not handled by the built-in EveJS gateway intercepts.",
     validValues:
-      'Comma-separated host patterns, for example "images.example.com,.examplecdn.net", or blank to allow only EveJS-handled endpoints.',
+      'Comma-separated host patterns, for example "clientresources.eveonline.com,images.example.com,.examplecdn.net", or blank to allow only EveJS-handled endpoints.',
   },
   {
     key: "proxyUnhandledHostPolicy",

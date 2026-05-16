@@ -330,6 +330,7 @@ function buildQueueCacheKey(characterRecord) {
     getGlobalTrainingSpeedMultiplier(),
     characterRecord && characterRecord.freeSkillPoints,
     characterRecord && characterRecord.characterAttributes,
+    characterRecord && characterRecord.implants,
   ]);
 }
 

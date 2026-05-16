@@ -372,7 +372,14 @@ function getTypeDogmaEffects(typeID) {
   const effects = Array.isArray(record && record.effects) ? record.effects : [];
   return new Set(
     effects
-      .map((effectID) => toInt(effectID, 0))
+      .map((effect) =>
+        toInt(
+          effect && typeof effect === "object"
+            ? effect.effectID
+            : effect,
+          0,
+        ),
+      )
       .filter((effectID) => effectID > 0),
   );
 }
