@@ -283,31 +283,65 @@ function pipeHttpRequest(req, res, targetUrl) {
   req.pipe(upstreamReq);
 }
 
-function blockHttpProxyRequest(req, res, targetUrl) {
-  log.proxy(`block ${req.method} ${targetUrl.href} -> local deny`);
+function blockHttpProxyRequest(req, res, targetUrl, reason = "local policy") {
+  log.proxy(`EXPECTED-BLOCKED ${req.method} ${targetUrl.href} -> ${reason}`);
   res.statusCode = 204;
   res.setHeader("x-evejs-proxy-blocked", "true");
+  res.setHeader("x-evejs-proxy-block-reason", reason);
   res.end();
 }
 
 function loadLocalTlsOptions() {
   const certDir = path.join(__dirname, "./certs");
-  const gatewayLeafCertPath = path.join(certDir, "gateway-dev-cert.pem");
-  const gatewayLeafKeyPath = path.join(certDir, "gateway-dev-key.pem");
+  const runtimeGatewayCertDir =
+    process.env.EVEJS_GATEWAY_CERT_DIR ||
+    path.resolve(__dirname, "../../../var/certs/gateway");
+  const envGatewayCertPath = process.env.EVEJS_GATEWAY_CERT_PATH || "";
+  const envGatewayKeyPath = process.env.EVEJS_GATEWAY_KEY_PATH || "";
+  const gatewayLeafCandidates = [
+    {
+      certPath: path.join(runtimeGatewayCertDir, "gateway-dev-cert.pem"),
+      keyPath: path.join(runtimeGatewayCertDir, "gateway-dev-key.pem"),
+    },
+    {
+      certPath: path.join(certDir, "gateway-dev-cert.pem"),
+      keyPath: path.join(certDir, "gateway-dev-key.pem"),
+    },
+  ];
   const pfxPath = path.join(certDir, "gateway-dev.pfx");
   const passphrasePath = path.join(certDir, "gateway-dev-passphrase.txt");
   const certPath = path.join(certDir, "gateway-dev-cert.pem");
 
-  if (fs.existsSync(gatewayLeafCertPath) && fs.existsSync(gatewayLeafKeyPath)) {
-    return {
-      tlsOptions: {
-        key: fs.readFileSync(gatewayLeafKeyPath),
-        cert: fs.readFileSync(gatewayLeafCertPath),
-        allowHTTP1: true,
-        ALPNProtocols: ["h2", "http/1.1"],
-      },
-      certPem: fs.readFileSync(gatewayLeafCertPath),
-    };
+  if (envGatewayCertPath || envGatewayKeyPath) {
+    if (!envGatewayCertPath || !envGatewayKeyPath) {
+      throw new Error(
+        "EVEJS_GATEWAY_CERT_PATH and EVEJS_GATEWAY_KEY_PATH must be set together",
+      );
+    }
+    gatewayLeafCandidates.unshift({
+      certPath: envGatewayCertPath,
+      keyPath: envGatewayKeyPath,
+    });
+  }
+
+  for (const {
+    certPath: gatewayLeafCertPath,
+    keyPath: gatewayLeafKeyPath,
+  } of gatewayLeafCandidates) {
+    if (
+      fs.existsSync(gatewayLeafCertPath) &&
+      fs.existsSync(gatewayLeafKeyPath)
+    ) {
+      return {
+        tlsOptions: {
+          key: fs.readFileSync(gatewayLeafKeyPath),
+          cert: fs.readFileSync(gatewayLeafCertPath),
+          allowHTTP1: true,
+          ALPNProtocols: ["h2", "http/1.1"],
+        },
+        certPem: fs.readFileSync(gatewayLeafCertPath),
+      };
+    }
   }
 
   if (fs.existsSync(pfxPath)) {
@@ -547,6 +581,7 @@ const SOCKET_KEEPALIVE_INITIAL_DELAY_MS = parseNonNegativeIntegerEnv(
 );
 const LOCAL_INTERCEPT_HOSTS = new Set([
   "dev-public-gateway.evetech.net",
+  "live-public-gateway.evetech.net",
   "public-gateway.evetech.net",
 ]);
 const BLOCKED_PROXY_HOSTS = parseHostPatternList(config.proxyBlockedHosts);
@@ -573,6 +608,16 @@ function shouldForwardInterceptToUpstream() {
     PROXY_GATEWAY_MODE === "forward" &&
     Boolean(PROXY_FORWARD_UPSTREAM_URL)
   );
+}
+
+function getGatewayModeLabel() {
+  if (shouldForwardInterceptToUpstream()) {
+    return "forward";
+  }
+  if (shouldHandleInterceptLocally()) {
+    return "local";
+  }
+  return "transparent";
 }
 
 function getGatewayUpstreamTarget(defaultPort) {
@@ -613,7 +658,7 @@ function startServer() {
     }
 
     if (targetUrl && shouldBlockHost(targetUrl.hostname)) {
-      blockHttpProxyRequest(req, res, targetUrl);
+      blockHttpProxyRequest(req, res, targetUrl, "telemetry/local policy");
       return;
     }
 
@@ -641,7 +686,7 @@ function startServer() {
         allowedHosts: ALLOWED_PROXY_HOSTS,
         policy: PROXY_UNHANDLED_HOST_POLICY,
       })) {
-        blockHttpProxyRequest(req, res, targetUrl);
+        blockHttpProxyRequest(req, res, targetUrl, "unhandled host policy");
         return;
       }
       pipeHttpRequest(req, res, targetUrl);
@@ -658,11 +703,7 @@ function startServer() {
     res.status(200).json({
       status: "ok",
       service: "express-secondary",
-      gatewayMode: shouldForwardInterceptToUpstream()
-        ? "forward"
-        : shouldHandleInterceptLocally()
-          ? "local"
-          : "transparent",
+      gatewayMode: getGatewayModeLabel(),
       upstreamBaseUrl: PROXY_FORWARD_UPSTREAM_URL
         ? PROXY_FORWARD_UPSTREAM_URL.toString()
         : null,
@@ -703,11 +744,12 @@ function startServer() {
     }
 
     if (shouldBlockHost(host)) {
-      log.proxy(`CONNECT ${targetRaw} -> BLOCKED local policy`);
+      log.proxy(`CONNECT ${targetRaw} -> EXPECTED-BLOCKED telemetry/local policy`);
       clientSocket.write(
         "HTTP/1.1 403 Forbidden\r\n" +
         "Proxy-Agent: EveJS Elysian\r\n" +
         "X-EveJS-Proxy-Blocked: true\r\n" +
+        "X-EveJS-Proxy-Block-Reason: telemetry/local policy\r\n" +
         "\r\n",
       );
       clientSocket.destroy();
@@ -720,11 +762,12 @@ function startServer() {
       allowedHosts: ALLOWED_PROXY_HOSTS,
       policy: PROXY_UNHANDLED_HOST_POLICY,
     })) {
-      log.proxy(`CONNECT ${targetRaw} -> BLOCKED unhandled host policy`);
+      log.proxy(`CONNECT ${targetRaw} -> EXPECTED-BLOCKED unhandled host policy`);
       clientSocket.write(
         "HTTP/1.1 403 Forbidden\r\n" +
         "Proxy-Agent: EveJS Elysian\r\n" +
         "X-EveJS-Proxy-Blocked: true\r\n" +
+        "X-EveJS-Proxy-Block-Reason: unhandled host policy\r\n" +
         "\r\n",
       );
       clientSocket.destroy();
@@ -785,14 +828,12 @@ function startServer() {
 
   proxyServer.listen(httpPort, bindHost);
 
-  log.debug(
-    `express proxy mode: ${
-      shouldForwardInterceptToUpstream()
-        ? "forward intercept enabled"
-        : shouldHandleInterceptLocally()
-          ? "local intercept enabled"
-          : "transparent forward"
-    }`,
+  log.info(
+    `[ExpressProxy] mode=${getGatewayModeLabel()} ` +
+      `http=${bindHost}:${httpPort} ` +
+      `gatewayHttps=${shouldHandleInterceptLocally() ? `${bindHost}:${httpsPort}` : "disabled"} ` +
+      `allowedHosts=${ALLOWED_PROXY_HOSTS.join(",") || "none"} ` +
+      `unhandledPolicy=${PROXY_UNHANDLED_HOST_POLICY}`,
   );
 }
 
@@ -808,6 +849,7 @@ module.exports = {
 module.exports.__testHooks = {
   hostMatchesPattern,
   hostMatchesAnyPattern,
+  localInterceptHosts: Array.from(LOCAL_INTERCEPT_HOSTS),
   parseHostPatternList,
   shouldAllowListedHost,
   shouldBlockHost,

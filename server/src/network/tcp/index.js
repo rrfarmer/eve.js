@@ -4,6 +4,7 @@
 
 const path = require("path");
 const net = require("net");
+const zlib = require("zlib");
 const pc = require("picocolors");
 
 const log = require(path.join(__dirname, "../../utils/logger"));
@@ -56,6 +57,18 @@ const dungeonUniverseSiteService = require(path.join(
   __dirname,
   "../../services/dungeon/dungeonUniverseSiteService",
 ));
+
+const UNCOMPRESSED_MARSHAL_HEADERS = new Set([0x7d, 0x7e]);
+
+function maybeInflateMachoPayload(data) {
+  if (!Buffer.isBuffer(data) || data.length === 0) {
+    return data;
+  }
+  if (UNCOMPRESSED_MARSHAL_HEADERS.has(data[0])) {
+    return data;
+  }
+  return zlib.inflateSync(data);
+}
 
 /**
  * start the tcp server.
@@ -255,11 +268,7 @@ module.exports = function (serviceManager) {
                 data = clientSession.decryptPacket(payload);
               }
 
-              // Check for zlib compression
-              if (data[0] === 0x78) {
-                const zlib = require("zlib");
-                data = zlib.inflateSync(data);
-              }
+              data = maybeInflateMachoPayload(data);
 
               // Unmarshal the packet
               const decoded = marshalDecode(data);

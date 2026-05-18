@@ -31,6 +31,7 @@ const {
 ));
 const {
   getFittedModuleItems,
+  getRequiredSlotFamily,
 } = require(path.join(
   repoRoot,
   "server/src/services/fitting/liveFittingState",
@@ -243,6 +244,65 @@ test("FitFitting returns an empty failed list and refits saved modules onto the 
     assert.equal(Number(currentItem.locationID), Number(ship.itemID));
     assert.equal(Number(currentItem.flagID), Number(module.flagID));
   }
+});
+
+test("MultiAdd flag zero auto-fits a station hangar module into the active ship", (t) => {
+  const snapshot = snapshotMutableTables();
+  t.after(() => restoreMutableTables(snapshot));
+  resetInventoryStoreForTests();
+
+  const { characterID, stationID } = createCharacter(970104, "Auto Fitbutton Test");
+  const ship = getActiveShipRecord(characterID);
+  assert.ok(ship, "Expected active rookie ship");
+
+  const starterModule = getStarterModules(characterID, ship.itemID)[0];
+  assert.ok(
+    getRequiredSlotFamily(starterModule.typeID),
+    "Expected starter module dogma effects to resolve a fitting slot family",
+  );
+
+  const moveToHangarResult = moveItemToLocation(
+    starterModule.itemID,
+    stationID,
+    ITEM_FLAGS.HANGAR,
+  );
+  assert.equal(moveToHangarResult.success, true, "Expected module to move to station hangar");
+
+  const service = new InvBrokerService();
+  const session = buildDockedSession(characterID, stationID, ship.itemID);
+  const applyResult = applyCharacterToSession(session, characterID, {
+    emitNotifications: false,
+    logSelection: false,
+  });
+  assert.equal(applyResult.success, true, "Expected docked session apply");
+  bindShipInventory(service, session, ship.itemID);
+
+  const result = service.Handle_MultiAdd(
+    [
+      {
+        type: "list",
+        items: [starterModule.itemID],
+      },
+      stationID,
+    ],
+    session,
+    {
+      type: "dict",
+      entries: [["flag", 0]],
+    },
+  );
+
+  assert.equal(result, true, "Expected client flag=0 MultiAdd to fit the module");
+
+  const currentItem = findItemById(starterModule.itemID);
+  assert.ok(currentItem, "Expected fitted module item");
+  assert.equal(Number(currentItem.locationID), Number(ship.itemID));
+  assert.ok(
+    getFittedModuleItems(characterID, ship.itemID).some(
+      (item) => Number(item.itemID) === Number(starterModule.itemID),
+    ),
+    "Expected module to be listed as fitted after MultiAdd",
+  );
 });
 
 test("FitFitting accepts the client defaultdict(set) item map used by saved fits", (t) => {

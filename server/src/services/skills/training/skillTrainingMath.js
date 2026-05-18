@@ -12,6 +12,9 @@ const {
 const {
   getTypeAttributeValue,
 } = require(path.join(__dirname, "../../fitting/liveFittingState"));
+const {
+  applyImplantAttributeModifiers,
+} = require(path.join(__dirname, "../../dogma/implantRuntime"));
 
 const ATTRIBUTE_CHARISMA = 164;
 const ATTRIBUTE_INTELLIGENCE = 165;
@@ -87,7 +90,7 @@ function normalizeCharacterAttributes(characterRecord = {}) {
       ? characterRecord.characterAttributes || {}
       : {};
 
-  return {
+  return applyImplantAttributeModifiers({
     [ATTRIBUTE_CHARISMA]: toFiniteNumber(
       source[ATTRIBUTE_CHARISMA] ?? source.charisma,
       20,
@@ -105,7 +108,7 @@ function normalizeCharacterAttributes(characterRecord = {}) {
       source[ATTRIBUTE_WILLPOWER] ?? source.willpower,
       20,
     ),
-  };
+  }, characterRecord.implants);
 }
 
 function resolveCloneGrade(characterID, accountID = 0) {

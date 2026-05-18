@@ -61,6 +61,10 @@ const {
   injectSkillbookItems,
 } = require(path.join(__dirname, "../skills/skillbooks/skillbookRuntime"));
 const {
+  applyImplantAttributeModifiers,
+  injectImplantItems,
+} = require(path.join(__dirname, "./implantRuntime"));
+const {
   getLocationModifierSourcesForSystem,
   buildSystemWideEffectsPayloadForSystem,
 } = require(path.join(
@@ -1301,7 +1305,7 @@ class DogmaService extends BaseService {
       },
     );
     const industryAttributes = resolveCharacterIndustryAttributes(charID);
-    return {
+    const attributes = {
       [ATTRIBUTE_CHARISMA]: Number(source[ATTRIBUTE_CHARISMA] ?? source.charisma ?? 20),
       [ATTRIBUTE_INTELLIGENCE]: Number(
         source[ATTRIBUTE_INTELLIGENCE] ?? source.intelligence ?? 20,
@@ -1354,6 +1358,7 @@ class DogmaService extends BaseService {
         ? securityStatus
         : 0,
     };
+    return applyImplantAttributeModifiers(attributes, charData.implants);
   }
   _buildCharacterBaseAttributes(charData = {}) {
     const typeID = Number(charData.typeID || CHARACTER_TYPE_ID) || CHARACTER_TYPE_ID;
@@ -1528,7 +1533,7 @@ class DogmaService extends BaseService {
       ? securityStatus
       : 0;
 
-    return attributes;
+    return applyImplantAttributeModifiers(attributes, charData.implants);
   }
   _buildShipModifiedCharacterAttributeDict(
     charData = {},
@@ -6438,6 +6443,14 @@ class DogmaService extends BaseService {
     if (getShipInfo && shipInfoEntry) {
       this._cacheDockedItemInfoEntry(session, shipID, shipMetadata, shipInfoEntry);
     }
+    const dockedPilotInfoEntries =
+      getShipInfo && isDockedSession(session)
+        ? this._buildCharacterInfoEntries(
+            charID,
+            charData,
+            characterLocationID,
+          )
+        : [];
     const shipInventoryInfoEntries = getShipInfo
       ? shipContext.controllingStructure
         ? []
@@ -6506,7 +6519,11 @@ class DogmaService extends BaseService {
             getShipInfo
               ? {
                   type: "dict",
-                  entries: [[shipID, shipInfoEntry], ...shipInventoryInfoEntries],
+                  entries: [
+                    [shipID, shipInfoEntry],
+                    ...dockedPilotInfoEntries,
+                    ...shipInventoryInfoEntries,
+                  ],
                 }
               : this._buildEmptyDict(),
           ],
@@ -6858,6 +6875,11 @@ class DogmaService extends BaseService {
     log.debug("[DogmaIM] InjectSkillIntoBrain");
     const rawItemIDs = args && args.length === 1 ? args[0] : args;
     return injectSkillbookItems(this._getCharID(session), rawItemIDs, session);
+  }
+  Handle_InjectImplant(args, session) {
+    log.debug("[DogmaIM] InjectImplant");
+    const rawItemIDs = args && args.length === 1 ? args[0] : args;
+    return injectImplantItems(this._getCharID(session), rawItemIDs, session);
   }
   Handle_MachoResolveObject(args, session, kwargs) {
     log.debug("[DogmaIM] MachoResolveObject called");

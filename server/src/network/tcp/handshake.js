@@ -1,8 +1,9 @@
 /**
  * HANDSHAKE CONTROLLER
  * (made with AI, revised by Icey)
- * 
- * only supports PLACEBO packets
+ *
+ * supports the upstream Placebo-patched client path and a stock-client mode
+ * that disables handshake-time Python injection for native Mac research.
  *
  * implements the 6 step login handshake modeled after EVEmu EVEClientSession.
  * (most of it is the same! surprising for 10 years of updates towards the game)
@@ -17,6 +18,7 @@
  * 
  */
 
+const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const rotatingLog = require(path.join(__dirname, "../../utils/rotatingLog"));
@@ -59,6 +61,11 @@ const {
 const MARSHALED_NONE = Buffer.from([
   0x74, 0x04, 0x00, 0x00, 0x00, 0x4e, 0x6f, 0x6e, 0x65,
 ]);
+const CLIENT_HANDSHAKE_MODE_PATCHED = "patched";
+const CLIENT_HANDSHAKE_MODE_STOCK = "stock";
+const HANDSHAKE_CAPTURE_MODE_OFF = "off";
+const HANDSHAKE_CAPTURE_MODE_FAILURES = "failures";
+const HANDSHAKE_CAPTURE_MODE_WAIT_AUTH = "wait_auth";
 
 //testing: marshaled Python expression for client signedFunc during handshake.
 //testing: GPS.py __Execute() captures stdout into outputBuffer → sent back in CryptoHandshakeResult.
@@ -161,6 +168,22 @@ function buildTidiSignedFunc(clientId) {
   const pyCode = buildTidiSignedFuncSource(clientId);
   const expr = 'eval(compile("' + pyCode + '", "<tidi>", "exec"))';
   return buildMarshaledString(expr);
+}
+
+function buildClientSignedFuncTuple(
+  clientId,
+  mode = config.clientHandshakeMode,
+) {
+  const resolvedMode =
+    mode === CLIENT_HANDSHAKE_MODE_STOCK
+      ? CLIENT_HANDSHAKE_MODE_STOCK
+      : CLIENT_HANDSHAKE_MODE_PATCHED;
+
+  if (resolvedMode === CLIENT_HANDSHAKE_MODE_STOCK) {
+    return [MARSHALED_NONE, false];
+  }
+
+  return [buildTidiSignedFunc(clientId), false];
 }
 
 const DEV_ACCOUNT_ROLE = roleToString(MAX_ACCOUNT_ROLE);
@@ -292,10 +315,20 @@ class EVEHandshake {
     this.sessionId = null;
 
     // encryption variables
-    // WARNING: this was made in attempt for CryptoAPI support... failed horribly :)
-    // only kept because removing them would mean rewriting ~100 lines
+    // Stock native clients may send wrapped key material that cannot be reduced
+    // to the Placebo AES key/IV directly. Keep both the active transport key
+    // and the raw blobs so local captures can be replayed offline.
     this.sessionKey = null; // raw AES session key (Buffer)
     this.sessionIV = null; // raw AES session IV (Buffer)
+    this.sessionKeyRaw = null;
+    this.sessionIVRaw = null;
+    this.vipKey = null;
+    this.cryptoKeyVersion = "";
+    this.clientVersion = null;
+    this.clientBuild = null;
+    this.clientProjectVersion = "";
+    this.accessToken = null;
+    this.computerHash = null;
     this.encrypted = false; // is connection encrypted?
   }
 
@@ -355,6 +388,7 @@ class EVEHandshake {
         //   `[HANDSHAKE] Decrypted ${payload.length} bytes → ${decodable.length} bytes`,
         // );
       } catch (err) {
+        this._dumpDecryptFailureCapture(payload, err);
         log.err(`[HANDSHAKE] Decryption failed: ${err.message}`);
         // commented for flood prevention
         // log.debug(
@@ -401,7 +435,7 @@ class EVEHandshake {
       case State.WAIT_CRYPTO:
         return this._handleCrypto(decoded, payload);
       case State.WAIT_AUTH:
-        return this._handleAuthentication(decoded);
+        return this._handleAuthentication(decoded, payload);
       case State.WAIT_FUNC_RESULT:
         return this._handleFuncResult(decoded);
       default:
@@ -433,6 +467,9 @@ class EVEHandshake {
 
     // grab values from decoded
     const [birthday, machoVer, , versionNum, buildVer, projectVer] = decoded;
+    this.clientVersion = versionNum;
+    this.clientBuild = buildVer;
+    this.clientProjectVersion = strVal(projectVer);
 
     log.debug(
       `[HANDSHAKE] Client version: birthday=${birthday} macho=${machoVer} ver=${versionNum} build=${buildVer} proj=${strVal(projectVer)}`,
@@ -486,6 +523,7 @@ class EVEHandshake {
       // VK command: (None, "VK", vipKey)
       const cmdType = strVal(decoded[1]);
       const vipKeyBuf = bufVal(decoded[2]);
+      this.vipKey = vipKeyBuf ? Buffer.from(vipKeyBuf) : null;
 
       // commented for flood prevention
       // log.debug(
@@ -524,6 +562,7 @@ class EVEHandshake {
     }
 
     const keyVersion = strVal(decoded[0]);
+    this.cryptoKeyVersion = keyVersion;
     const keyParams = decoded[1]; // dict
 
     log.debug(`[HANDSHAKE] Crypto request: keyVersion="${keyVersion}"`);
@@ -535,6 +574,7 @@ class EVEHandshake {
 
       if (sessionKeyVal) {
         this.sessionKey = bufVal(sessionKeyVal);
+        this.sessionKeyRaw = this.sessionKey ? Buffer.from(this.sessionKey) : null;
         log.debug(
           `[HANDSHAKE] Session key: ${this.sessionKey ? this.sessionKey.length + " bytes" : "null"}`,
         );
@@ -547,6 +587,7 @@ class EVEHandshake {
 
       if (sessionIVVal) {
         this.sessionIV = bufVal(sessionIVVal);
+        this.sessionIVRaw = this.sessionIV ? Buffer.from(this.sessionIV) : null;
         log.debug(
           `[HANDSHAKE] Session IV: ${this.sessionIV ? this.sessionIV.length + " bytes" : "null"}`,
         );
@@ -612,7 +653,7 @@ class EVEHandshake {
    * client sends CryptoChallengePacket (Login)
    * server responds with PyInt(2) + CryptoServerHandshake back to back
    */
-  _handleAuthentication(decoded) {
+  _handleAuthentication(decoded, rawPayload) {
     if (!Array.isArray(decoded) || decoded.length < 2) {
       log.err(`[HANDSHAKE] Invalid CryptoChallengePacket: expected tuple of 2`);
       return { done: false };
@@ -626,6 +667,11 @@ class EVEHandshake {
     const userLanguageId = strVal(
       dictGet(loginData, "user_languageid") || "EN",
     ); // returns a json object TODO: decode json and get language id
+    const userSsoToken = dictGet(loginData, "user_sso_token");
+    this._captureDecodedHandshakePacket("wait_auth", decoded, rawPayload, {
+      authUserName: userName || null,
+      authUserLanguageId: userLanguageId || null,
+    });
 
     /**
      * the client sends a hashed password, so instead of checking the password
@@ -734,6 +780,11 @@ class EVEHandshake {
     this.accountRole = account.role;
     this.role = account.chatRole || account.role;
     this.languageId = userLanguageId;
+    this.accessToken =
+      userSsoToken === undefined || userSsoToken === null
+        ? "evejs-local-access-token"
+        : strVal(userSsoToken);
+    this.computerHash = null;
     this.countryCode = normalizeCountryCode(
       account.countryCode,
       config.defaultCountryCode,
@@ -749,7 +800,7 @@ class EVEHandshake {
       //testing: prev: [MARSHALED_NONE, false] — client eval("None") — no-op
       //testing: after: calls EnableSimDilation(0) + RegisterClientIDForSimTimeUpdates(clientId)
       //testing: to revert: change buildTidiSignedFunc(...) to MARSHALED_NONE
-      [buildTidiSignedFunc(this.clientId), false], // func tuple: [marshaled_code, verification]
+      buildClientSignedFuncTuple(this.clientId), // func tuple: [marshaled_code, verification]
       { type: "dict", entries: [] }, // context
       {
         type: "dict",
@@ -777,7 +828,9 @@ class EVEHandshake {
     //   `[HANDSHAKE] CryptoServerHandshake hex (${handshakePacket.length} bytes): ${handshakePacket.toString("hex")}`,
     // );
     this._sendPacket(handshakePacket);
-    log.debug(`[HANDSHAKE] Sent CryptoServerHandshake for user "${userName}"`);
+    log.debug(
+      `[HANDSHAKE] Sent CryptoServerHandshake for user "${userName}" (clientHandshakeMode=${config.clientHandshakeMode})`,
+    );
 
     // update state
     this.state = State.WAIT_FUNC_RESULT;
@@ -849,6 +902,8 @@ class EVEHandshake {
         ["sessionID", { type: "long", value: this.sessionId }],
         ["client_hash", null],
         ["user_clientid", { type: "long", value: BigInt(this.clientId) }],
+        ["access_token", this.accessToken || "evejs-local-access-token"],
+        ["computer_hash", this.computerHash],
       ],
     };
 
@@ -862,6 +917,129 @@ class EVEHandshake {
     );
 
     return { done: true };
+  }
+
+  // ─── Local handshake capture helpers ────────────────────────────────────
+
+  _bufferHex(buffer) {
+    return Buffer.isBuffer(buffer) ? buffer.toString("hex") : null;
+  }
+
+  _bufferLength(buffer) {
+    return Buffer.isBuffer(buffer) ? buffer.length : 0;
+  }
+
+  _sha256Hex(buffer) {
+    return Buffer.isBuffer(buffer)
+      ? crypto.createHash("sha256").update(buffer).digest("hex")
+      : null;
+  }
+
+  _shouldCaptureHandshake(captureKind) {
+    const mode = String(config.handshakeCaptureMode || HANDSHAKE_CAPTURE_MODE_FAILURES)
+      .trim()
+      .toLowerCase();
+
+    if (mode === HANDSHAKE_CAPTURE_MODE_OFF) {
+      return false;
+    }
+    if (mode === HANDSHAKE_CAPTURE_MODE_WAIT_AUTH) {
+      return captureKind === "decrypt_failure" || captureKind === "wait_auth";
+    }
+    return captureKind === "decrypt_failure";
+  }
+
+  _listDictKeys(dictObj, limit = 32) {
+    if (!dictObj || dictObj.type !== "dict" || !Array.isArray(dictObj.entries)) {
+      return [];
+    }
+    return dictObj.entries
+      .slice(0, limit)
+      .map(([key]) => String(strVal(key) || ""));
+  }
+
+  _buildHandshakeCapture(captureKind, payload, extra = {}) {
+    return {
+      captureKind,
+      capturedAt: new Date().toISOString(),
+      address: this.address,
+      state: this.state,
+      keyVersion: this.cryptoKeyVersion,
+      clientVersion: this.clientVersion,
+      clientBuild: this.clientBuild,
+      clientProjectVersion: this.clientProjectVersion,
+      sessionKeyLength: this._bufferLength(this.sessionKey),
+      sessionIVLength: this._bufferLength(this.sessionIV),
+      sessionKeyRawLength: this._bufferLength(this.sessionKeyRaw),
+      sessionIVRawLength: this._bufferLength(this.sessionIVRaw),
+      vipKeyLength: this._bufferLength(this.vipKey),
+      sessionKeyHex: this._bufferHex(this.sessionKey),
+      sessionIVHex: this._bufferHex(this.sessionIV),
+      sessionKeyRawHex: this._bufferHex(this.sessionKeyRaw),
+      sessionIVRawHex: this._bufferHex(this.sessionIVRaw),
+      vipKeyHex: this._bufferHex(this.vipKey),
+      payloadLength: this._bufferLength(payload),
+      payloadSha256: this._sha256Hex(payload),
+      payloadHex: this._bufferHex(payload),
+      encrypted: this.encrypted,
+      ...extra,
+    };
+  }
+
+  _writeHandshakeCapture(captureKind, payload, extra = {}) {
+    if (!this._shouldCaptureHandshake(captureKind)) {
+      return null;
+    }
+
+    const captureDir = path.join(__dirname, "../../..", "handshake-captures");
+    fs.mkdirSync(captureDir, { recursive: true });
+
+    const safeAddress = String(this.address || "unknown").replace(
+      /[^a-zA-Z0-9._-]/g,
+      "_",
+    );
+    const captureId = `${Date.now()}-${safeAddress}-${crypto
+      .randomBytes(4)
+      .toString("hex")}`;
+    const capturePath = path.join(captureDir, `${captureId}.json`);
+    const capture = this._buildHandshakeCapture(captureKind, payload, extra);
+
+    fs.writeFileSync(capturePath, JSON.stringify(capture, null, 2), "utf8");
+    return capturePath;
+  }
+
+  _captureDecodedHandshakePacket(captureKind, decoded, payload, extra = {}) {
+    if (!this._shouldCaptureHandshake(captureKind)) {
+      return null;
+    }
+
+    const loginData = Array.isArray(decoded) ? decoded[1] : null;
+    return this._writeHandshakeCapture(captureKind, payload, {
+      authTupleLength: Array.isArray(decoded) ? decoded.length : 0,
+      authKeys: this._listDictKeys(loginData, 32),
+      ...extra,
+    });
+  }
+
+  _dumpDecryptFailureCapture(payload, error) {
+    if (this.state !== State.WAIT_AUTH && this.state !== State.WAIT_FUNC_RESULT) {
+      return null;
+    }
+
+    try {
+      const capturePath = this._writeHandshakeCapture("decrypt_failure", payload, {
+        lastError: error ? error.message : "",
+      });
+      if (capturePath) {
+        log.warn(`[HANDSHAKE] Wrote decrypt failure capture: ${capturePath}`);
+      }
+      return capturePath;
+    } catch (captureError) {
+      log.warn(
+        `[HANDSHAKE] Failed to write decrypt failure capture: ${captureError.message}`,
+      );
+      return null;
+    }
   }
 
   // ─── Encryption/Decryption ───────────────────────────────────────────────
@@ -944,6 +1122,8 @@ EVEHandshake._testing = {
   buildTidiSignedFuncSource,
   buildPortraitSignedFuncSource,
   buildSkillExtractorAccessTokenSignedFuncSource,
+  buildClientSignedFuncTuple,
+  MARSHALED_NONE,
   buildGPSTransportClosedCPickle,
   reserveAccountID,
 };

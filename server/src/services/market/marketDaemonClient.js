@@ -327,7 +327,9 @@ class MarketDaemonClient {
     }
     this._lastConnectFailureLogAt = now;
     log.warn(
-      `[MarketDaemonClient] Unable to reach market daemon RPC at ${this.host}:${this.port}: ${error.message}`,
+      `[MarketDaemonClient] Optional market daemon not ready at ${this.host}:${this.port}: ` +
+        `${error.message}. Market UI/routes may retry or be limited until a daemon is ` +
+        "running; use QuickstartServer.sh --market-smoke or --market-jita to start one.",
     );
   }
 }

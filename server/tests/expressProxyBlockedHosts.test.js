@@ -53,9 +53,18 @@ test("express proxy blocked-host matcher honors exact and suffix patterns", () =
 test("express proxy denies unhandled hosts by policy while preserving explicit intercept and allow-list hosts", () => {
   const hooks = expressProxy.__testHooks;
 
+  assert.ok(hooks.localInterceptHosts.includes("live-public-gateway.evetech.net"));
+  assert.equal(
+    hooks.shouldDenyUnhandledProxyHost("live-public-gateway.evetech.net", {
+      interceptHosts: hooks.localInterceptHosts,
+      allowedHosts: [],
+      policy: "block",
+    }),
+    false,
+  );
   assert.equal(
     hooks.shouldDenyUnhandledProxyHost("www.google-analytics.com", {
-      interceptHosts: ["public-gateway.evetech.net"],
+      interceptHosts: hooks.localInterceptHosts,
       allowedHosts: [],
       policy: "block",
     }),
@@ -63,7 +72,7 @@ test("express proxy denies unhandled hosts by policy while preserving explicit i
   );
   assert.equal(
     hooks.shouldDenyUnhandledProxyHost("public-gateway.evetech.net", {
-      interceptHosts: ["public-gateway.evetech.net"],
+      interceptHosts: hooks.localInterceptHosts,
       allowedHosts: [],
       policy: "block",
     }),

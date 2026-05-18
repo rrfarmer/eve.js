@@ -9,10 +9,35 @@ const EVEHandshake = require(path.join(
   repoRoot,
   "server/src/network/tcp/handshake",
 ));
+const { marshalDecode, strVal } = require(path.join(
+  repoRoot,
+  "server/src/network/tcp/utils/marshal",
+));
 
 function cloneValue(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+function dictEntries(value) {
+  assert.equal(value && value.type, "dict");
+  return new Map(value.entries.map(([key, entryValue]) => [strVal(key), entryValue]));
+}
+
+test("stock client mode disables signedFunc injection", () => {
+  const [payload, verification] =
+    EVEHandshake._testing.buildClientSignedFuncTuple(12345, "stock");
+
+  assert.deepEqual(payload, EVEHandshake._testing.MARSHALED_NONE);
+  assert.equal(verification, false);
+});
+
+test("patched client mode keeps TiDi signedFunc injection", () => {
+  const [payload, verification] =
+    EVEHandshake._testing.buildClientSignedFuncTuple(12345, "patched");
+
+  assert.notDeepEqual(payload, EVEHandshake._testing.MARSHALED_NONE);
+  assert.equal(verification, false);
+});
 
 test("TiDi signedFunc snaps both into and out of TiDi", (t) => {
   const originalFlag = config.devHandshakeSeedSkillExtractorAccessToken;
@@ -64,6 +89,38 @@ test("TiDi signedFunc omits the skill extractor token patch when disabled", (t) 
     source,
     /_evejs_clientdogma\.DogmaLocation\.GetIndustryCharacterModifiers = _evejs_get_industry_character_modifiers/,
   );
+});
+
+test("CryptoHandshakeAck includes stock LoginSso token contract", () => {
+  const writes = [];
+  const handshake = new EVEHandshake({
+    remoteAddress: "127.0.0.1",
+    write: (packet) => writes.push(packet),
+  });
+
+  handshake.userId = 1;
+  handshake.userName = "EVE-SSO-CONNECTION";
+  handshake.clientId = 1000042;
+  handshake.role = 1;
+  handshake.languageId = "EN";
+  handshake.countryCode = "US";
+  handshake.accessToken = "local-sso-token";
+  handshake.computerHash = null;
+  handshake.sessionId = 123456789n;
+
+  const result = handshake._handleFuncResult(["", Buffer.alloc(0), null]);
+
+  assert.deepEqual(result, { done: true });
+  assert.equal(writes.length, 1);
+
+  const frame = writes[0];
+  const decoded = marshalDecode(frame.slice(4));
+  const entries = dictEntries(decoded);
+
+  assert.equal(strVal(entries.get("access_token")), "local-sso-token");
+  assert.equal(entries.get("computer_hash"), null);
+  assert.equal(entries.get("session_init").type, "dict");
+  assert.equal(entries.get("sessionID"), 123456789n);
 });
 
 test("auto-created accounts reserve the next free numeric account id above persisted references", (t) => {

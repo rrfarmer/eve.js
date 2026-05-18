@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+  EVEJS_MAC_CONFIG_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+else
+  EVEJS_MAC_CONFIG_DIR="$(pwd)"
+fi
+
+EVEJS_REPO_ROOT="$(cd -- "${EVEJS_MAC_CONFIG_DIR}/../../.." && pwd)"
+EVEJS_MAC_DEFAULT_RETAIL_ROOT="${HOME}/Library/Application Support/EVE Online"
+EVEJS_MAC_DEFAULT_SOURCE_ROOT="${HOME}/Library/Application Support/eve.js/macos/source-client"
+EVEJS_MAC_DEFAULT_STAGED_BASE="${HOME}/Library/Application Support/eve.js/macos/staged-client"
+EVEJS_MAC_DEFAULT_SESSION_FILE="${HOME}/Library/Application Support/eve.js/macos/launcher-session.args"
+: "${EVEJS_MAC_LOCAL_CONFIG_PATH:=${EVEJS_MAC_CONFIG_DIR}/EvEJSConfig.local.sh}"
+
+export EVEJS_REPO_ROOT
+export EVEJS_MAC_CONFIG_DIR
+export EVEJS_MAC_LOCAL_CONFIG_PATH
+
+: "${EVEJS_MAC_RETAIL_ROOT:=${EVEJS_MAC_DEFAULT_RETAIL_ROOT}}"
+: "${EVEJS_MAC_SOURCE_ROOT:=${EVEJS_MAC_DEFAULT_SOURCE_ROOT}}"
+: "${EVEJS_MAC_STAGED_BASE:=${EVEJS_MAC_DEFAULT_STAGED_BASE}}"
+: "${EVEJS_MAC_STAGED_ROOT:=${EVEJS_MAC_STAGED_BASE}/current}"
+: "${EVEJS_MAC_SESSION_FILE:=${EVEJS_MAC_DEFAULT_SESSION_FILE}}"
+: "${EVEJS_MAC_SETTINGS_PROFILE:=EvEJSLocal}"
+: "${EVEJS_SERVER_HOST:=127.0.0.1}"
+: "${EVEJS_PROXY_URL:=http://127.0.0.1:26002}"
+
+if [[ -f "$EVEJS_MAC_LOCAL_CONFIG_PATH" ]]; then
+  # shellcheck disable=SC1090
+  . "$EVEJS_MAC_LOCAL_CONFIG_PATH"
+fi
+
+export EVEJS_MAC_SOURCE_ROOT
+export EVEJS_MAC_RETAIL_ROOT
+export EVEJS_MAC_STAGED_BASE
+export EVEJS_MAC_STAGED_ROOT
+export EVEJS_MAC_SESSION_FILE
+export EVEJS_MAC_SETTINGS_PROFILE
+export EVEJS_SERVER_HOST
+export EVEJS_PROXY_URL
